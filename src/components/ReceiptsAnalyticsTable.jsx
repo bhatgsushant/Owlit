@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { HoverCard, HoverCardContent, HoverCardTrigger } from '@/components/ui/hover-card';
-import { format } from 'date-fns';
+import { formatDateSafe } from '@/lib/utils';
 import { ChevronUp, ChevronDown, List, Info, ChevronsLeft, ChevronsRight, BarChart2 } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
@@ -169,7 +169,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading }) {
                          </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{format(new Date(receipt.transaction_date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{formatDateSafe(receipt.transaction_date)}</TableCell>
                     <TableCell>
                        <Badge className={`${categoryColors[receipt.category]} border text-xs capitalize`}>
                         {receipt.category.replace('_', ' ')}
