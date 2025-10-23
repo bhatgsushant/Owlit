@@ -1,0 +1,14 @@
+export function createPageUrl(name) {
+  // map pages to URL paths used in the App routes
+  switch ((name || "").toLowerCase()) {
+    case "home": return "/home";
+    case "dashboard": return "/dashboard";
+    case "scanreceipt": return "/scan";
+    case "scan": return "/scan";
+    case "documents": return "/documents";
+    case "insights": return "/insights";
+    case "investment": return "/investment";
+    case "qna": return "/qna";
+    default: return "/";
+  }
+}

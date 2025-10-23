@@ -1,0 +1,61 @@
+[
+  {
+    "name": "Animals & Pet Supplies",
+    "subcategories": [
+      "Live Animals",
+      "Pet Supplies"
+    ]
+  },
+  {
+    "name": "Arts & Entertainment",
+    "subcategories": [
+      "Event Tickets",
+      "Hobbies & Creative Arts",
+      "Party & Celebration"
+    ]
+  },
+  {
+    "name": "Baby & Toddler",
+    "subcategories": [
+      "Baby Bathing",
+      "Baby Gift Sets",
+      "Baby Health",
+      "Baby Safety",
+      "Baby Toys & Activity Equipment",
+      "Baby Transport",
+      "Diapering",
+      "Nursing & Feeding",
+      "Potty Training",
+      "Swaddling & Receiving Blankets"
+    ]
+  },
+  {
+    "name": "Business & Industrial",
+    "subcategories": [
+        "Advertising & Marketing",
+        "Agriculture",
+        "Automation Control Components",
+        "Cleaning Carts & Containers",
+        "Construction",
+        "Dentistry",
+        "Film & Television",
+        "Finance & Insurance",
+        "Food Service",
+        "Forestry & Logging",
+        "Hairdressing & Cosmetology",
+        "Heavy Machinery",
+        "Hotel & Hospitality",
+        "Industrial Storage",
+        "Law Enforcement",
+        "Manufacturing",
+        "Material Handling",
+        "Medical",
+        "Mining & Quarrying",
+        "Piercing & Tattooing",
+        "Retail",
+        "Science & Laboratory",
+        "Signage",
+        "Work Safety Protective Equipment"
+    ]
+  }
+]
