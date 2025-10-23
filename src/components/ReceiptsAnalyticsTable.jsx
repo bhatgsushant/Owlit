@@ -117,7 +117,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading }) {
               <TableRow>
                 <SortableHeader sortKey="merchant_name">Store Name</SortableHeader>
                 <TableHead>Items</TableHead>
-                <SortableHeader sortKey="receipt_date">Date</SortableHeader>
+                <SortableHeader sortKey="transaction_date">Date</SortableHeader>
                 <SortableHeader sortKey="category">Category</SortableHeader>
                 <SortableHeader sortKey="total_amount">Total Cost</SortableHeader>
               </TableRow>
@@ -169,7 +169,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading }) {
                          </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{format(new Date(receipt.receipt_date || receipt.created_date), 'dd/MM/yyyy')}</TableCell>
+                    <TableCell>{format(new Date(receipt.transaction_date), 'dd/MM/yyyy')}</TableCell>
                     <TableCell>
                        <Badge className={`${categoryColors[receipt.category]} border text-xs capitalize`}>
                         {receipt.category.replace('_', ' ')}

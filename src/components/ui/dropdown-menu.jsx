@@ -1,10 +1,16 @@
+import React from 'react';
+import clsx from 'clsx';
+
 // src/components/ui/dropdown-menu.jsx
 export function DropdownMenu({ children }) {
   return <div className="dropdown-menu">{children}</div>;
 }
 
-export function DropdownMenuTrigger({ children }) {
-  return <button>{children}</button>;
+export function DropdownMenuTrigger({ children, asChild, className, ...props }) {
+  if (asChild) {
+    return React.cloneElement(children, { className: clsx(children.props.className, className), ...props });
+  }
+  return <button className={clsx(className)} {...props}>{children}</button>;
 }
 
 export function DropdownMenuContent({ children }) {

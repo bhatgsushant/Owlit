@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CameraView from '../components/CameraView';
@@ -6,6 +6,11 @@ import { SUB_CATEGORIES } from '../utils/categorize';
 import SearchableDropdown from '../components/ui/SearchableDropdown';
 
 function EditableReceipt({ data, setData, onSave }) {
+    useEffect(() => {
+        const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
+        setData(prev => ({ ...prev, total_amount: newTotal }));
+    }, [data.line_items]);
+
     const handleFieldChange = (field, value) => {
         setData(prev => ({ ...prev, [field]: value }));
     };
@@ -26,7 +31,7 @@ function EditableReceipt({ data, setData, onSave }) {
 
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Merchant</label>
                     <input type="text" value={data.merchant_name} onChange={(e) => handleFieldChange('merchant_name', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
@@ -34,6 +39,10 @@ function EditableReceipt({ data, setData, onSave }) {
                 <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
                     <input type="date" value={data.transaction_date} onChange={(e) => handleFieldChange('transaction_date', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total</label>
+                    <input type="text" value={`£${data.total_amount?.toFixed(2)}`} readOnly className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border-transparent focus:outline-none text-sm font-semibold" />
                 </div>
             </div>
 

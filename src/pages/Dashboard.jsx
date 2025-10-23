@@ -3,6 +3,30 @@ import StatsGrid from '../components/StatsGrid';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { Skeleton } from '@/components/ui/skeleton';
 
+// Helper function to determine the most frequent category from line items
+function getMostFrequentCategory(lineItems) {
+  if (!lineItems || lineItems.length === 0) {
+    return 'other';
+  }
+
+  const categoryCounts = lineItems.reduce((acc, item) => {
+    const category = item.main_category || 'other';
+    acc[category] = (acc[category] || 0) + 1;
+    return acc;
+  }, {});
+
+  if (Object.keys(categoryCounts).length === 0) {
+    return 'other';
+  }
+
+  const mostFrequentCategory = Object.keys(categoryCounts).reduce((a, b) =>
+    categoryCounts[a] > categoryCounts[b] ? a : b
+  );
+
+  return mostFrequentCategory;
+}
+
+
 export default function Dashboard() {
   const [receipts, setReceipts] = useState([]);
   const [stats, setStats] = useState({
@@ -19,7 +43,13 @@ export default function Dashboard() {
     const timer = setTimeout(() => {
       try {
         const storedReceipts = JSON.parse(localStorage.getItem('receipts') || '[]');
-        setReceipts(storedReceipts);
+        
+        const receiptsWithCategory = storedReceipts.map(receipt => ({
+          ...receipt,
+          category: getMostFrequentCategory(receipt.line_items),
+        }));
+
+        setReceipts(receiptsWithCategory);
 
         const now = new Date();
         const currentMonth = now.getMonth();
@@ -29,7 +59,7 @@ export default function Dashboard() {
         let thisMonthSpent = 0;
         let thisMonthCount = 0;
 
-        storedReceipts.forEach(receipt => {
+        receiptsWithCategory.forEach(receipt => {
           totalSpent += receipt.total_amount || 0;
           const receiptDate = new Date(receipt.transaction_date);
           if (receiptDate.getMonth() === currentMonth && receiptDate.getFullYear() === currentYear) {
@@ -39,7 +69,7 @@ export default function Dashboard() {
         });
 
         setStats({
-          totalReceipts: storedReceipts.length,
+          totalReceipts: receiptsWithCategory.length,
           totalSpent,
           thisMonthSpent,
           thisMonthCount,
