@@ -114,7 +114,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading }) {
         <div className="rounded-md border">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="text-sm font-bold text-[#3B82F6]">
                 <SortableHeader sortKey="merchant_name">Store Name</SortableHeader>
                 <TableHead>Items</TableHead>
                 <SortableHeader sortKey="transaction_date">Date</SortableHeader>
@@ -125,7 +125,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading }) {
             <TableBody>
               {paginatedReceipts.length > 0 ? (
                 paginatedReceipts.map((receipt) => (
-                  <TableRow key={receipt.id}>
+                  <TableRow key={receipt.id} className="text-xs font-semibold text-vibrant-blue">
                     <TableCell className="font-medium">{receipt.merchant_name}</TableCell>
                     <TableCell>
                       {receipt.items && receipt.items.length > 0 ? (
