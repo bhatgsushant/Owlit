@@ -9,9 +9,9 @@ const app = express();
 const port = process.env.PORT || 3001;
 
 // The user's project and processor details
-const projectId = process.env.PROJECT_ID || '49889892103';
-const location = process.env.LOCATION || 'us';
-const processorId = process.env.PROCESSOR_ID || 'f263a529ecfd3487';
+const projectId = process.env.PROJECT_ID;
+const location = process.env.LOCATION;
+const processorId = process.env.PROCESSOR_ID;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 
@@ -19,51 +19,6 @@ const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 const client = new DocumentProcessorServiceClient();
 
 app.use(cors());
-
-// Check authentication on startup
-async function checkAuthentication() {
-  try {
-    console.log('Checking Google Cloud authentication...');
-    console.log('Project ID:', projectId);
-    console.log('Location:', location);
-    console.log('Processor ID:', processorId);
-    
-    // Check for Application Default Credentials
-    if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
-      console.log('✅ Using service account key:', process.env.GOOGLE_APPLICATION_CREDENTIALS);
-    } else {
-      console.log('✅ Using Application Default Credentials (ADC)');
-      console.log('   This is the recommended approach for local development');
-    }
-    
-    // Test the client by making a simple request
-    const parent = `projects/${projectId}/locations/${location}`;
-    console.log('Testing authentication with parent:', parent);
-    
-    // Try to list processors to test authentication
-    try {
-      const [processors] = await client.listProcessors({ parent });
-      console.log('✅ Authentication successful! Found', processors.length, 'processors');
-    } catch (authError) {
-      if (authError.code === 7) {
-        console.error('❌ Authentication failed. Please run:');
-        console.error('   gcloud auth application-default login');
-        console.error('   gcloud auth application-default set-quota-project', projectId);
-      } else {
-        console.error('❌ Authentication test failed:', authError.message);
-      }
-    }
-    
-  } catch (error) {
-    console.error('❌ Authentication check failed:', error.message);
-    console.error('Please ensure you have:');
-    console.error('1. Run: gcloud auth application-default login');
-    console.error('2. Run: gcloud auth application-default set-quota-project', projectId);
-    console.error('3. Document AI API enabled in your project');
-  }
-}
-
-checkAuthentication();
 
 const upload = multer({ storage: multer.memoryStorage() });
 
