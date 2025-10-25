@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
 import SearchableDropdown from '../components/ui/SearchableDropdown';
+import MerchantLogo from '../components/ui/MerchantLogo';
 
 function EditableReceipt({ data, setData, onSave }) {
     useEffect(() => {
@@ -34,11 +35,14 @@ function EditableReceipt({ data, setData, onSave }) {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Merchant</label>
-                    <input type="text" value={data.merchant_name} onChange={(e) => handleFieldChange('merchant_name', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                    <div className="flex items-center gap-2">
+                        <MerchantLogo merchantName={data.merchant_name} />
+                        <input type="text" value={data.merchant_name} onChange={(e) => handleFieldChange('merchant_name', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                    </div>
                 </div>
                 <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
-                    <input type="date" value={data.transaction_date} onChange={(e) => handleFieldChange('transaction_date', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                    <input type="date" value={data.transaction_date} onChange={(e) => handleFieldChange('transaction_date', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-ray-700 border border-transparent focus:border-green-500 text-sm" />
                 </div>
                 <div className="space-y-1">
                     <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total</label>

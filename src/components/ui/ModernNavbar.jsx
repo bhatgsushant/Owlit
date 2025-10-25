@@ -55,9 +55,9 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   return (
     <nav ref={navRef} className="fixed top-0 left-0 right-0 z-50">
       {/* Top bar */}
-      <div className="flex items-center justify-between h-20 px-6 bg-gray-900 text-white">
+      <div className="flex items-center justify-between h-20 px-6 backdrop-blur-xl bg-white/70 dark:bg-black/70 border-b border-gray-200/50 dark:border-white/10">
         {/* Logo */}
-        <Link to={createPageUrl('Home')} className="flex items-center gap-2">
+        <Link to={createPageUrl('Home')} className="flex items-center gap-2 theme-text-primary">
           <Logo />
           <span className="text-xl font-bold">ReceiptWise</span>
         </Link>
@@ -69,15 +69,15 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
               key={item.name}
               to={item.href}
               onClick={() => setIsOpen(false)}
-              className={`relative text-sm font-medium transition-colors hover:text-gray-300 ${
-                location.pathname === item.href ? 'text-white' : 'text-gray-400'
+              className={`relative text-sm font-medium transition-colors hover:theme-text-primary ${
+                location.pathname === item.href ? 'theme-text-primary' : 'theme-text-secondary'
               }`}
             >
               {item.name}
               {location.pathname === item.href && (
                 <motion.div
                   layoutId="underline"
-                  className="absolute -bottom-1 left-0 w-full h-0.5 bg-white"
+                  className="absolute -bottom-1 left-0 w-full h-0.5 bg-current"
                 />
               )}
             </Link>
@@ -86,10 +86,10 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
 
         {/* Action Buttons & Theme Toggle (hidden on mobile) */}
         <div className="hidden md:flex items-center gap-4">
-          <button onClick={toggleTheme} className="text-gray-400 hover:text-white">
+          <button onClick={toggleTheme} className="theme-text-secondary hover:theme-text-primary">
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <Link to="/login" className="text-sm font-medium text-gray-400 hover:text-white">
+          <Link to="/login" className="text-sm font-medium theme-text-secondary hover:theme-text-primary">
             Login
           </Link>
           <Link
@@ -102,7 +102,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
 
         {/* Mobile Menu Toggle */}
         <div className="md:hidden">
-          <button onClick={() => setIsOpen(!isOpen)} className="text-white">
+          <button onClick={() => setIsOpen(!isOpen)} className="theme-text-primary">
             {isOpen ? <X size={24} /> : <MenuIcon size={24} />}
           </button>
         </div>

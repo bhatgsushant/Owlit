@@ -5,30 +5,6 @@ import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { Skeleton } from '@/components/ui/skeleton';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 
-// Helper function to determine the most frequent category from line items
-function getMostFrequentCategory(lineItems) {
-  if (!lineItems || lineItems.length === 0) {
-    return 'other';
-  }
-
-  const categoryCounts = lineItems.reduce((acc, item) => {
-    const category = item.main_category || 'other';
-    acc[category] = (acc[category] || 0) + 1;
-    return acc;
-  }, {});
-
-  if (Object.keys(categoryCounts).length === 0) {
-    return 'other';
-  }
-
-  const mostFrequentCategory = Object.keys(categoryCounts).reduce((a, b) =>
-    categoryCounts[a] > categoryCounts[b] ? a : b
-  );
-
-  return mostFrequentCategory;
-}
-
-
 export default function Dashboard() {
   const [receipts, setReceipts] = useState([]);
   const [stats, setStats] = useState({
@@ -59,43 +35,40 @@ export default function Dashboard() {
 
   const springBg = useSpring(backgroundColor, { stiffness: 100, damping: 30 });
 
+  const updateState = (updatedReceipts) => {
+    setReceipts(updatedReceipts);
+
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+
+    let totalSpent = 0;
+    let thisMonthSpent = 0;
+    let thisMonthCount = 0;
+
+    updatedReceipts.forEach(receipt => {
+      totalSpent += receipt.total_amount || 0;
+      const receiptDate = new Date(receipt.transaction_date);
+      if (receiptDate.getMonth() === currentMonth && receiptDate.getFullYear() === currentYear) {
+        thisMonthSpent += receipt.total_amount || 0;
+        thisMonthCount++;
+      }
+    });
+
+    setStats({
+      totalReceipts: updatedReceipts.length,
+      totalSpent,
+      thisMonthSpent,
+      thisMonthCount,
+    });
+  }
+
   useEffect(() => {
     setIsLoading(true);
-    // Simulate loading delay for demo purposes
     const timer = setTimeout(() => {
       try {
         const storedReceipts = JSON.parse(localStorage.getItem('receipts') || '[]');
-        
-        const receiptsWithCategory = storedReceipts.map(receipt => ({
-          ...receipt,
-          category: getMostFrequentCategory(receipt.line_items),
-        }));
-
-        setReceipts(receiptsWithCategory);
-
-        const now = new Date();
-        const currentMonth = now.getMonth();
-        const currentYear = now.getFullYear();
-
-        let totalSpent = 0;
-        let thisMonthSpent = 0;
-        let thisMonthCount = 0;
-
-        receiptsWithCategory.forEach(receipt => {
-          totalSpent += receipt.total_amount || 0;
-          const receiptDate = new Date(receipt.transaction_date);
-          if (receiptDate.getMonth() === currentMonth && receiptDate.getFullYear() === currentYear) {
-            thisMonthSpent += receipt.total_amount || 0;
-            thisMonthCount++;
-          }
-        });
-
-        setStats({
-          totalReceipts: receiptsWithCategory.length,
-          totalSpent,
-          thisMonthSpent,
-          thisMonthCount,
-        });
+        updateState(storedReceipts);
       } catch (error) {
         console.error("Failed to parse receipts from localStorage", error);
       } finally {
@@ -105,6 +78,12 @@ export default function Dashboard() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  const handleDeleteReceipt = (receiptId) => {
+    const updatedReceipts = receipts.filter(receipt => receipt.id !== receiptId);
+    localStorage.setItem('receipts', JSON.stringify(updatedReceipts));
+    updateState(updatedReceipts);
+  };
 
   return (
     <motion.div 
@@ -121,7 +100,7 @@ export default function Dashboard() {
       </AnimatedSection>
 
       <AnimatedSection delay={0.2}>
-        <ReceiptsAnalyticsTable receipts={receipts} isLoading={isLoading} />
+        <ReceiptsAnalyticsTable receipts={receipts} isLoading={isLoading} onDelete={handleDeleteReceipt} />
       </AnimatedSection>
     </motion.div>
   );

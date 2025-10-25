@@ -222,6 +222,8 @@ app.post('/api/scan', upload.single('receipt'), async (req, res) => {
   }
 });
 
+
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({

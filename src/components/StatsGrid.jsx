@@ -37,12 +37,7 @@ const AnimatedCurrencyCounter = ({ value, duration = 1.5 }) => {
   const [formatter, setFormatter] = useState(new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }));
 
   useEffect(() => {
-    const userLocale = navigator.language || 'en-GB';
-    let currency = 'GBP';
-    if (userLocale.includes('US')) currency = 'USD';
-    if (userLocale.includes('IN')) currency = 'INR';
-
-    setFormatter(new Intl.NumberFormat(userLocale, { style: 'currency', currency: currency }));
+    setFormatter(new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }));
   }, []);
 
   useEffect(() => {
