@@ -1,12 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft } from 'lucide-react';
+import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft, Mic, Edit, RefreshCw, PlusCircle, MinusCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
 import SearchableDropdown from '../components/ui/SearchableDropdown';
 import MerchantLogo from '../components/ui/MerchantLogo';
+import VoiceInput from '../components/ui/VoiceInput';
+import StoreType from '../components/ui/StoreType';
 
-function EditableReceipt({ data, setData, onSave }) {
+function EditableReceipt({ data, setData, onSave, onReprocess, isReprocessing }) {
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
         setData(prev => ({ ...prev, total_amount: newTotal }));
@@ -28,6 +30,20 @@ function EditableReceipt({ data, setData, onSave }) {
         });
     };
 
+    const addLineItem = () => {
+        setData(prev => ({
+            ...prev,
+            line_items: [...(prev.line_items || []), { item: '', price: 0, quantity: 1, main_category: 'other', sub_category: 'miscellaneous' }]
+        }));
+    };
+
+    const removeLineItem = (index) => {
+        setData(prev => ({
+            ...prev,
+            line_items: prev.line_items.filter((_, i) => i !== index)
+        }));
+    };
+
     const mainCategoryOptions = Object.keys(SUB_CATEGORIES);
 
     return (
@@ -45,17 +61,25 @@ function EditableReceipt({ data, setData, onSave }) {
                     <input type="date" value={data.transaction_date} onChange={(e) => handleFieldChange('transaction_date', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-ray-700 border border-transparent focus:border-green-500 text-sm" />
                 </div>
                 <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total</label>
+                    <div className="flex justify-between items-center">
+                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total</label>
+                        <StoreType merchantName={data.merchant_name} />
+                    </div>
                     <input type="text" value={`£${data.total_amount?.toFixed(2)}`} readOnly className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border-transparent focus:outline-none text-sm font-semibold" />
                 </div>
             </div>
 
             <div>
-                <h4 className="font-semibold mb-2 text-gray-700 dark:text-gray-300">Line Items</h4>
-                <div className="hidden md:grid grid-cols-5 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
-                    <div>Item Name</div>
+                <div className="flex justify-between items-center mb-2">
+                    <h4 className="font-semibold text-gray-700 dark:text-gray-300">Line Items</h4>
+                    <button onClick={addLineItem} className="text-green-500 hover:text-green-600">
+                        <PlusCircle size={22} />
+                    </button>
+                </div>
+                <div className="hidden md:grid grid-cols-6 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
+                    <div className="col-span-2">Item Name</div>
                     <div>Price</div>
-                    <div>Quantity</div>
+                    <div>Qty</div>
                     <div>Category</div>
                     <div>Subcategory</div>
                 </div>
@@ -63,21 +87,29 @@ function EditableReceipt({ data, setData, onSave }) {
                     {(data.line_items || []).map((item, index) => {
                         const subCategoryOptions = SUB_CATEGORIES[item.main_category] || [];
                         return (
-                            <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-5 gap-3">
-                                <input type="text" placeholder="Item Name" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
+                            <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
+                                <input type="text" placeholder="Item Name" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm col-span-2" />
                                 <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', parseFloat(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
                                 <input type="number" placeholder="Quantity" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
                                 <SearchableDropdown options={mainCategoryOptions} value={item.main_category} onChange={(value) => handleLineItemChange(index, 'main_category', value)} placeholder="Select Category" />
                                 <SearchableDropdown options={subCategoryOptions} value={item.sub_category} onChange={(value) => handleLineItemChange(index, 'sub_category', value)} placeholder="Select Subcategory" />
+                                <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center">
+                                    <MinusCircle size={20} />
+                                </button>
                             </div>
                         )
                     })}
                 </div>
             </div>
-            <button onClick={onSave} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center">
-                <Save size={20} className="mr-2"/>
-                Save Receipt
-            </button>
+            <div className="flex gap-4 mt-6">
+                <button onClick={onSave} className="w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center">
+                    <Save size={20} className="mr-2"/>
+                    Save Receipt
+                </button>
+                <button onClick={onReprocess} disabled={isReprocessing} className="w-full bg-purple-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center">
+                    {isReprocessing ? <><Loader size={20} className="animate-spin mr-2"/> Re-processing...</> : <><RefreshCw size={20} className="mr-2"/> Re-process</>}
+                </button>
+            </div>
         </div>
     );
 }
@@ -87,14 +119,37 @@ export default function ScanReceipt() {
   const [file, setFile] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isReprocessing, setIsReprocessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
+  const [mode, setMode] = useState('upload'); // upload, manual, voice
   const fileInputRef = useRef(null);
+
+  const handleManualEntry = () => {
+    setMode('manual');
+    setExtractedData({
+        merchant_name: '',
+        transaction_date: new Date().toISOString().split('T')[0],
+        line_items: [{ item: '', price: 0, quantity: 1, main_category: 'other', sub_category: 'miscellaneous' }],
+        total_amount: 0,
+    });
+  }
+
+  const handleVoiceEntry = () => {
+      setMode('voice');
+      setExtractedData(null);
+  }
+
+  const handleVoiceComplete = (data) => {
+      setExtractedData(data);
+      setMode('manual'); // Switch to manual mode for editing
+  }
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
       setFile(selectedFile);
       setExtractedData(null);
+      setMode('upload');
     }
   };
 
@@ -108,6 +163,7 @@ export default function ScanReceipt() {
     if (droppedFile) {
       setFile(droppedFile);
       setExtractedData(null);
+      setMode('upload');
     }
   };
 
@@ -117,12 +173,14 @@ export default function ScanReceipt() {
 
   const handleTakePhoto = () => {
     setIsCameraOpen(true);
+    setMode('camera');
   };
 
   const handleCapture = (capturedFile) => {
     setFile(capturedFile);
     setExtractedData(null);
     setIsCameraOpen(false);
+    setMode('upload');
   };
 
   const handleCloseCamera = () => {
@@ -133,7 +191,6 @@ export default function ScanReceipt() {
     if (!file) return;
     setIsProcessing(true);
 
-    // Send file to backend for OCR (LLMWhisperer) + Gemini processing
     const formData = new FormData();
     formData.append('receipt', file);
 
@@ -144,13 +201,10 @@ export default function ScanReceipt() {
       });
 
       if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        const errorMessage = err.details ? `${err.error} - ${err.details}` : err.error;
-        throw new Error(errorMessage || 'Server failed to process image');
+        throw new Error('The server returned an error.');
       }
 
       const data = await resp.json();
-      // Store in state and localStorage
       setExtractedData(data);
     } catch (error) {
       console.error(error);
@@ -160,9 +214,38 @@ export default function ScanReceipt() {
     }
   };
 
+  const handleReprocess = async () => {
+    if (!file) return;
+    setIsReprocessing(true);
+
+    const formData = new FormData();
+    formData.append('receipt', file);
+    formData.append('reprocess', 'true');
+
+    try {
+      const resp = await fetch('/api/scan', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!resp.ok) {
+        throw new Error('The server returned an error.');
+      }
+
+      const data = await resp.json();
+      setExtractedData(data);
+    } catch (error) {
+      console.error(error);
+      alert(`Failed to re-process image: ${error.message}`);
+    } finally {
+      setIsReprocessing(false);
+    }
+  };
+
   const handleReset = () => {
     setFile(null);
     setExtractedData(null);
+    setMode('upload');
   }
 
   const handleSave = () => {
@@ -238,7 +321,13 @@ export default function ScanReceipt() {
                         <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
                         <h1 className="text-3xl md:text-4xl font-bold text-white">Review & Edit</h1>
                     </div>
-                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} />
+                    <EditableReceipt 
+                        data={extractedData} 
+                        setData={setExtractedData} 
+                        onSave={handleSave} 
+                        onReprocess={handleReprocess}
+                        isReprocessing={isReprocessing}
+                    />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">
                         Scan Another Receipt
                     </button>
@@ -246,74 +335,92 @@ export default function ScanReceipt() {
             </div>
         ) : (
             <div className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full">
-                <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl">
-                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Scan Your Receipt</h1>
-                    <p className="text-md text-gray-200 mb-8">
-                        Upload a document or image of your receipt to get started.
-                    </p>
+                {mode === 'voice' ? (
+                    <VoiceInput onComplete={handleVoiceComplete} />
+                ) : (
+                    <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl">
+                        <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Scan Your Receipt</h1>
+                        <p className="text-md text-gray-200 mb-8">
+                            Upload a document or image of your receipt to get started.
+                        </p>
 
-                    {file ? (
-                        <div className="bg-white/20 p-6 rounded-2xl w-full text-left">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-lg font-semibold text-white">Uploaded File</h3>
-                            <button onClick={() => setFile(null)} className="text-gray-300 hover:text-white">
-                                <X size={20} />
-                            </button>
-                        </div>
-                        <div className="flex items-center p-4 bg-black/20 rounded-lg">
-                            <FileText size={24} className="text-green-400 mr-4" />
-                            <div>
-                            <p className="font-medium text-white">{file.name}</p>
-                            <p className="text-sm text-gray-300">{(file.size / 1024).toFixed(2)} KB</p>
+                        {file ? (
+                            <div className="bg-white/20 p-6 rounded-2xl w-full text-left">
+                            <div className="flex justify-between items-center mb-4">
+                                <h3 className="text-lg font-semibold text-white">Uploaded File</h3>
+                                <button onClick={() => setFile(null)} className="text-gray-300 hover:text-white">
+                                    <X size={20} />
+                                </button>
                             </div>
-                        </div>
-                        <button onClick={handleProcessReceipt} disabled={isProcessing} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
-                            {isProcessing ? <><Loader size={20} className="animate-spin mr-2"/> Processing...</> : 'Process Receipt'}
-                        </button>
-                        </div>
-                    ) : (
-                        <div 
-                        className="border-2 border-dashed border-gray-300/50 rounded-2xl p-10 md:p-16 text-center cursor-pointer transition-colors hover:border-green-400 bg-white/10 pulsing-border"
-                        onDragOver={handleDragOver}
-                        onDrop={handleDrop}
-                        onClick={openFileDialog}
-                        >
-                        <div className="flex flex-col items-center">
-                            <Upload size={48} className="text-gray-300 mb-4" />
-                            <p className="text-lg font-semibold text-white mb-2">
-                            Drag & Drop your file here
-                            </p>
-                            <p className="text-sm text-gray-400 mb-6">or click to browse</p>
-                            <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            className="hidden"
-                            accept="image/*,application/pdf"
-                            />
-                        </div>
-                        </div>
-                    )}
+                            <div className="flex items-center p-4 bg-black/20 rounded-lg">
+                                <FileText size={24} className="text-green-400 mr-4" />
+                                <div>
+                                <p className="font-medium text-white">{file.name}</p>
+                                <p className="text-sm text-gray-300">{(file.size / 1024).toFixed(2)} KB</p>
+                                </div>
+                            </div>
+                            <button onClick={handleProcessReceipt} disabled={isProcessing} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
+                                {isProcessing ? <><Loader size={20} className="animate-spin mr-2"/> Processing...</> : 'Process Receipt'}
+                            </button>
+                            </div>
+                        ) : (
+                            <div 
+                            className="border-2 border-dashed border-gray-300/50 rounded-2xl p-10 md:p-16 text-center cursor-pointer transition-colors hover:border-green-400 bg-white/10 pulsing-border"
+                            onDragOver={handleDragOver}
+                            onDrop={handleDrop}
+                            onClick={openFileDialog}
+                            >
+                            <div className="flex flex-col items-center">
+                                <Upload size={48} className="text-gray-300 mb-4" />
+                                <p className="text-lg font-semibold text-white mb-2">
+                                Drag & Drop your file here
+                                </p>
+                                <p className="text-sm text-gray-400 mb-6">or click to browse</p>
+                                <input
+                                type="file"
+                                ref={fileInputRef}
+                                onChange={handleFileChange}
+                                className="hidden"
+                                accept="image/*,application/pdf"
+                                />
+                            </div>
+                            </div>
+                        )}
 
-                    {!file && (
-                        <div className="mt-6 flex flex-col sm:flex-row gap-4 justify-center">
-                            <button 
-                                onClick={openFileDialog}
-                                className="w-full sm:w-auto bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
-                            >
-                                <Upload size={20} className="mr-2"/>
-                                Upload Document
-                            </button>
-                            <button 
-                                onClick={handleTakePhoto}
-                                className="w-full sm:w-auto bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
-                            >
-                                <Camera size={20} className="mr-2"/>
-                                Take a Photo
-                            </button>
-                        </div>
-                    )}
-                </div>
+                        {!file && (
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 justify-center">
+                                <button 
+                                    onClick={openFileDialog}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Upload size={20} className="mr-2"/>
+                                    Upload
+                                </button>
+                                <button 
+                                    onClick={handleTakePhoto}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Camera size={20} className="mr-2"/>
+                                    Camera
+                                </button>
+                                <button 
+                                    onClick={handleManualEntry}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Edit size={20} className="mr-2"/>
+                                    Manual Entry
+                                </button>
+                                <button 
+                                    onClick={handleVoiceEntry}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Mic size={20} className="mr-2"/>
+                                    Voice Mode
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         )}
       </div>

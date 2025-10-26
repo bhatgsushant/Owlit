@@ -10,8 +10,13 @@ export const STORE_DATA = {
   'iceland': { domain: 'iceland.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'marksandspencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'm&s': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'Marks & Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+   'Marks and Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'cooperative': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'costco': { domain: 'costco.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'woolworths': { domain: 'woolworths.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'costcutter': { domain: 'costcutter.co.uk', StoreName_category: 'Groceries - Supermarket' },
-  'coop': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'co-op': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'spar': { domain: 'spar.co.uk', StoreName_category: 'Groceries - Supermarket' },
 
   // 🍔 Food & Restaurants
@@ -35,6 +40,11 @@ export const STORE_DATA = {
   'next': { domain: 'next.co.uk', StoreName_category: 'Fashion & Clothing' },
   'zara': { domain: 'zara.com', StoreName_category: 'Fashion & Clothing' },
   'hm': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'h&m': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'H&M Hennes & Mauritz UK': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'topshop': { domain: 'topshop.com', StoreName_category: 'Fashion & Clothing' },
+  'gap': { domain: 'gap.co.uk', StoreName_category: 'Fashion & Clothing' },
+  'river island': { domain: 'riverisland.com', StoreName_category: 'Fashion & Clothing' },  
   'riverisland': { domain: 'riverisland.com', StoreName_category: 'Fashion & Clothing' },
   'newlook': { domain: 'newlook.com', StoreName_category: 'Fashion & Clothing' },
   'uniqlo': { domain: 'uniqlo.com', StoreName_category: 'Fashion & Clothing' },
@@ -163,7 +173,7 @@ export function getStoreInfo(merchantName) {
   const normalized = merchantName.toLowerCase().trim();
   
   for (const key in STORE_DATA) {
-    if (normalized.includes(key)) {
+    if (normalized.includes(key.toLowerCase())) {
       return STORE_DATA[key];
     }
   }
