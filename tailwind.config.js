@@ -6,8 +6,10 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}", // <-- include all JS/JSX/TS/TSX files in src
   ],
   theme: {
-  	extend: {
-  		borderRadius: {
+  	    extend: {
+  	      fontFamily: {
+  	        'fk-grotesk': ['FK Grotesk Neue Trial Light', 'sans-serif'],
+  	      },  		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'

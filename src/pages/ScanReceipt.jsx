@@ -76,19 +76,20 @@ function EditableReceipt({ data, setData, onSave, onReprocess, isReprocessing })
                         <PlusCircle size={22} />
                     </button>
                 </div>
-                <div className="hidden md:grid grid-cols-6 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
+                <div className="hidden md:grid grid-cols-7 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
                     <div className="col-span-2">Item Name</div>
                     <div>Price</div>
                     <div>Qty</div>
                     <div>Category</div>
                     <div>Subcategory</div>
+                    <div></div>
                 </div>
                 <div className="space-y-4">
                     {(data.line_items || []).map((item, index) => {
                         const subCategoryOptions = SUB_CATEGORIES[item.main_category] || [];
                         return (
-                            <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-6 gap-3 items-center">
-                                <input type="text" placeholder="Item Name" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm col-span-2" />
+                            <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+                                <input type="text" placeholder="Item Name" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
                                 <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', parseFloat(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
                                 <input type="number" placeholder="Quantity" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
                                 <SearchableDropdown options={mainCategoryOptions} value={item.main_category} onChange={(value) => handleLineItemChange(index, 'main_category', value)} placeholder="Select Category" />
