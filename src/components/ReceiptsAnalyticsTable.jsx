@@ -59,7 +59,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
     const icon = isSorted ? (sortConfig.direction === 'ascending' ? <ChevronUp className="w-3 h-3 ml-1 text-gray-500" /> : <ChevronDown className="w-3 h-3 ml-1 text-gray-500" />) : <div className="w-4 h-4" />;
     return (
       <TableHead onClick={() => requestSort(sortKey)} className={`cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-800/50 transition-colors ${className}`}>
-        <div className="flex items-center gap-1 text-sm font-semibold text-gray-500 uppercase tracking-wider">
+        <div className="flex items-center justify-center gap-1 text-sm font-semibold text-gray-500 uppercase tracking-wider">
           {children}
           {icon}
         </div>
@@ -82,14 +82,14 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
       </CardHeader>
       <CardContent className="p-0">
         <div className="overflow-x-auto">
-          <Table className="w-full border-collapse border border-gray-200/50 dark:border-gray-700/50">
+          <Table className="w-full">
             <TableHeader>
               <TableRow className="border-b-gray-200/50 dark:border-b-gray-700/50">
-                <SortableHeader sortKey="merchant_name" className="pl-4 md:pl-6 border-r border-gray-200/50 dark:border-gray-700/50">Store</SortableHeader>
-                <SortableHeader sortKey="transaction_date" className="border-r border-gray-200/50 dark:border-gray-700/50">Date</SortableHeader>
-                <SortableHeader sortKey="category" className="text-center border-r border-gray-200/50 dark:border-gray-700/50">Type</SortableHeader>
-                <SortableHeader sortKey="total_amount" className="text-right pr-4 md:pr-6">Total</SortableHeader>
-                <TableHead className="pr-4 md:pr-6"> </TableHead>
+                <SortableHeader sortKey="merchant_name" className="w-[40%] pl-4 md:pl-6">Store</SortableHeader>
+                <SortableHeader sortKey="transaction_date" className="w-[20%] text-center">Date</SortableHeader>
+                <SortableHeader sortKey="category" className="w-[20%] text-center">Type</SortableHeader>
+                <SortableHeader sortKey="total_amount" className="w-[15%] text-right pr-4 md:pr-6">Total</SortableHeader>
+                <TableHead className="w-[5%]"> </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -104,7 +104,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
               ) : paginatedReceipts.length > 0 ? (
                 paginatedReceipts.map((receipt) => (
                   <TableRow key={receipt.id} className="group border-b border-gray-200/50 dark:border-gray-800/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/40 transition-colors">
-                    <TableCell className="pl-4 md:pl-6 py-3 border-r border-gray-200/50 dark:border-gray-700/50">
+                    <TableCell className="pl-4 md:pl-6 py-3">
                       <div className="flex items-center gap-3">
                         <MerchantLogo merchantName={receipt.merchant_name} />
                         <div className="flex flex-col">
@@ -115,8 +115,8 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
                         </div>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-gray-600 dark:text-gray-400 border-r border-gray-200/50 dark:border-gray-700/50">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
-                    <TableCell className="border-r border-gray-200/50 dark:border-gray-700/50">
+                    <TableCell className="text-sm text-center text-gray-600 dark:text-gray-400">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
+                    <TableCell>
                       <div className="flex items-center justify-center">
                         <StoreType merchantName={receipt.merchant_name} />
                       </div>

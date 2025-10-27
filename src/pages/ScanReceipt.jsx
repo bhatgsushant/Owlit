@@ -8,7 +8,7 @@ import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
 import StoreType from '../components/ui/StoreType';
 
-function EditableReceipt({ data, setData, onSave, onReprocess, isReprocessing }) {
+function EditableReceipt({ data, setData, onSave }) {
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
         setData(prev => ({ ...prev, total_amount: newTotal }));
@@ -107,9 +107,6 @@ function EditableReceipt({ data, setData, onSave, onReprocess, isReprocessing })
                     <Save size={20} className="mr-2"/>
                     Save Receipt
                 </button>
-                <button onClick={onReprocess} disabled={isReprocessing} className="w-full bg-purple-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-purple-600 transition-colors flex items-center justify-center">
-                    {isReprocessing ? <><Loader size={20} className="animate-spin mr-2"/> Re-processing...</> : <><RefreshCw size={20} className="mr-2"/> Re-process</>}
-                </button>
             </div>
         </div>
     );
@@ -120,7 +117,6 @@ export default function ScanReceipt() {
   const [file, setFile] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isReprocessing, setIsReprocessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [mode, setMode] = useState('upload'); // upload, manual, voice
   const fileInputRef = useRef(null);
@@ -194,6 +190,7 @@ export default function ScanReceipt() {
 
     const formData = new FormData();
     formData.append('receipt', file);
+    formData.append('reprocess', 'true');
 
     try {
       const resp = await fetch('/api/scan', {
@@ -212,34 +209,6 @@ export default function ScanReceipt() {
       alert(`Failed to process image: ${error.message}`);
     } finally {
       setIsProcessing(false);
-    }
-  };
-
-  const handleReprocess = async () => {
-    if (!file) return;
-    setIsReprocessing(true);
-
-    const formData = new FormData();
-    formData.append('receipt', file);
-    formData.append('reprocess', 'true');
-
-    try {
-      const resp = await fetch('/api/scan', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (!resp.ok) {
-        throw new Error('The server returned an error.');
-      }
-
-      const data = await resp.json();
-      setExtractedData(data);
-    } catch (error) {
-      console.error(error);
-      alert(`Failed to re-process image: ${error.message}`);
-    } finally {
-      setIsReprocessing(false);
     }
   };
 
@@ -326,8 +295,6 @@ export default function ScanReceipt() {
                         data={extractedData} 
                         setData={setExtractedData} 
                         onSave={handleSave} 
-                        onReprocess={handleReprocess}
-                        isReprocessing={isReprocessing}
                     />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">
                         Scan Another Receipt

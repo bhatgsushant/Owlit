@@ -91,6 +91,8 @@ export const STORE_DATA = {
   'zalando': { domain: 'zalando.co.uk', StoreName_category: 'Online Fashion' },
   'made': { domain: 'made.com', StoreName_category: 'Online Retail' },
   'wayfair': { domain: 'wayfair.co.uk', StoreName_category: 'Home & DIY' },
+  'the works': { domain: 'theworks.co.uk', StoreName_category: 'Home & DIY' },
+  
 
   // 🚗 Fuel & Transport
   'shell': { domain: 'shell.co.uk', StoreName_category: 'Fuel & Transport' },
