@@ -1,0 +1,42 @@
+{
+  "XL Paper Text Carrier": {
+    "main_category": "other",
+    "sub_category": "miscellaneous",
+    "Item_Name": "XL Paper Text Carrier",
+    "receipt_ItemNames": [
+      "XL Paper Text Carrier"
+    ]
+  },
+  "Air Crew Jumper": {
+    "main_category": "clothing",
+    "sub_category": "jackets",
+    "Item_Name": "Air Crew Jumper",
+    "receipt_ItemNames": [
+      "Air Crew Jumper"
+    ]
+  },
+  "Polka Dot Jogger": {
+    "main_category": "clothing",
+    "sub_category": "pants",
+    "Item_Name": "Polka Dot Jogger",
+    "receipt_ItemNames": [
+      "Polka Dot Jogger"
+    ]
+  },
+  "Sweat Dress": {
+    "main_category": "clothing",
+    "sub_category": "dresses",
+    "Item_Name": "Sweat Dress",
+    "receipt_ItemNames": [
+      "Sweat Dress"
+    ]
+  },
+  "Polka Dot Hoodie": {
+    "main_category": "clothing",
+    "sub_category": "jackets",
+    "Item_Name": "Polka Dot Hoodie",
+    "receipt_ItemNames": [
+      "Polka Dot Hoodie"
+    ]
+  }
+}

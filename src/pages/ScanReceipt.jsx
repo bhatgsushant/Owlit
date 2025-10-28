@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft, Mic, Edit, RefreshCw, PlusCircle, MinusCircle } from 'lucide-react';
+import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft, Mic, Edit, RefreshCw, PlusCircle, MinusCircle, FileScan } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
@@ -7,6 +7,59 @@ import SearchableDropdown from '../components/ui/SearchableDropdown';
 import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
 import StoreType from '../components/ui/StoreType';
+
+// New component for the toggle button
+function ScanModeToggle({ mode, setMode }) {
+    return (
+        <div className="flex justify-center mb-4">
+            <div className="bg-white/20 p-1 rounded-full flex items-center">
+                <button
+                    onClick={() => setMode('receipt')}
+                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'receipt' ? 'bg-green-500 text-white' : 'text-gray-200'}`}
+                >
+                    Scan Receipt
+                </button>
+                <button
+                    onClick={() => setMode('document')}
+                    className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'document' ? 'bg-green-500 text-white' : 'text-gray-200'}`}
+                >
+                    Scan Document
+                </button>
+            </div>
+        </div>
+    );
+}
+
+function DocumentPreview({ markdown, onApprove, onCancel }) {
+    const [showFullPreview, setShowFullPreview] = useState(false);
+    const previewText = showFullPreview ? markdown : markdown.slice(0, 500);
+
+    return (
+        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
+            <h2 className="text-2xl font-bold text-gray-800 dark:text-white">Document Preview</h2>
+            <div className="prose prose-sm dark:prose-invert max-w-none h-64 overflow-y-auto border rounded-lg p-4">
+                {previewText}
+                {!showFullPreview && markdown.length > 500 && '...'}
+            </div>
+            {markdown.length > 500 && (
+                <button onClick={() => setShowFullPreview(!showFullPreview)} className="text-sm text-green-500 hover:underline">
+                    {showFullPreview ? 'Show Less' : 'Show More'}
+                </button>
+            )}
+            <div className="flex gap-4 mt-6">
+                <button onClick={onApprove} className="w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center">
+                    <CheckCircle size={20} className="mr-2" />
+                    Approve
+                </button>
+                <button onClick={onCancel} className="w-full bg-red-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-600 transition-colors flex items-center justify-center">
+                    <X size={20} className="mr-2" />
+                    Cancel
+                </button>
+            </div>
+        </div>
+    );
+}
+
 
 function EditableReceipt({ data, setData, onSave }) {
     useEffect(() => {
@@ -119,6 +172,8 @@ export default function ScanReceipt() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [extractedData, setExtractedData] = useState(null);
   const [mode, setMode] = useState('upload'); // upload, manual, voice
+  const [scanMode, setScanMode] = useState('receipt'); // receipt, document
+  const [markdownPreview, setMarkdownPreview] = useState(null);
   const fileInputRef = useRef(null);
 
   const handleManualEntry = () => {
@@ -146,6 +201,7 @@ export default function ScanReceipt() {
     if (selectedFile) {
       setFile(selectedFile);
       setExtractedData(null);
+      setMarkdownPreview(null);
       setMode('upload');
     }
   };
@@ -160,6 +216,7 @@ export default function ScanReceipt() {
     if (droppedFile) {
       setFile(droppedFile);
       setExtractedData(null);
+      setMarkdownPreview(null);
       setMode('upload');
     }
   };
@@ -176,6 +233,7 @@ export default function ScanReceipt() {
   const handleCapture = (capturedFile) => {
     setFile(capturedFile);
     setExtractedData(null);
+    setMarkdownPreview(null);
     setIsCameraOpen(false);
     setMode('upload');
   };
@@ -184,13 +242,13 @@ export default function ScanReceipt() {
     setIsCameraOpen(false);
   };
 
-  const handleProcessReceipt = async () => {
+  const handleProcess = async () => {
     if (!file) return;
     setIsProcessing(true);
 
     const formData = new FormData();
-    formData.append('receipt', file);
-    formData.append('reprocess', 'true');
+    formData.append('file', file);
+    formData.append('scanMode', scanMode);
 
     try {
       const resp = await fetch('/api/scan', {
@@ -202,19 +260,54 @@ export default function ScanReceipt() {
         throw new Error('The server returned an error.');
       }
 
-      const data = await resp.json();
-      setExtractedData(data);
+      if (scanMode === 'receipt') {
+        const data = await resp.json();
+        setExtractedData(data);
+      } else {
+        const data = await resp.text();
+        setMarkdownPreview(data);
+      }
     } catch (error) {
       console.error(error);
-      alert(`Failed to process image: ${error.message}`);
+      alert(`Failed to process file: ${error.message}`);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleApproveDocument = async () => {
+    setIsProcessing(true);
+    try {
+        const resp = await fetch('/api/process-document', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ markdown: markdownPreview })
+        });
+
+        if (!resp.ok) {
+            throw new Error('The server returned an error during processing.');
+        }
+
+        const data = await resp.json();
+        const savedDocuments = JSON.parse(localStorage.getItem('documents') || '[]');
+        const newDocument = { ...data, id: new Date().toISOString(), originalMarkdown: markdownPreview };
+        const updatedDocuments = [...savedDocuments, newDocument];
+        localStorage.setItem('documents', JSON.stringify(updatedDocuments));
+        
+        alert('Document processed and saved successfully!');
+        handleReset();
+    } catch (error) {
+        console.error(error);
+        alert(`Failed to process document: ${error.message}`);
+    } finally {
+        setIsProcessing(false);
     }
   };
 
   const handleReset = () => {
     setFile(null);
     setExtractedData(null);
+    setMarkdownPreview(null);
     setMode('upload');
   }
 
@@ -226,6 +319,8 @@ export default function ScanReceipt() {
       alert('Receipt saved successfully!');
       handleReset();
   }
+
+  const pageTitle = scanMode === 'receipt' ? 'Scan Receipt' : 'Scan Document';
 
   return (
     <>
@@ -275,7 +370,7 @@ export default function ScanReceipt() {
               </Link>
             </div>
             <div className="flex items-center">
-              <h1 className="text-xl font-bold text-gray-800 dark:text-white">Scan Receipt</h1>
+              <h1 className="text-xl font-bold text-gray-800 dark:text-white">{pageTitle}</h1>
             </div>
             <div className="w-1/3"></div>
           </div>
@@ -297,19 +392,26 @@ export default function ScanReceipt() {
                         onSave={handleSave} 
                     />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">
-                        Scan Another Receipt
+                        Scan Another
                     </button>
+                </div>
+            </div>
+        ) : markdownPreview ? (
+            <div className="p-6 md:p-10 flex flex-col items-center h-full">
+                <div className="max-w-4xl w-full">
+                    <DocumentPreview markdown={markdownPreview} onApprove={handleApproveDocument} onCancel={handleReset} />
                 </div>
             </div>
         ) : (
             <div className="p-6 md:p-10 flex flex-col items-center justify-center text-center h-full">
-                {mode === 'voice' ? (
+                {mode === 'voice' && scanMode === 'receipt' ? (
                     <VoiceInput onComplete={handleVoiceComplete} />
                 ) : (
                     <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl">
-                        <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">Scan Your Receipt</h1>
+                        <ScanModeToggle mode={scanMode} setMode={setScanMode} />
+                        <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">{pageTitle}</h1>
                         <p className="text-md text-gray-200 mb-8">
-                            Upload a document or image of your receipt to get started.
+                            Upload a document or image of your {scanMode} to get started.
                         </p>
 
                         {file ? (
@@ -327,8 +429,8 @@ export default function ScanReceipt() {
                                 <p className="text-sm text-gray-300">{(file.size / 1024).toFixed(2)} KB</p>
                                 </div>
                             </div>
-                            <button onClick={handleProcessReceipt} disabled={isProcessing} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
-                                {isProcessing ? <><Loader size={20} className="animate-spin mr-2"/> Processing...</> : 'Process Receipt'}
+                            <button onClick={handleProcess} disabled={isProcessing} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center justify-center">
+                                {isProcessing ? <><Loader size={20} className="animate-spin mr-2"/> Processing...</> : `Process ${pageTitle}`}
                             </button>
                             </div>
                         ) : (
@@ -355,7 +457,7 @@ export default function ScanReceipt() {
                             </div>
                         )}
 
-                        {!file && (
+                        {!file && scanMode === 'receipt' && (
                             <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 justify-center">
                                 <button 
                                     onClick={openFileDialog}
@@ -384,6 +486,24 @@ export default function ScanReceipt() {
                                 >
                                     <Mic size={20} className="mr-2"/>
                                     Voice Mode
+                                </button>
+                            </div>
+                        )}
+                         {!file && scanMode === 'document' && (
+                            <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4 justify-center">
+                                <button 
+                                    onClick={openFileDialog}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Upload size={20} className="mr-2"/>
+                                    Upload Document
+                                </button>
+                                <button 
+                                    onClick={handleTakePhoto}
+                                    className="w-full bg-white/10 backdrop-blur-md border border-white/20 text-white py-3 px-6 rounded-full font-semibold shadow-lg hover:bg-white/20 transition-colors flex items-center justify-center"
+                                >
+                                    <Camera size={20} className="mr-2"/>
+                                    Camera
                                 </button>
                             </div>
                         )}
