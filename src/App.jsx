@@ -8,6 +8,7 @@ import Documents from "@/pages/Documents";
 import Insights from "@/pages/Insights";
 import Investment from "@/pages/Investment";
 import QnA from "@/pages/QnA";
+import DocumentPage from "@/pages/DocumentPage";
 
 export default function App() {
   return (
@@ -20,6 +21,7 @@ export default function App() {
       <Route path="/insights" element={<Layout currentPageName="Insights"><Insights /></Layout>} />
       <Route path="/investment" element={<Layout currentPageName="Investment"><Investment /></Layout>} />
       <Route path="/qna" element={<Layout currentPageName="QnA"><QnA /></Layout>} />
+      <Route path="/document-preview" element={<DocumentPage />} />
     </Routes>
   );
 }

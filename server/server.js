@@ -210,14 +210,16 @@ async function processDocumentWithDocAI(buffer, mimeType) {
     }
 }
 
-async function structureTextWithOpenAI(text) {
+async function structureTextWithOpenAI(text, tesseractHint = '') {
     console.log('🤖 Structuring text with OpenAI...');
     const MAX_RETRIES = 2;
     const jsonPrompt = `
 Convert the OCR text from a receipt into structured JSON.
 
-**OCR Text:**
+**OCR Text from Google Document AI:**
 ${text}
+
+${tesseractHint ? `**Hint from Tesseract Pre-pass:**\n${tesseractHint}\n` : ''}
 
 ${CATEGORY_PROMPT_TEXT}
 
@@ -232,10 +234,11 @@ ${CATEGORY_PROMPT_TEXT}
 }
 
 **Rules:**
-1. Quantity defaults to 1 if missing.
-2. Price must be a number only (no currency symbols).
-3. Assign a logical category/sub_category from the provided taxonomy.
-4. Return **JSON only**, no explanations.
+1. Use the Google Document AI text as the primary source. Use the Tesseract hint to resolve ambiguities.
+2. Quantity defaults to 1 if missing.
+3. Price must be a number only (no currency symbols).
+4. Assign a logical category/sub_category from the provided taxonomy.
+5. Return **JSON only**, no explanations.
 `;
     for (let i = 0; i <= MAX_RETRIES; i++) {
         try {
@@ -417,23 +420,21 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
         return;
     }
 
-    // --- Existing Receipt Processing Logic ---
+    // --- Modified Receipt Processing Logic ---
     console.log('🚀 === STARTING RECEIPT PROCESSING ===');
     try {
-        const useDocAI = req.body.reprocess === 'true';
-        console.log(`⚙️ Using ${useDocAI ? 'Google Document AI' : 'OpenAI Vision'} pipeline.`);
+        console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
 
         const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
 
-        let processedData;
-        if (useDocAI) {
-            const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-            processedData = await structureTextWithOpenAI(extractedText);
-        } else {
-            const tesseractText = await runTesseract(preprocessedImageBuffer);
-            const imageBase64 = preprocessedImageBuffer.toString('base64');
-            processedData = await processWithOpenAI(imageBase64, tesseractText);
-        }
+        // Tesseract pre-pass is kept as requested
+        const tesseractText = await runTesseract(preprocessedImageBuffer);
+
+        // Google Document AI is now the primary processor, replacing GPT-4o Vision
+        const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+        
+        // Structuring the text with OpenAI (text-only, no image)
+        const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
         
         const lineItems = processedData.items || processedData.Items || [];
         const categorizedLineItems = await categorizeLineItems(lineItems);

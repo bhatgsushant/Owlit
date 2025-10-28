@@ -11,7 +11,7 @@ export const STORE_DATA = {
   'marksandspencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'm&s': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'Marks & Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
-   'Marks and Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'Marks and Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'cooperative': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'costco': { domain: 'costco.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'woolworths': { domain: 'woolworths.co.uk', StoreName_category: 'Groceries - Supermarket' },
@@ -66,7 +66,7 @@ export const STORE_DATA = {
   'game': { domain: 'game.co.uk', StoreName_category: 'Gaming & Entertainment' },
 
   // 🏠 Home & DIY
-  'bandq': { domain: 'diy.com', StoreName_category: 'Home & DIY' },
+  'b&q': { domain: 'diy.com', StoreName_category: 'Home & DIY' },
   'homebase': { domain: 'homebase.co.uk', StoreName_category: 'Home & DIY' },
   'ikea': { domain: 'ikea.com', StoreName_category: 'Home & DIY' },
   'wilko': { domain: 'wilko.com', StoreName_category: 'Home & DIY' },
@@ -91,7 +91,6 @@ export const STORE_DATA = {
   'zalando': { domain: 'zalando.co.uk', StoreName_category: 'Online Fashion' },
   'made': { domain: 'made.com', StoreName_category: 'Online Retail' },
   'wayfair': { domain: 'wayfair.co.uk', StoreName_category: 'Home & DIY' },
-  'the works': { domain: 'theworks.co.uk', StoreName_category: 'Home & DIY' },
   
 
   // 🚗 Fuel & Transport

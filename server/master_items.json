@@ -38,5 +38,93 @@
     "receipt_ItemNames": [
       "Polka Dot Hoodie"
     ]
+  },
+  "Tesco Granny Smith Apples 6 Pack": {
+    "main_category": "fruit",
+    "sub_category": "apples",
+    "Item_Name": "Tesco Granny Smith Apples 6 Pack",
+    "receipt_ItemNames": [
+      "Tesco Granny Smith Apples 6 Pack"
+    ]
+  },
+  "Special Offer": {
+    "main_category": "other",
+    "sub_category": "miscellaneous",
+    "Item_Name": "Special Offer",
+    "receipt_ItemNames": [
+      "Special Offer"
+    ]
+  },
+  "Tesco Fairtrade Organic Bananas 5 Pack": {
+    "main_category": "fruit",
+    "sub_category": "bananas",
+    "Item_Name": "Tesco Fairtrade Organic Bananas 5 Pack",
+    "receipt_ItemNames": [
+      "Tesco Fairtrade Organic Bananas 5 Pack"
+    ]
+  },
+  "Tesco Greek Style Natural Yogurt 1kg": {
+    "main_category": "dairy",
+    "sub_category": "yogurt",
+    "Item_Name": "Tesco Greek Style Natural Yogurt 1kg",
+    "receipt_ItemNames": [
+      "Tesco Greek Style Natural Yogurt 1kg"
+    ]
+  },
+  "Tesco Sweet & Easy Peel Clementines 600g": {
+    "main_category": "fruit",
+    "sub_category": "citrus",
+    "Item_Name": "Tesco Sweet & Easy Peel Clementines 600g",
+    "receipt_ItemNames": [
+      "Tesco Sweet & Easy Peel Clementines 600g"
+    ]
+  },
+  "Cadbury Coins Clipstrip 70g": {
+    "main_category": "snacks",
+    "sub_category": "chocolate",
+    "Item_Name": "Cadbury Coins Clipstrip 70g",
+    "receipt_ItemNames": [
+      "Cadbury Coins Clipstrip 70g"
+    ]
+  },
+  "Cc": {
+    "main_category": "other",
+    "sub_category": "miscellaneous",
+    "Item_Name": "Cc",
+    "receipt_ItemNames": [
+      "Cc"
+    ]
+  },
+  "Cornetto Soft Cookie And Chocolate Ice Cream 140ml": {
+    "main_category": "dairy",
+    "sub_category": "cream",
+    "Item_Name": "Cornetto Soft Cookie And Chocolate Ice Cream 140ml",
+    "receipt_ItemNames": [
+      "Cornetto Soft Cookie And Chocolate Ice Cream 140ml"
+    ]
+  },
+  "Tesco Universal Bag For Life": {
+    "main_category": "household",
+    "sub_category": "bin_bags",
+    "Item_Name": "Tesco Universal Bag For Life",
+    "receipt_ItemNames": [
+      "Tesco Universal Bag For Life"
+    ]
+  },
+  "XL PAPER TEXT CARR": {
+    "main_category": "household",
+    "sub_category": "paper_products",
+    "Item_Name": "XL PAPER TEXT CARR",
+    "receipt_ItemNames": [
+      "XL PAPER TEXT CARR"
+    ]
+  },
+  "Sweat Dressaben": {
+    "main_category": "clothing",
+    "sub_category": "dresses",
+    "Item_Name": "Sweat Dressaben",
+    "receipt_ItemNames": [
+      "Sweat Dressaben"
+    ]
   }
 }
