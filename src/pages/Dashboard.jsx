@@ -1,21 +1,25 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import {
-  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell, AreaChart, Area, Legend
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area, Legend
 } from 'recharts';
 import StatsGrid from '../components/StatsGrid';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import AnimatedSection from '@/components/ui/AnimatedSection';
-import { subDays, format, eachDayOfInterval, isSameDay } from 'date-fns';
+import { subDays, format, eachDayOfInterval } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
 
-// A modern, reusable chart wrapper
+// AI-themed color palette
+const aiColor = "#8B5CF6"; // A nice violet
+const aiColorMuted = "#6D28D9"; // A darker violet
+
+// A modern, reusable chart wrapper with new styling
 const ChartWrapper = ({ title, children, isLoading }) => (
-  <div className="bg-white dark:bg-gray-800/50 rounded-2xl shadow-lg p-4 md:p-6 h-[400px] flex flex-col">
-    <h2 className="text-lg md:text-xl font-semibold mb-4 text-gray-800 dark:text-gray-200">{title}</h2>
+  <div className="bg-white/5 dark:bg-gray-800/30 rounded-2xl shadow-2xl backdrop-blur-lg p-4 md:p-6 h-[400px] flex flex-col border border-white/10">
+    <h2 className="font-display font-semibold text-base md:text-lg mb-4 text-gray-200">{title}</h2>
     <div className="flex-grow">
       {isLoading ? (
-        <div className="h-full w-full bg-gray-200 dark:bg-gray-700/50 animate-pulse rounded-lg"></div>
+        <div className="h-full w-full bg-gray-700/50 animate-pulse rounded-lg"></div>
       ) : (
         children
       )}
@@ -23,14 +27,14 @@ const ChartWrapper = ({ title, children, isLoading }) => (
   </div>
 );
 
-// Custom Tooltip for a more modern feel
+// Custom Tooltip with new styling
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {
     return (
-      <div className="bg-black/60 backdrop-blur-sm p-3 border border-gray-700 rounded-lg shadow-xl">
-        <p className="label font-semibold text-gray-200">{label}</p>
+      <div className="bg-black/70 backdrop-blur-md p-3 border border-gray-600 rounded-lg shadow-xl">
+        <p className="label font-semibold text-gray-200 font-display text-sm">{label}</p>
         {payload.map((p, i) => (
-            <p key={i} style={{ color: p.color }}>{`${p.name}: £${p.value.toFixed(2)}`}</p>
+            <p key={i} style={{ color: p.color || aiColor }} className="text-xs">{`${p.name}: £${p.value.toFixed(2)}`}</p>
         ))}
       </div>
     );
@@ -44,16 +48,15 @@ const SpendingTrendChart = ({ data, isLoading }) => (
     <ResponsiveContainer width="100%" height="100%">
       <AreaChart data={data} margin={{ top: 5, right: 20, left: -10, bottom: 5 }}>
         <defs>
-          <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="5%" stopColor="#10B981" stopOpacity={0.8}/>
-            <stop offset="95%" stopColor="#10B981" stopOpacity={0}/>
+          <linearGradient id="aiGradient" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={aiColor} stopOpacity={0.7}/>
+            <stop offset="95%" stopColor={aiColor} stopOpacity={0}/>
           </linearGradient>
         </defs>
-        <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 12 }} tickFormatter={(str) => format(new Date(str), 'MMM d')} />
-        <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} tickFormatter={(value) => `£${value}`} />
+        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(str) => format(new Date(str), 'MMM d')} />
+        <YAxis tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(value) => `£${value}`} />
         <Tooltip content={<CustomTooltip />} />
-        <Area type="monotone" dataKey="total" name="Total Spent" stroke="#10B981" strokeWidth={2} fill="url(#colorTotal)" />
+        <Area type="monotone" dataKey="total" name="Total Spent" stroke={aiColor} strokeWidth={2} fill="url(#aiGradient)" />
       </AreaChart>
     </ResponsiveContainer>
   </ChartWrapper>
@@ -64,13 +67,12 @@ const TopMerchantsChart = ({ data, isLoading }) => (
     <ChartWrapper title="Top Merchants" isLoading={isLoading}>
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-                <XAxis type="number" tick={{ fill: '#9CA3AF', fontSize: 12 }} tickFormatter={(value) => `£${value}`} />
-                <YAxis type="category" dataKey="name" width={80} tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(128, 128, 128, 0.1)' }} />
+                <XAxis type="number" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(value) => `£${value}`} />
+                <YAxis type="category" dataKey="name" width={80} tick={{ fill: '#D1D5DB', fontSize: 11, fontFamily: 'Inter' }} tickLine={false} axisLine={false}/>
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
                 <Bar dataKey="total" name="Total Spent" radius={[0, 4, 4, 0]}>
                     {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? '#059669' : '#10B981'} />
+                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? aiColor : aiColorMuted} />
                     ))}
                 </Bar>
             </BarChart>
@@ -90,7 +92,7 @@ const HierarchicalCategoryChart = ({ data, isLoading, onBarClick, onBackClick, c
 
   return (
     <ChartWrapper title={getTitle()} isLoading={isLoading}>
-        <div className="flex items-center mb-2 absolute top-6 left-6">
+        <div className="flex items-center mb-2 absolute top-6 left-6 z-10">
             {level !== 'main' && (
                 <button onClick={onBackClick} className="p-1.5 rounded-full hover:bg-gray-700 transition-colors">
                     <ArrowLeft size={20} className="text-gray-300" />
@@ -99,15 +101,14 @@ const HierarchicalCategoryChart = ({ data, isLoading, onBarClick, onBackClick, c
         </div>
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(128, 128, 128, 0.2)" />
-                <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 12 }} />
-                <YAxis tick={{ fill: '#9CA3AF', fontSize: 12 }} tickFormatter={(value) => `£${value}`} />
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: level !== 'item' ? 'rgba(128, 128, 128, 0.1)' : 'none' }} />
+                <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} />
+                <YAxis tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(value) => `£${value}`} />
+                <Tooltip content={<CustomTooltip />} cursor={{ fill: level !== 'item' ? 'rgba(139, 92, 246, 0.1)' : 'none' }} />
                 <Bar dataKey="total" name="Total Spent" radius={[4, 4, 0, 0]}>
                     {data.map((entry, index) => (
                         <Cell 
                             key={`cell-${index}`} 
-                            fill="#10B981"
+                            fill={aiColor}
                             cursor={level !== 'item' ? 'pointer' : 'default'}
                             onClick={() => { if (level !== 'item') onBarClick(entry.name); }}
                         />
@@ -193,7 +194,7 @@ export default function Dashboard() {
     }
 
     const spendingTrendData = Object.entries(dailySpending).map(([date, total]) => ({ date, total })).sort((a,b) => new Date(a.date) - new Date(b.date));
-    const topMerchantsData = formatForChart(merchantTotals).slice(0, 10).reverse();
+    const topMerchantsData = formatForChart(merchantTotals).slice(0, 7).reverse();
 
     return { hierarchicalData, spendingTrendData, topMerchantsData };
   }, [filteredReceipts, chartState, dateRange]);
@@ -244,15 +245,15 @@ export default function Dashboard() {
   };
 
   return (
-    <motion.div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gray-100 dark:bg-gray-900 font-sans">
+    <motion.div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gray-900 font-sans">
       <AnimatedSection>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 md:mb-8">
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-800 dark:text-white">Analytics Dashboard</h1>
-            <div className="flex items-center gap-2 md:gap-4 bg-white dark:bg-gray-800 p-2 rounded-lg shadow-sm">
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300">From:</label>
-                <input type="date" name="start" value={format(dateRange.start, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-100 dark:bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-green-500"/>
-                <label className="text-sm font-medium text-gray-600 dark:text-gray-300">To:</label>
-                <input type="date" name="end" value={format(dateRange.end, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-100 dark:bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-green-500"/>
+            <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Analytics Dashboard</h1>
+            <div className="flex items-center gap-2 md:gap-4 bg-gray-800/50 p-2 rounded-lg border border-gray-700">
+                <label className="text-sm font-medium text-gray-400">From:</label>
+                <input type="date" name="start" value={format(dateRange.start, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-violet-500"/>
+                <label className="text-sm font-medium text-gray-400">To:</label>
+                <input type="date" name="end" value={format(dateRange.end, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-violet-500"/>
             </div>
         </div>
       </AnimatedSection>
