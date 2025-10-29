@@ -476,6 +476,48 @@ app.post('/api/process-document', async (req, res) => {
     }
 });
 
+app.post('/api/summarize-markdown', async (req, res) => {
+    console.log('📥 Received markdown for summarization');
+    const { markdown } = req.body;
+    if (!markdown) {
+        return res.status(400).json({ error: 'No markdown content provided.' });
+    }
+
+    const prompt = `
+        You are a document summarization expert specializing in creating clean, card-style layouts from raw text. Your task is to transform the following unstructured text into a well-organized Markdown summary.
+
+        **Instructions:**
+        1. **Create Clear Sections:** Use level-2 headings (##) to group related information (e.g., "Patient Information", "Medication", "Instructions").
+        2. **Clean & Readable**: The layout must be clean and easy to read. Use bullet points (-) for lists.
+        3. **No Raw Text**: Do not include irrelevant information or artifacts from the scanning process. Only present the final, clean information.
+        4. **Card-Style Layout**: Use horizontal rules (---) to visually separate the major sections of the card (e.g., between the header, the main content, and a footer/notes section).
+        5. **Output valid Markdown only.**
+
+        **Raw Text:**
+        ${markdown}
+
+        **Formatted Card-Style Markdown Output:**
+    `;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o',
+            messages: [{ role: 'user', content: prompt }],
+            temperature: 0.3,
+            max_tokens: 1500,
+        });
+        const structuredMarkdown = response.choices[0]?.message?.content;
+        if (!structuredMarkdown) throw new Error('No content returned from OpenAI for summarization');
+        
+        console.log('✅ OpenAI summarization complete.');
+        res.setHeader('Content-Type', 'text/plain');
+        res.send(structuredMarkdown);
+    } catch (error) {
+        console.error('❌ Error summarizing markdown with OpenAI:', error.message);
+        res.status(500).json({ error: 'Failed to summarize markdown.', details: error.message });
+    }
+});
+
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'ReceiptWise server running' });
 });

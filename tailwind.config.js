@@ -8,6 +8,8 @@ module.exports = {
   theme: {
   	    extend: {
   	      fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Work Sans', 'sans-serif'],
   	        'fk-grotesk': ['FK Grotesk Neue Trial Light', 'sans-serif'],
   	      },  		borderRadius: {
   			lg: 'var(--radius)',

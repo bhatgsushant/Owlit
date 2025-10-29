@@ -126,5 +126,13 @@
     "receipt_ItemNames": [
       "Sweat Dressaben"
     ]
+  },
+  "GOLF: Black: One Size": {
+    "main_category": "clothing",
+    "sub_category": "accessories",
+    "Item_Name": "GOLF: Black: One Size",
+    "receipt_ItemNames": [
+      "GOLF: Black: One Size"
+    ]
   }
 }

@@ -1,130 +1,137 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import MarkdownFeedback from '@/components/ui/MarkdownFeedback';
 import Layout from '@/components/Layout/Layout';
-import OpenAI from 'openai';
 import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 const DocumentPage = () => {
-  const [markdownText, setMarkdownText] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [originalMarkdown, setOriginalMarkdown] = useState('');
+  const [processedMarkdown, setProcessedMarkdown] = useState('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const navigate = useNavigate();
 
-  // Sample markdown for initial testing
   const sampleMarkdown = `
-# Sample Document
+PATIENT INFORMATION
+Name: John Appleseed
+DOB: 1985-07-22
+Address: 123 Health St, Wellness City, 90210
 
-This is a sample document to demonstrate the Markdown preview functionality.
+APPOINTMENT DETAILS
+Date: 2025-10-28
+Doctor: Dr. Emily Carter
+Department: Cardiology
 
-## Section 1
+DIAGNOSIS
+Primary: Hypertension (High Blood Pressure)
+Secondary: Hyperlipidemia (High Cholesterol)
 
-- List item 1
-- List item 2
-- List item 3
+MEDICATION PRESCRIBED
+1. Lisinopril - 10mg, once daily
+2. Atorvastatin - 20mg, once daily
 
-### Subsection 1.1
-
-Here is a paragraph of text. It can contain **bold** text, *italic* text, and \`code\`.
-
----
-
-## Section 2
-
-This is another section with a table:
-
-| Header 1 | Header 2 |
-| -------- | -------- |
-| Cell 1   | Cell 2   |
-| Cell 3   | Cell 4   |
-
-> A blockquote for your consideration.
+INSTRUCTIONS
+- Monitor blood pressure twice daily.
+- Follow a low-sodium diet.
+- Schedule a follow-up appointment in 3 months.
+- Report any side effects, such as dizziness or persistent cough.
 `;
 
-  const handleUpload = async (file) => {
-    // This would be your document upload logic
-    // For now, we just set the sample markdown
-    setMarkdownText(sampleMarkdown);
-  };
+  const handleUploadAndProcess = async () => {
+    setIsSummarizing(true);
+    setProcessedMarkdown('');
+    setOriginalMarkdown(sampleMarkdown);
 
-  const handleApprove = async () => {
-    if (!markdownText) return alert('No document loaded.');
-
-    setIsProcessing(true);
     try {
-      const openai = new OpenAI({
-        apiKey: 'YOUR_OPENAI_API_KEY',
-        dangerouslyAllowBrowser: true, // Only for testing; use server in production
+      const response = await fetch('/api/summarize-markdown', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: sampleMarkdown }),
       });
 
-      const response = await openai.chat.completions.create({
-        model: 'gpt-3.5-turbo',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are a professional assistant that converts markdown documents into structured JSON for spending/analytics tracking.',
-          },
-          {
-            role: 'user',
-            content: markdownText,
-          },
-        ],
-        temperature: 0.2,
-        max_tokens: 2000,
-      });
+      if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
 
-      const jsonResult = response.choices[0].message.content;
-      console.log('JSON Result:', jsonResult);
+      const summarizedText = await response.text();
+      setProcessedMarkdown(summarizedText);
 
-      // TODO: Save JSON to database or user-specific storage
-      alert('Document approved and saved successfully!');
     } catch (error) {
-      console.error('Error converting markdown to JSON:', error);
-      alert('Failed to process document.');
+      console.error('Error summarizing markdown:', error);
+      alert('Failed to structure the document. Showing raw text instead.');
+      setProcessedMarkdown(sampleMarkdown);
     } finally {
-      setIsProcessing(false);
+      setIsSummarizing(false);
     }
   };
 
+  const handleApprove = () => {
+    if (!processedMarkdown) return alert('No document to approve.');
+
+    // Fire the save request to the backend but do not wait for it.
+    fetch('/api/process-document', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: processedMarkdown, originalMarkdown: originalMarkdown })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            console.error('Background save failed:', data.details);
+        } else {
+            console.log('Document is being saved in the background:', data.id);
+            // We can also update localStorage here if needed, as it's fast
+            const savedDocuments = JSON.parse(localStorage.getItem('documents') || '[]');
+            const newDocument = { ...data, id: new Date().toISOString(), originalMarkdown: processedMarkdown };
+            const updatedDocuments = [...savedDocuments, newDocument];
+            localStorage.setItem('documents', JSON.stringify(updatedDocuments));
+        }
+    })
+    .catch(error => {
+        console.error('Error during background document save:', error);
+    });
+
+    // Immediately navigate the user away.
+    alert('Approval sent! Your document is being saved in the background.');
+    navigate('/scan');
+  };
+
   const handleReject = () => {
-    setMarkdownText('');
-    alert('Document rejected. Please re-upload or edit.');
+    setProcessedMarkdown('');
+    setOriginalMarkdown('');
+    navigate('/scan'); // Also navigate back on reject
   };
 
   return (
     <Layout>
-      <div className="p-6 flex flex-col space-y-6">
-        <h1 className="text-3xl font-bold">Document / Receipt Preview</h1>
+      <div className="p-6 flex flex-col items-center space-y-6">
+        <div className="w-full max-w-4xl">
+            <h1 className="text-3xl font-bold mb-4 text-center">Document Processing</h1>
+            
+            {!processedMarkdown && !isSummarizing && (
+                <div className="text-center p-8 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-xl">
+                    <p className="mb-4 text-gray-500 dark:text-gray-400">Click the button to scan a sample document.</p>
+                    <Button onClick={handleUploadAndProcess}>
+                        Scan Sample Document
+                    </Button>
+                </div>
+            )}
 
-        <div className="flex space-x-4">
-          <Button
-            className="bg-blue-500 text-white hover:bg-blue-600 dark:bg-blue-600 dark:hover:bg-blue-700"
-            onClick={() => handleUpload('sample-file')}
-          >
-            Scan Receipt
-          </Button>
-          <Button
-            className="bg-purple-500 text-white hover:bg-purple-600 dark:bg-purple-600 dark:hover:bg-purple-700"
-            onClick={() => handleUpload('sample-file')}
-          >
-            Scan Document
-          </Button>
+            {(isSummarizing || processedMarkdown) && (
+                <div className="w-full mt-4">
+                    {isSummarizing ? (
+                        <div className="flex flex-col items-center justify-center p-12 bg-gray-100 dark:bg-gray-800/50 rounded-xl">
+                            <Loader2 className="h-12 w-12 animate-spin text-blue-500" />
+                            <p className="mt-4 text-lg font-semibold text-gray-700 dark:text-gray-300">AI is structuring your document...</p>
+                        </div>
+                    ) : (
+                        <MarkdownFeedback
+                            markdownText={processedMarkdown}
+                            onApprove={handleApprove}
+                            onReject={handleReject}
+                        />
+                    )}
+                </div>
+            )}
         </div>
-
-        {markdownText ? (
-          <MarkdownFeedback
-            markdownText={markdownText}
-            onApprove={handleApprove}
-            onReject={handleReject}
-          />
-        ) : (
-          <div className="text-gray-500 dark:text-gray-400 text-lg p-6 border border-gray-300 dark:border-gray-700 rounded-lg">
-            No document loaded. Please upload or scan a receipt/document.
-          </div>
-        )}
-
-        {isProcessing && (
-          <p className="text-blue-500 dark:text-blue-400 font-medium">
-            Processing document, please wait...
-          </p>
-        )}
       </div>
     </Layout>
   );
