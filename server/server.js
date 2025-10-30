@@ -9,6 +9,9 @@ const { createWorker } = require('tesseract.js');
 const fs = require('fs').promises;
 const path = require('path');
 const { SUB_CATEGORIES } = require('./categorize.js');
+const session = require('express-session');
+const cookieParser = require('cookie-parser');
+const passport = require('./auth.js');
 
 
 
@@ -63,6 +66,20 @@ async function saveMasterItems() {
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(session({
+    secret: process.env.SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+}));
+app.use(passport.initialize());
+app.use(passport.session());
+
 const upload = multer({ storage: multer.memoryStorage() });
 
 // --- Helper Functions ---
@@ -520,6 +537,44 @@ app.post('/api/summarize-markdown', async (req, res) => {
 
 app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'ReceiptWise server running' });
+});
+
+// --- Auth Routes ---
+app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+
+app.get('/auth/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/login' }),
+  (req, res) => {
+    res.redirect(process.env.CLIENT_URL);
+  }
+);
+
+app.get('/auth/github', passport.authenticate('github', { scope: ['user:email'] }));
+
+app.get('/auth/github/callback', 
+  passport.authenticate('github', { failureRedirect: '/login' }),
+  (req, res) => {
+    res.redirect(process.env.CLIENT_URL);
+  }
+);
+
+app.get('/api/user', (req, res) => {
+    res.json(req.user || null);
+});
+
+app.post('/auth/logout', (req, res) => {
+    req.logout(err => {
+        if (err) {
+            return res.status(500).json({ message: 'Error logging out' });
+        }
+        req.session.destroy(err => {
+            if (err) {
+                return res.status(500).json({ message: 'Error destroying session' });
+            }
+            res.clearCookie('connect.sid');
+            res.json({ message: 'Logged out successfully' });
+        });
+    });
 });
 
 app.listen(port, async () => {

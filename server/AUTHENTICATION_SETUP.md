@@ -1,108 +1,96 @@
-# 🔐 Google Cloud Authentication Setup Guide
+# 🔐 Authentication Setup Guide
 
-## Current Status
-✅ **Document AI Processor**: ReceiptsOCRProcessor (f263a529ecfd3487)  
-✅ **Project ID**: 49889892103  
-✅ **Region**: us  
-❌ **Authentication**: Service account key missing  
+This guide provides instructions for setting up OAuth 2.0 credentials for Google and GitHub to enable user authentication in ReceiptWise.
 
-## Quick Test (Mock Server)
-The mock server is now running! You can test the frontend immediately:
-- Upload any image file
-- It will return sample receipt data
-- Perfect for testing the UI
+## Table of Contents
+1.  [Environment Variables](#environment-variables)
+2.  [Google OAuth 2.0 Setup](#google-oauth-20-setup)
+3.  [GitHub OAuth App Setup](#github-oauth-app-setup)
 
-## Setting Up Real Google Cloud Authentication
+---
 
-### Step 1: Create Service Account
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Select project: **49889892103**
-3. Navigate to **IAM & Admin** → **Service Accounts**
-4. Click **"Create Service Account"**
-5. Fill in:
-   - **Name**: `receiptwise-processor`
-   - **Description**: `Service account for ReceiptWise Document AI processing`
-6. Click **"Create and Continue"**
+## Environment Variables
 
-### Step 2: Grant Document AI API User Role
-1. In "Grant this service account access to project":
-2. Click **"Select a role"**
-3. Search for **"Document AI"**
-4. Select **"Document AI API User"** (`roles/documentai.apiUser`)
-5. Click **"Continue"** → **"Done"**
+Create a `.env` file in the `server` directory if it doesn't already exist. Add the following variables to it:
 
-### Step 3: Download Service Account Key
-1. Click on your created service account
-2. Go to **"Keys"** tab
-3. Click **"Add Key"** → **"Create new key"**
-4. Choose **JSON** format
-5. Click **"Create"** - this downloads a JSON file
+```env
+# Server Configuration
+SESSION_SECRET=your_super_secret_session_key
+CLIENT_URL=http://localhost:5173
 
-### Step 4: Configure Local Environment
-1. **Save the downloaded JSON file** as:
-   ```
-   /Users/sushantbhat/Desktop/NewApp/server/credentials/service-account-key.json
-   ```
+# Google OAuth Credentials
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
 
-2. **Update .env file** (already created):
-   ```bash
-   # Google Cloud Configuration
-   GOOGLE_APPLICATION_CREDENTIALS=./credentials/service-account-key.json
-   
-   # Document AI Configuration  
-   PROJECT_ID=49889892103
-   LOCATION=us
-   PROCESSOR_ID=f263a529ecfd3487
-   
-   # Server Configuration
-   PORT=3001
-   ```
-
-### Step 5: Switch to Real Server
-Once you've completed the above steps:
-
-```bash
-# Stop mock server
-pkill -f "mock-server.js"
-
-# Start real server
-cd /Users/sushantbhat/Desktop/NewApp/server
-npm start
+# GitHub OAuth Credentials
+GITHUB_CLIENT_ID=your_github_client_id
+GITHUB_CLIENT_SECRET=your_github_client_secret
 ```
 
-## Expected Output (Real Server)
-```
-Checking Google Cloud authentication...
-Project ID: 49889892103
-Location: us
-Processor ID: f263a529ecfd3487
-✅ Credentials file: ./credentials/service-account-key.json
-Server listening at http://localhost:3001
-```
+**Important:**
+- Replace `your_super_secret_session_key` with a long, random string. You can generate one using an online tool.
+- The `CLIENT_URL` should match the URL of your React frontend.
 
-## Troubleshooting
+---
 
-### Error: "Authentication failed"
-- Check that `GOOGLE_APPLICATION_CREDENTIALS` points to the correct file
-- Verify the JSON file is valid
-- Ensure the service account has Document AI API User role
+## Google OAuth 2.0 Setup
 
-### Error: "Processor not found"
-- Verify PROJECT_ID matches your Google Cloud project
-- Check PROCESSOR_ID matches your Document AI processor
-- Ensure the processor is enabled
+1.  **Go to the Google Cloud Console:**
+    -   Navigate to [https://console.cloud.google.com/](https://console.cloud.google.com/).
 
-### Error: "Permission denied"
-- Verify the service account has the correct role
-- Check that Document AI API is enabled in your project
+2.  **Create a new project** or select an existing one.
 
-## Current Mock Server Features
-- ✅ Returns realistic receipt data
-- ✅ Simulates processing delay
-- ✅ Proper error handling
-- ✅ Health check endpoint
+3.  **Navigate to "APIs & Services" > "Credentials":**
+    -   In the left sidebar, click on "Credentials".
 
-## Next Steps
-1. **Test the frontend** with the mock server
-2. **Set up Google Cloud authentication** following the steps above
-3. **Switch to real server** for production use
+4.  **Create OAuth consent screen:**
+    -   If you haven't already, click on "Configure Consent Screen".
+    -   Choose **External** and click "Create".
+    -   Fill in the required fields:
+        -   **App name:** ReceiptWise (or your preferred name)
+        -   **User support email:** Your email address
+        -   **Developer contact information:** Your email address
+    -   Click "Save and Continue" through the "Scopes" and "Test users" sections. You can add test users if your app is in testing mode.
+    -   Finally, go back to the dashboard.
+
+5.  **Create OAuth 2.0 Client ID:**
+    -   Click on **+ Create Credentials** and select **OAuth client ID**.
+    -   **Application type:** Select **Web application**.
+    -   **Name:** ReceiptWise Web Client (or a descriptive name).
+    -   **Authorized JavaScript origins:**
+        -   Add `http://localhost:3001` (your backend URL)
+    -   **Authorized redirect URIs:**
+        -   Add `http://localhost:3001/auth/google/callback`
+    -   Click **Create**.
+
+6.  **Copy your credentials:**
+    -   A dialog will appear with your **Client ID** and **Client Secret**.
+    -   Copy these values and paste them into your `.env` file for `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`.
+
+---
+
+## GitHub OAuth App Setup
+
+1.  **Go to GitHub Developer Settings:**
+    -   Navigate to [https://github.com/settings/developers](https://github.com/settings/developers).
+
+2.  **Create a new OAuth App:**
+    -   Click on the **OAuth Apps** tab, then click **New OAuth App**.
+
+3.  **Fill in the application details:**
+    -   **Application name:** ReceiptWise (or your preferred name)
+    -   **Homepage URL:** `http://localhost:5173` (your frontend URL)
+    -   **Application description:** (Optional) A brief description of your app.
+    -   **Authorization callback URL:** `http://localhost:3001/auth/github/callback`
+
+4.  **Generate a new client secret:**
+    -   After creating the app, you will see your **Client ID**.
+    -   Click the **Generate a new client secret** button.
+
+5.  **Copy your credentials:**
+    -   Copy the **Client ID** and the newly generated **Client Secret**.
+    -   Paste them into your `.env` file for `GITHUB_CLIENT_ID` and `GITHUB_CLIENT_SECRET`.
+
+---
+
+Once you have configured these credentials, your authentication system should be ready to use.

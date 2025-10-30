@@ -14,14 +14,20 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@google-cloud/documentai": "^9.0.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "openai": "^4.20.0",
+    "passport": "^0.7.0",
+    "passport-github2": "^0.1.12",
+    "passport-google-oauth20": "^2.0.0",
     "sharp": "^0.33.3",
-    "tesseract.js": "^5.0.0",
-    "@google-cloud/documentai": "^9.0.0"
+    "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

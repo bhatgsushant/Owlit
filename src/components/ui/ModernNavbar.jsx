@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon } from 'lucide-react';
+import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
+import { useAuth } from '@/context/AuthContext';
 
 // A simple SVG logo component
 function Logo() {
@@ -21,6 +22,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [isOpen, setIsOpen] = useState(false);
   const location = useLocation();
   const navRef = useRef(null);
+  const { user, logout } = useAuth();
 
   // Menu items configuration
   const menuItems = [
@@ -89,15 +91,24 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
           <button onClick={toggleTheme} className="theme-text-secondary hover:theme-text-primary">
             {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
           </button>
-          <Link to="/login" className="text-sm font-medium theme-text-secondary hover:theme-text-primary">
-            Login
-          </Link>
-          <Link
-            to="/signup"
-            className="px-4 py-2 text-sm font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors"
-          >
-            Sign Up
-          </Link>
+          {user ? (
+            <div className="relative group">
+              <button className="flex items-center gap-2">
+                <img src={user.avatar} alt={user.displayName} className="w-8 h-8 rounded-full" />
+              </button>
+              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">{user.displayName}</div>
+                <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
+                  <LogOut size={16} className="mr-2" />
+                  Logout
+                </button>
+              </div>
+            </div>
+          ) : (
+            <Link to="/login" className="text-sm font-medium theme-text-secondary hover:theme-text-primary">
+              Login
+            </Link>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -134,15 +145,16 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
                   <span className="text-xl font-medium">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
-                <Link to="/login" className="text-xl font-medium text-gray-400 hover:text-white">
-                  Login
-                </Link>
-                <Link
-                  to="/signup"
-                  className="px-6 py-3 text-lg font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors"
-                >
-                  Sign Up
-                </Link>
+                {user ? (
+                  <button onClick={logout} className="text-xl font-medium text-gray-400 hover:text-white flex items-center">
+                    <LogOut size={20} className="mr-2" />
+                    Logout
+                  </button>
+                ) : (
+                  <Link to="/login" className="text-xl font-medium text-gray-400 hover:text-white">
+                    Login
+                  </Link>
+                )}
               </div>
             </div>
           </motion.div>
