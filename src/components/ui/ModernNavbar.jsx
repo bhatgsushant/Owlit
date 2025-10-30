@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
-import { useAuth } from '@/context/AuthContext';
+import { useAuth } from '@/hooks/useAuth';
 
 // A simple SVG logo component
 function Logo() {

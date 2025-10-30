@@ -1,8 +1,7 @@
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
-const GitHubStrategy = require('passport-github2').Strategy;
 
-// In-memory user store for demonstration purposes
+// In-memory user store
 const users = {};
 
 passport.serializeUser((user, done) => {
@@ -18,8 +17,7 @@ passport.use(new GoogleStrategy({
   clientID: process.env.GOOGLE_CLIENT_ID,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET,
   callbackURL: '/auth/google/callback'
-},
-(accessToken, refreshToken, profile, done) => {
+}, (accessToken, refreshToken, profile, done) => {
   const user = {
     id: profile.id,
     displayName: profile.displayName,
@@ -30,6 +28,5 @@ passport.use(new GoogleStrategy({
   users[profile.id] = user;
   return done(null, user);
 }));
-
 
 module.exports = passport;
