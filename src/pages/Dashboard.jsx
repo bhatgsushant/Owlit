@@ -229,20 +229,26 @@ export default function Dashboard() {
   }
 
   useEffect(() => {
-    setIsLoading(true);
-    setTimeout(() => {
+    const fetchReceipts = async () => {
+      setIsLoading(true);
       try {
-        updateState(JSON.parse(localStorage.getItem('receipts') || '[]'));
-      } catch (error) { console.error("Failed to parse receipts", error); }
-      finally { setIsLoading(false); }
-    }, 1000);
+        const response = await fetch('/api/receipts', { credentials: 'include' });
+        if (!response.ok) {
+          throw new Error('Failed to fetch receipts');
+        }
+        const data = await response.json();
+        updateState(data);
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchReceipts();
   }, []);
 
-  const handleDeleteReceipt = (receiptId) => {
-    const updatedReceipts = receipts.filter(r => r.id !== receiptId);
-    localStorage.setItem('receipts', JSON.stringify(updatedReceipts));
-    updateState(updatedReceipts);
-  };
+  
 
   return (
     <motion.div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gray-900 font-sans">
@@ -272,7 +278,7 @@ export default function Dashboard() {
 
       <div className="mt-6 md:mt-8">
         <AnimatedSection delay={0.2}>
-            <ReceiptsAnalyticsTable receipts={filteredReceipts} isLoading={isLoading} onDelete={handleDeleteReceipt} />
+            <ReceiptsAnalyticsTable receipts={filteredReceipts} isLoading={isLoading} />
         </AnimatedSection>
       </div>
     </motion.div>

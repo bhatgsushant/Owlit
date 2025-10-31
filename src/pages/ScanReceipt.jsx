@@ -248,14 +248,28 @@ export default function ScanReceipt() {
     setMode('upload');
   };
   
-    const handleSave = () => {
-      const savedReceipts = JSON.parse(localStorage.getItem('receipts') || '[]');
-      const newReceipt = { ...extractedData, id: new Date().toISOString() };
-      const updatedReceipts = [...savedReceipts, newReceipt];
-      localStorage.setItem('receipts', JSON.stringify(updatedReceipts));
+    const handleSave = async () => {
+    try {
+      const response = await fetch('/api/receipts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(extractedData),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to save receipt');
+      }
+
       alert('Receipt saved successfully!');
       handleReset();
-  }
+    } catch (error) {
+      console.error(error);
+      alert(`Failed to save receipt: ${error.message}`);
+    }
+  };
 
   const pageTitle = scanMode === 'receipt' ? 'Scan Receipt' : 'Scan Document';
 
