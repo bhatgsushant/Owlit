@@ -28,6 +28,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const menuItems = [
     { name: 'Home', href: createPageUrl('Home') },
     { name: 'Dashboard', href: createPageUrl('Dashboard') },
+    { name: 'Insights', href: createPageUrl('Insights') },
     { name: 'Scan', href: createPageUrl('ScanReceipt') },
   ];
 

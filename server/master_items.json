@@ -134,5 +134,77 @@
     "receipt_ItemNames": [
       "GOLF: Black: One Size"
     ]
+  },
+  "Tesco Fairtrade Organic Granny Smith Apple 6 Pack": {
+    "main_category": "fruit",
+    "sub_category": "apples",
+    "Item_Name": "Tesco Fairtrade Organic Granny Smith Apple 6 Pack",
+    "receipt_ItemNames": [
+      "Tesco Fairtrade Organic Granny Smith Apple 6 Pack"
+    ]
+  },
+  "Bananas 5 Pack": {
+    "main_category": "fruit",
+    "sub_category": "bananas",
+    "Item_Name": "Bananas 5 Pack",
+    "receipt_ItemNames": [
+      "Bananas 5 Pack"
+    ]
+  },
+  "Cornetto Soft Cockle And Chocolate Ice Cream 140ml": {
+    "main_category": "dairy",
+    "sub_category": "cream",
+    "Item_Name": "Cornetto Soft Cockle And Chocolate Ice Cream 140ml",
+    "receipt_ItemNames": [
+      "Cornetto Soft Cockle And Chocolate Ice Cream 140ml"
+    ]
+  },
+  "Kids Girl 3-8 yrs Jersey Basic": {
+    "main_category": "clothing",
+    "sub_category": "t_shirts",
+    "Item_Name": "Kids Girl 3-8 yrs Jersey Basic",
+    "receipt_ItemNames": [
+      "Kids Girl 3-8 yrs Jersey Basic"
+    ]
+  },
+  "Kids Girl Jersey Fancy": {
+    "main_category": "clothing",
+    "sub_category": "dresses",
+    "Item_Name": "Kids Girl Jersey Fancy",
+    "receipt_ItemNames": [
+      "Kids Girl Jersey Fancy"
+    ]
+  },
+  "Kids Girl 3-8 yrs Jersey Fancy": {
+    "main_category": "clothing",
+    "sub_category": "dresses",
+    "Item_Name": "Kids Girl 3-8 yrs Jersey Fancy",
+    "receipt_ItemNames": [
+      "Kids Girl 3-8 yrs Jersey Fancy"
+    ]
+  },
+  "Kids Girl 3-8 yrs Trouser": {
+    "main_category": "clothing",
+    "sub_category": "jeans",
+    "Item_Name": "Kids Girl 3-8 yrs Trouser",
+    "receipt_ItemNames": [
+      "Kids Girl 3-8 yrs Trouser"
+    ]
+  },
+  "Kids Girl 3-8 yrs Knitwear": {
+    "main_category": "clothing",
+    "sub_category": "jackets",
+    "Item_Name": "Kids Girl 3-8 yrs Knitwear",
+    "receipt_ItemNames": [
+      "Kids Girl 3-8 yrs Knitwear"
+    ]
+  },
+  "Carryout Bag charge": {
+    "main_category": "household",
+    "sub_category": "bin_bags",
+    "Item_Name": "Carryout Bag charge",
+    "receipt_ItemNames": [
+      "Carryout Bag charge"
+    ]
   }
 }
