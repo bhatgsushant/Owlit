@@ -20,6 +20,7 @@ const PAGE_SIZE = 5;
 export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }) {
   const [sortConfig, setSortConfig] = useState({ key: 'transaction_date', direction: 'descending' });
   const [currentPage, setCurrentPage] = useState(1);
+  const hasDeleteAction = typeof onDelete === 'function';
 
   const sortedReceipts = useMemo(() => {
     let sortableItems = [...receipts];
@@ -82,14 +83,14 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
               <SortableHeader sortKey="transaction_date">Date</SortableHeader>
               <SortableHeader sortKey="category">Type</SortableHeader>
               <SortableHeader sortKey="total_amount" className="text-right">Total</SortableHeader>
-              <TableHead className="w-[50px] pr-6"> </TableHead>
+              {hasDeleteAction && <TableHead className="w-[50px] pr-6"> </TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               [...Array(PAGE_SIZE)].map((_, i) => (
                 <TableRow key={i} className="border-none">
-                  <TableCell colSpan={5} className="p-2"><div className="h-12 bg-gray-800/50 rounded-md animate-pulse" /></TableCell>
+                  <TableCell colSpan={hasDeleteAction ? 5 : 4} className="p-2"><div className="h-12 bg-gray-800/50 rounded-md animate-pulse" /></TableCell>
                 </TableRow>
               ))
             ) : paginatedReceipts.length > 0 ? (
@@ -104,18 +105,20 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
                   <TableCell className="text-sm text-gray-400">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
                   <TableCell><StoreType merchantName={receipt.merchant_name} /></TableCell>
                   <TableCell className="font-semibold text-right text-sm text-gray-200">{receipt.total_amount?.toFixed(2)}</TableCell>
-                  <TableCell className="pr-6">
-                    <div className="flex justify-end">
-                        <Button variant="ghost" size="icon" onClick={() => onDelete(receipt.id)} className="w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-500/80 hover:text-red-500 hover:bg-red-500/10">
-                            <Trash2 className="w-4 h-4" />
-                        </Button>
-                    </div>
-                  </TableCell>
+                  {hasDeleteAction && (
+                    <TableCell className="pr-6">
+                      <div className="flex justify-end">
+                          <Button variant="ghost" size="icon" onClick={() => onDelete(receipt.id)} className="w-8 h-8 opacity-0 group-hover:opacity-100 transition-opacity text-red-500/80 hover:text-red-500 hover:bg-red-500/10">
+                              <Trash2 className="w-4 h-4" />
+                          </Button>
+                      </div>
+                    </TableCell>
+                  )}
                 </TableRow>
               ))
             ) : (
               <TableRow className="border-none">
-                <TableCell colSpan={5} className="h-48 text-center text-gray-500">
+                <TableCell colSpan={hasDeleteAction ? 5 : 4} className="h-48 text-center text-gray-500">
                   No receipts found for the selected period.
                 </TableCell>
               </TableRow>

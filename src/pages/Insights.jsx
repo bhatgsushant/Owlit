@@ -2,7 +2,18 @@ import React, { useEffect, useMemo, useState } from 'react';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
-import { format, parse } from 'date-fns';
+import {
+  format,
+  parse,
+  startOfYear,
+  startOfMonth,
+  startOfWeek,
+  startOfDay,
+  subYears,
+  subMonths,
+  subWeeks,
+  subDays,
+} from 'date-fns';
 
 const weekDayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -67,6 +78,49 @@ const StatsCard = ({ label, value, helper }) => (
   </div>
 );
 
+const TimeframeCard = ({ label, current, previous }) => {
+  const delta =
+    previous === 0
+      ? current > 0
+        ? Infinity
+        : 0
+      : ((current - previous) / previous) * 100;
+
+  let deltaLabel = '—';
+  if (delta === Infinity) {
+    deltaLabel = 'New';
+  } else if (delta !== 0) {
+    deltaLabel = `${delta > 0 ? '+' : ''}${delta.toFixed(1)}%`;
+  }
+
+  const deltaClass =
+    delta === 0
+      ? 'text-gray-400'
+      : delta === Infinity
+      ? 'text-emerald-300'
+      : delta > 0
+      ? 'text-emerald-300'
+      : 'text-rose-300';
+
+  return (
+    <div className="bg-black/30 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-md flex flex-col gap-2 shadow-xl">
+      <span className="text-xs uppercase tracking-[0.32em] text-gray-400 font-semibold">{label}</span>
+      <span className="text-xl md:text-2xl font-semibold text-white font-display">{formatCurrency(current)}</span>
+      <span className={`text-xs font-medium ${deltaClass}`}>
+        {deltaLabel}{' '}
+        <span className="text-gray-500">
+          {delta === 0 ? '' : 'vs previous'}
+        </span>
+      </span>
+      {previous > 0 && (
+        <span className="text-[11px] text-gray-500">
+          Previous: {formatCurrency(previous)}
+        </span>
+      )}
+    </div>
+  );
+};
+
 export default function Insights() {
   const [receipts, setReceipts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -74,6 +128,10 @@ export default function Insights() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [drillLevel, setDrillLevel] = useState('main');
+  const [selectedMerchant, setSelectedMerchant] = useState(null);
+  const [selectedMerchantCategory, setSelectedMerchantCategory] = useState(null);
+  const [selectedMerchantSubcategory, setSelectedMerchantSubcategory] = useState(null);
+  const [merchantDrillLevel, setMerchantDrillLevel] = useState('merchant');
 
   useEffect(() => {
     let isMounted = true;
@@ -130,23 +188,52 @@ export default function Insights() {
   }, [receipts]);
 
   const analytics = useMemo(() => {
+    const now = new Date();
+    const currentYearStart = startOfYear(now);
+    const previousYearStart = startOfYear(subYears(now, 1));
+    const currentMonthStart = startOfMonth(now);
+    const previousMonthStart = startOfMonth(subMonths(now, 1));
+    const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
+    const previousWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
+    const currentDayStart = startOfDay(now);
+    const previousDayStart = startOfDay(subDays(now, 1));
+
+    const currentYearStartTime = currentYearStart.getTime();
+    const previousYearStartTime = previousYearStart.getTime();
+    const currentMonthStartTime = currentMonthStart.getTime();
+    const previousMonthStartTime = previousMonthStart.getTime();
+    const currentWeekStartTime = currentWeekStart.getTime();
+    const previousWeekStartTime = previousWeekStart.getTime();
+    const currentDayStartTime = currentDayStart.getTime();
+    const previousDayStartTime = previousDayStart.getTime();
+
+    const timeframeTotals = {
+      year: { current: 0, previous: 0 },
+      month: { current: 0, previous: 0 },
+      week: { current: 0, previous: 0 },
+      day: { current: 0, previous: 0 },
+    };
+
     if (!processedReceipts.length) {
       return {
         monthlySeries: [],
         categoryHierarchy: [],
         merchantSeries: [],
+        merchantDrilldown: { merchants: [], details: {} },
         weekdaySeries: [],
         categoryTimeline: null,
         categoryDetails: {},
         categoryNames: [],
         itemTotals: [],
         stats: null,
+        timeframeInsights: timeframeTotals,
       };
     }
 
     const monthlyMap = new Map();
     const categoryMap = new Map();
     const merchantMap = new Map();
+    const merchantDrilldownMap = new Map();
     const weekdayTotals = new Array(7).fill(0);
     const categoryTimelineMap = new Map(); // month -> Map(category -> total)
     const itemTotalsMap = new Map(); // item name -> total spend
@@ -167,6 +254,32 @@ export default function Insights() {
       }
 
       if (receipt.dateObj) {
+        const time = receipt.dateObj.getTime();
+
+        if (time >= currentYearStartTime) {
+          timeframeTotals.year.current += receiptTotal;
+        } else if (time >= previousYearStartTime && time < currentYearStartTime) {
+          timeframeTotals.year.previous += receiptTotal;
+        }
+
+        if (time >= currentMonthStartTime) {
+          timeframeTotals.month.current += receiptTotal;
+        } else if (time >= previousMonthStartTime && time < currentMonthStartTime) {
+          timeframeTotals.month.previous += receiptTotal;
+        }
+
+        if (time >= currentWeekStartTime) {
+          timeframeTotals.week.current += receiptTotal;
+        } else if (time >= previousWeekStartTime && time < currentWeekStartTime) {
+          timeframeTotals.week.previous += receiptTotal;
+        }
+
+        if (time >= currentDayStartTime) {
+          timeframeTotals.day.current += receiptTotal;
+        } else if (time >= previousDayStartTime && time < currentDayStartTime) {
+          timeframeTotals.day.previous += receiptTotal;
+        }
+
         const monthKey = format(receipt.dateObj, 'yyyy-MM');
         monthlyMap.set(monthKey, (monthlyMap.get(monthKey) || 0) + receiptTotal);
 
@@ -216,6 +329,8 @@ export default function Insights() {
           unitPrice: price,
           merchant: receipt.merchant_name || 'Unknown merchant',
           date: receipt.transaction_date,
+          mainCategory,
+          subCategory,
         };
 
         itemTotalsMap.set(itemKey, (itemTotalsMap.get(itemKey) || 0) + lineTotal);
@@ -231,6 +346,34 @@ export default function Insights() {
         const subEntry = entry.subCategories.get(subCategory);
         subEntry.total += lineTotal;
         subEntry.items.push(lineItemRecord);
+
+        if (!merchantDrilldownMap.has(merchantName)) {
+          merchantDrilldownMap.set(merchantName, {
+            total: 0,
+            categories: new Map(),
+          });
+        }
+        const merchantEntry = merchantDrilldownMap.get(merchantName);
+        merchantEntry.total += lineTotal;
+
+        if (!merchantEntry.categories.has(mainCategory)) {
+          merchantEntry.categories.set(mainCategory, {
+            total: 0,
+            subCategories: new Map(),
+          });
+        }
+        const merchantCategoryEntry = merchantEntry.categories.get(mainCategory);
+        merchantCategoryEntry.total += lineTotal;
+
+        if (!merchantCategoryEntry.subCategories.has(subCategory)) {
+          merchantCategoryEntry.subCategories.set(subCategory, {
+            total: 0,
+            items: [],
+          });
+        }
+        const merchantSubEntry = merchantCategoryEntry.subCategories.get(subCategory);
+        merchantSubEntry.total += lineTotal;
+        merchantSubEntry.items.push(lineItemRecord);
 
         if (receipt.dateObj) {
           const monthKey = format(receipt.dateObj, 'yyyy-MM');
@@ -300,6 +443,66 @@ export default function Insights() {
       .sort((a, b) => b.value - a.value)
       .slice(0, 8);
 
+    const merchantDrilldownEntries = Array.from(merchantDrilldownMap.entries())
+      .map(([name, merchantInfo]) => ({
+        name,
+        total: roundToTwo(merchantInfo.total),
+        merchantInfo,
+      }))
+      .filter((entry) => entry.total > 0)
+      .sort((a, b) => b.total - a.total);
+
+    const merchantDrilldownMerchants = merchantDrilldownEntries.map(({ name, total }) => ({
+      name,
+      value: total,
+    }));
+
+    const merchantDetails = {};
+    merchantDrilldownEntries.forEach(({ name, total, merchantInfo }) => {
+      const categories = Array.from(merchantInfo.categories.entries())
+        .map(([categoryName, categoryInfo]) => {
+          const subCategories = Array.from(categoryInfo.subCategories.entries())
+            .map(([subName, subInfo]) => ({
+              name: subName,
+              total: roundToTwo(subInfo.total),
+              items: subInfo.items
+                .slice()
+                .sort((a, b) => b.total - a.total),
+            }))
+            .sort((a, b) => b.total - a.total);
+
+          const subCategoryLookup = subCategories.reduce((acc, sub) => {
+            acc[sub.name] = sub;
+            return acc;
+          }, {});
+
+          return {
+            name: categoryName,
+            total: roundToTwo(categoryInfo.total),
+            subCategories,
+            subCategoryLookup,
+          };
+        })
+        .sort((a, b) => b.total - a.total);
+
+      const categoryLookup = categories.reduce((acc, category) => {
+        acc[category.name] = category;
+        return acc;
+      }, {});
+
+      merchantDetails[name] = {
+        name,
+        total,
+        categories,
+        categoryLookup,
+      };
+    });
+
+    const merchantDrilldown = {
+      merchants: merchantDrilldownMerchants,
+      details: merchantDetails,
+    };
+
     const weekdaySeries = weekDayLabels.map((label, index) => ({
       name: label,
       short: label.slice(0, 3),
@@ -354,11 +557,13 @@ export default function Insights() {
       monthlySeries,
       categoryHierarchy,
       merchantSeries,
+      merchantDrilldown,
       weekdaySeries,
       categoryTimeline,
       categoryDetails,
       categoryNames,
-       itemTotals,
+      itemTotals,
+      timeframeInsights: timeframeTotals,
       stats: {
         totalReceipts: processedReceipts.length,
         totalSpent,
@@ -413,6 +618,112 @@ export default function Insights() {
       setDrillLevel(selectedCategory ? 'sub' : 'main');
     }
   }, [drillLevel, selectedSubCategory, selectedCategory]);
+
+  useEffect(() => {
+    const merchantData = analytics.merchantDrilldown;
+    if (!merchantData?.merchants?.length) {
+      setSelectedMerchant(null);
+      setSelectedMerchantCategory(null);
+      setSelectedMerchantSubcategory(null);
+      setMerchantDrillLevel('merchant');
+      return;
+    }
+
+    if (selectedMerchant && !merchantData.details?.[selectedMerchant]) {
+      setSelectedMerchant(null);
+      setSelectedMerchantCategory(null);
+      setSelectedMerchantSubcategory(null);
+      setMerchantDrillLevel('merchant');
+    }
+  }, [analytics.merchantDrilldown, selectedMerchant]);
+
+  useEffect(() => {
+    if (!selectedMerchant) {
+      if (selectedMerchantCategory) {
+        setSelectedMerchantCategory(null);
+      }
+      if (selectedMerchantSubcategory) {
+        setSelectedMerchantSubcategory(null);
+      }
+      if (merchantDrillLevel !== 'merchant') {
+        setMerchantDrillLevel('merchant');
+      }
+      return;
+    }
+
+    const merchantInfo = analytics.merchantDrilldown?.details?.[selectedMerchant];
+    if (!merchantInfo) return;
+
+    if (
+      selectedMerchantCategory &&
+      !merchantInfo.categoryLookup[selectedMerchantCategory]
+    ) {
+      setSelectedMerchantCategory(null);
+      setSelectedMerchantSubcategory(null);
+      setMerchantDrillLevel('main');
+      return;
+    }
+
+    if (merchantDrillLevel === 'merchant' && merchantInfo.categories.length) {
+      setMerchantDrillLevel('main');
+    }
+  }, [
+    analytics.merchantDrilldown,
+    selectedMerchant,
+    selectedMerchantCategory,
+    selectedMerchantSubcategory,
+    merchantDrillLevel,
+  ]);
+
+  useEffect(() => {
+    if (!selectedMerchantCategory) {
+      if (selectedMerchantSubcategory) {
+        setSelectedMerchantSubcategory(null);
+      }
+      if (merchantDrillLevel === 'sub' || merchantDrillLevel === 'item') {
+        setMerchantDrillLevel(selectedMerchant ? 'main' : 'merchant');
+      }
+      return;
+    }
+
+    const categoryInfo =
+      selectedMerchant && analytics.merchantDrilldown?.details?.[selectedMerchant]
+        ? analytics.merchantDrilldown.details[selectedMerchant].categoryLookup?.[
+            selectedMerchantCategory
+          ]
+        : null;
+
+    if (!categoryInfo) return;
+
+    if (
+      selectedMerchantSubcategory &&
+      !categoryInfo.subCategoryLookup[selectedMerchantSubcategory]
+    ) {
+      setSelectedMerchantSubcategory(null);
+      if (merchantDrillLevel === 'item') {
+        setMerchantDrillLevel('sub');
+      }
+      return;
+    }
+
+    if (merchantDrillLevel === 'main') {
+      setMerchantDrillLevel('sub');
+    }
+  }, [
+    analytics.merchantDrilldown,
+    selectedMerchant,
+    selectedMerchantCategory,
+    selectedMerchantSubcategory,
+    merchantDrillLevel,
+  ]);
+
+  useEffect(() => {
+    if (merchantDrillLevel === 'item' && !selectedMerchantSubcategory) {
+      setMerchantDrillLevel(
+        selectedMerchantCategory ? 'sub' : selectedMerchant ? 'main' : 'merchant'
+      );
+    }
+  }, [merchantDrillLevel, selectedMerchantSubcategory, selectedMerchantCategory, selectedMerchant]);
 
   const spendingTrendOption = useMemo(() => {
     if (!analytics.monthlySeries.length) return null;
@@ -637,6 +948,20 @@ export default function Insights() {
       ? selectedCategoryDetails.subCategoryLookup?.[selectedSubCategory] || null
       : null;
 
+  const selectedMerchantDetails = selectedMerchant
+    ? analytics.merchantDrilldown?.details?.[selectedMerchant] || null
+    : null;
+
+  const selectedMerchantCategoryDetails =
+    selectedMerchantDetails && selectedMerchantCategory
+      ? selectedMerchantDetails.categoryLookup?.[selectedMerchantCategory] || null
+      : null;
+
+  const selectedMerchantSubcategoryDetails =
+    selectedMerchantCategoryDetails && selectedMerchantSubcategory
+      ? selectedMerchantCategoryDetails.subCategoryLookup?.[selectedMerchantSubcategory] || null
+      : null;
+
   const drilldownOption = useMemo(() => {
     if (!analytics.categoryNames.length) return null;
 
@@ -657,12 +982,12 @@ export default function Insights() {
 
     if (drillLevel === 'main') {
       entries = analytics.categoryNames.map((name) => ({
-        name,
+        label: name,
         value: analytics.categoryDetails?.[name]?.total || 0,
       }));
     } else if (drillLevel === 'sub' && selectedCategoryDetails) {
       entries = selectedCategoryDetails.subCategories.map((sub) => ({
-        name: sub.name,
+        label: sub.name,
         value: sub.total,
       }));
     } else if (drillLevel === 'item') {
@@ -671,8 +996,13 @@ export default function Insights() {
         (selectedCategoryDetails && selectedCategoryDetails.items) ||
         [];
       entries = sourceItems.map((item) => ({
-        name: `${item.name} • ${item.merchant}`,
+        label: item.name,
         value: item.total,
+        merchant: item.merchant,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        date: item.date,
+        subCategory: item.subCategory || selectedSubCategory || '',
       }));
     }
 
@@ -683,21 +1013,59 @@ export default function Insights() {
 
     if (!filteredEntries.length) return null;
 
-    const categories = filteredEntries.map((entry) => entry.name);
+    const labelCounts = filteredEntries.reduce((acc, entry) => {
+      const key = entry.label || 'Unnamed item';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const labelIndex = {};
+    const displayLabels = filteredEntries.map((entry) => {
+      const base = entry.label || 'Unnamed item';
+      if (labelCounts[base] > 1) {
+        const nextIndex = (labelIndex[base] || 0) + 1;
+        labelIndex[base] = nextIndex;
+        return `${base} (${nextIndex})`;
+      }
+      return base;
+    });
+
     const dataSeries = filteredEntries.map((entry, index) => ({
       value: entry.value,
-      name: entry.name,
+      name: displayLabels[index],
+      raw: entry,
       itemStyle: {
         color: palette[index % palette.length],
       },
     }));
+
+    const reversedLabels = displayLabels.slice().reverse();
+    const reversedSeries = dataSeries.slice().reverse();
 
     return {
       backgroundColor: 'transparent',
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        valueFormatter: (value) => formatCurrency(value),
+        formatter: (params) => {
+          if (!params?.length) return '';
+          const [first] = params;
+          const rawEntry = first.data?.raw;
+          const label = rawEntry?.label || first.name;
+          const lines = [`${label}: ${formatCurrency(first.value)}`];
+          if (drillLevel === 'item' && rawEntry) {
+            if (rawEntry.merchant) {
+              lines.push(`Merchant: ${rawEntry.merchant}`);
+            }
+            if (Number.isFinite(rawEntry.quantity) && Number.isFinite(rawEntry.unitPrice)) {
+              lines.push(`Qty ${rawEntry.quantity} × ${formatCurrency(rawEntry.unitPrice)}`);
+            }
+            if (rawEntry.date) {
+              lines.push(`Date: ${formatDisplayDate(rawEntry.date)}`);
+            }
+          }
+          return lines.join('<br/>');
+        },
       },
       grid: { left: '32%', right: '8%', top: 40, bottom: 16 },
       xAxis: {
@@ -707,7 +1075,7 @@ export default function Insights() {
       },
       yAxis: {
         type: 'category',
-        data: categories.slice().reverse(),
+        data: reversedLabels,
         axisTick: { show: false },
         axisLine: { show: false },
         axisLabel: { color: '#F8FAFC', fontSize: 12 },
@@ -715,7 +1083,7 @@ export default function Insights() {
       series: [
         {
           type: 'bar',
-          data: dataSeries.slice().reverse(),
+          data: reversedSeries,
           barWidth: 18,
           label: {
             show: true,
@@ -732,25 +1100,163 @@ export default function Insights() {
     drillLevel,
     selectedCategoryDetails,
     selectedSubcategoryDetails,
+    selectedSubCategory,
   ]);
 
-  const visibleLineItems = useMemo(() => {
-    if (drillLevel === 'item' && selectedSubcategoryDetails?.items?.length) {
-      return selectedSubcategoryDetails.items.slice(0, 12);
+  const merchantDrilldownOption = useMemo(() => {
+    const drillData = analytics.merchantDrilldown;
+    if (!drillData?.merchants?.length) return null;
+
+    const palette = [
+      '#22D3EE',
+      '#8B5CF6',
+      '#F97316',
+      '#34D399',
+      '#FBBF24',
+      '#6366F1',
+      '#EF4444',
+      '#14B8A6',
+      '#F472B6',
+      '#60A5FA',
+    ];
+
+    let entries = [];
+
+    if (merchantDrillLevel === 'merchant') {
+      entries = drillData.merchants.map((merchant) => ({
+        label: merchant.name,
+        value: merchant.value,
+      }));
+    } else if (merchantDrillLevel === 'main' && selectedMerchantDetails) {
+      entries = selectedMerchantDetails.categories.map((category) => ({
+        label: category.name,
+        value: category.total,
+      }));
+    } else if (merchantDrillLevel === 'sub' && selectedMerchantCategoryDetails) {
+      entries = selectedMerchantCategoryDetails.subCategories.map((sub) => ({
+        label: sub.name,
+        value: sub.total,
+      }));
+    } else if (merchantDrillLevel === 'item' && selectedMerchantSubcategoryDetails) {
+      entries = selectedMerchantSubcategoryDetails.items.map((item) => ({
+        label: item.name,
+        value: item.total,
+        merchant: item.merchant,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        date: item.date,
+        mainCategory: item.mainCategory,
+        subCategory: item.subCategory,
+      }));
     }
-    if (drillLevel === 'sub' && selectedCategoryDetails?.items?.length) {
-      return selectedCategoryDetails.items.slice(0, 12);
-    }
-    return [];
-  }, [drillLevel, selectedCategoryDetails, selectedSubcategoryDetails]);
+
+    const filteredEntries = (entries || [])
+      .filter((entry) => entry.value > 0)
+      .sort((a, b) => b.value - a.value)
+      .slice(0, merchantDrillLevel === 'item' ? 12 : 10);
+
+    if (!filteredEntries.length) return null;
+
+    const labelCounts = filteredEntries.reduce((acc, entry) => {
+      const key = entry.label || 'Unnamed';
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
+    const labelIndex = {};
+    const displayLabels = filteredEntries.map((entry) => {
+      const base = entry.label || 'Unnamed';
+      if (labelCounts[base] > 1) {
+        const idx = (labelIndex[base] || 0) + 1;
+        labelIndex[base] = idx;
+        return `${base} (${idx})`;
+      }
+      return base;
+    });
+
+    const dataSeries = filteredEntries.map((entry, index) => ({
+      value: entry.value,
+      name: displayLabels[index],
+      raw: entry,
+      itemStyle: {
+        color: palette[index % palette.length],
+      },
+    }));
+
+    const reversedLabels = displayLabels.slice().reverse();
+    const reversedSeries = dataSeries.slice().reverse();
+
+    return {
+      backgroundColor: 'transparent',
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params) => {
+          if (!params?.length) return '';
+          const [first] = params;
+          const rawEntry = first.data?.raw;
+          const label = rawEntry?.label || first.name;
+          const lines = [`${label}: ${formatCurrency(first.value)}`];
+          if (merchantDrillLevel === 'item' && rawEntry) {
+            if (rawEntry.mainCategory) {
+              lines.push(`Main category: ${rawEntry.mainCategory}`);
+            }
+            if (rawEntry.subCategory) {
+              lines.push(`Sub-category: ${rawEntry.subCategory}`);
+            }
+            if (Number.isFinite(rawEntry.quantity) && Number.isFinite(rawEntry.unitPrice)) {
+              lines.push(`Qty ${rawEntry.quantity} × ${formatCurrency(rawEntry.unitPrice)}`);
+            }
+            if (rawEntry.date) {
+              lines.push(`Date: ${formatDisplayDate(rawEntry.date)}`);
+            }
+          }
+          return lines.join('<br/>');
+        },
+      },
+      grid: { left: '32%', right: '8%', top: 40, bottom: 16 },
+      xAxis: {
+        type: 'value',
+        axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
+        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
+      },
+      yAxis: {
+        type: 'category',
+        data: reversedLabels,
+        axisTick: { show: false },
+        axisLine: { show: false },
+        axisLabel: { color: '#F8FAFC', fontSize: 12 },
+      },
+      series: [
+        {
+          type: 'bar',
+          data: reversedSeries,
+          barWidth: 18,
+          label: {
+            show: true,
+            position: 'right',
+            color: '#E2E8F0',
+            formatter: ({ value }) => formatCurrency(value),
+          },
+        },
+      ],
+    };
+  }, [
+    analytics.merchantDrilldown,
+    merchantDrillLevel,
+    selectedMerchantDetails,
+    selectedMerchantCategoryDetails,
+    selectedMerchantSubcategoryDetails,
+  ]);
 
   const handleDrillClick = (params) => {
-    if (!params?.name) return;
+    const targetName = params?.data?.raw?.label || params?.name;
+    if (!targetName) return;
     if (drillLevel === 'main') {
-      setSelectedCategory(params.name);
+      setSelectedCategory(targetName);
       setDrillLevel('sub');
     } else if (drillLevel === 'sub') {
-      setSelectedSubCategory(params.name);
+      setSelectedSubCategory(targetName);
       setDrillLevel('item');
     }
   };
@@ -765,10 +1271,40 @@ export default function Insights() {
     }
   };
 
-  const clearCategorySelection = () => {
-    setSelectedCategory(null);
-    setSelectedSubCategory(null);
-    setDrillLevel('main');
+  const handleMerchantDrillClick = (params) => {
+    const targetName = params?.data?.raw?.label || params?.name;
+    if (!targetName) return;
+
+    if (merchantDrillLevel === 'merchant') {
+      setSelectedMerchant(targetName);
+      setMerchantDrillLevel('main');
+    } else if (merchantDrillLevel === 'main') {
+      setSelectedMerchantCategory(targetName);
+      setMerchantDrillLevel('sub');
+    } else if (merchantDrillLevel === 'sub') {
+      setSelectedMerchantSubcategory(targetName);
+      setMerchantDrillLevel('item');
+    }
+  };
+
+  const merchantStepBack = () => {
+    if (merchantDrillLevel === 'item') {
+      setMerchantDrillLevel('sub');
+      setSelectedMerchantSubcategory(null);
+    } else if (merchantDrillLevel === 'sub') {
+      setMerchantDrillLevel('main');
+      setSelectedMerchantCategory(null);
+    } else if (merchantDrillLevel === 'main') {
+      setMerchantDrillLevel('merchant');
+      setSelectedMerchant(null);
+    }
+  };
+
+  const clearMerchantSelection = () => {
+    setSelectedMerchant(null);
+    setSelectedMerchantCategory(null);
+    setSelectedMerchantSubcategory(null);
+    setMerchantDrillLevel('merchant');
   };
 
   const drilldownDescription = useMemo(() => {
@@ -808,6 +1344,52 @@ export default function Insights() {
     </div>
   );
 
+  const merchantDrilldownDescription = useMemo(() => {
+    if (merchantDrillLevel === 'merchant') {
+      return 'Review where your spending concentrates. Click a merchant to inspect its category mix.';
+    }
+    if (merchantDrillLevel === 'main' && selectedMerchant) {
+      return `Viewing ${selectedMerchant}'s categories. Choose one to uncover its sub-categories.`;
+    }
+    if (merchantDrillLevel === 'sub' && selectedMerchant && selectedMerchantCategory) {
+      return `Exploring ${selectedMerchantCategory} from ${selectedMerchant}. Drill into a sub-category to reveal items.`;
+    }
+    if (merchantDrillLevel === 'item' && selectedMerchant && selectedMerchantSubcategory) {
+      return `Line items contributing to ${selectedMerchantSubcategory} at ${selectedMerchant}.`;
+    }
+    return '';
+  }, [merchantDrillLevel, selectedMerchant, selectedMerchantCategory, selectedMerchantSubcategory]);
+
+  const merchantDrilldownPath = useMemo(() => {
+    const segments = ['All merchants'];
+    if (selectedMerchant) segments.push(selectedMerchant);
+    if (selectedMerchantCategory) segments.push(selectedMerchantCategory);
+    if (selectedMerchantSubcategory) segments.push(selectedMerchantSubcategory);
+    return segments.join(' › ');
+  }, [selectedMerchant, selectedMerchantCategory, selectedMerchantSubcategory]);
+
+  const merchantDrilldownHeaderAction = (
+    <div className="flex items-center gap-3 text-xs text-gray-400">
+      <span className="hidden sm:inline">{merchantDrilldownPath}</span>
+      {merchantDrillLevel !== 'merchant' && (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={merchantStepBack}
+            className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
+          >
+            Back
+          </button>
+          <button
+            onClick={clearMerchantSelection}
+            className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
+          >
+            Clear
+          </button>
+        </div>
+      )}
+    </div>
+  );
+
   const drilldownEmptyMessage = useMemo(() => {
     if (!analytics.categoryNames.length) {
       return 'No categorised spending yet. Scan receipts with line items to populate this view.';
@@ -821,28 +1403,21 @@ export default function Insights() {
     return 'No data available yet.';
   }, [analytics.categoryNames, drillLevel]);
 
-  const lineItemTitle = useMemo(() => {
-    if (drillLevel === 'item') {
-      return `Line items — ${selectedSubCategory || 'Selection'}`;
+  const merchantDrilldownEmptyMessage = useMemo(() => {
+    if (!analytics.merchantDrilldown?.merchants?.length) {
+      return 'No merchant insights yet. Scan receipts with line items to populate this view.';
     }
-    if (drillLevel === 'sub') {
-      return `Recent items — ${selectedCategory}`;
+    if (merchantDrillLevel === 'main') {
+      return 'This merchant has no categorised spend yet.';
     }
-    return 'Line item drill-down';
-  }, [drillLevel, selectedCategory, selectedSubCategory]);
-
-  const lineItemSubtitle = useMemo(() => {
-    if (drillLevel === 'main') {
-      return 'Use the drilldown chart to pick a category and surface its receipts.';
+    if (merchantDrillLevel === 'sub') {
+      return 'No sub-categories recorded for this selection.';
     }
-    if (drillLevel === 'sub') {
-      return 'Click a sub-category bar to focus on its underlying line items.';
+    if (merchantDrillLevel === 'item') {
+      return 'No line items captured for this sub-category.';
     }
-    if (drillLevel === 'item') {
-      return 'Showing top items powering this slice. Clear to explore another path.';
-    }
-    return '';
-  }, [drillLevel]);
+    return 'No data available yet.';
+  }, [analytics.merchantDrilldown, merchantDrillLevel]);
 
   const itemTotalsOption = useMemo(() => {
     if (!analytics.itemTotals.length) return null;
@@ -1007,6 +1582,33 @@ export default function Insights() {
         </div>
       </AnimatedSection>
 
+      {analytics.timeframeInsights && (
+        <AnimatedSection delay={0.07}>
+          <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
+            <TimeframeCard
+              label="Year to Date"
+              current={analytics.timeframeInsights.year.current}
+              previous={analytics.timeframeInsights.year.previous}
+            />
+            <TimeframeCard
+              label="This Month"
+              current={analytics.timeframeInsights.month.current}
+              previous={analytics.timeframeInsights.month.previous}
+            />
+            <TimeframeCard
+              label="This Week"
+              current={analytics.timeframeInsights.week.current}
+              previous={analytics.timeframeInsights.week.previous}
+            />
+            <TimeframeCard
+              label="Today"
+              current={analytics.timeframeInsights.day.current}
+              previous={analytics.timeframeInsights.day.previous}
+            />
+          </div>
+        </AnimatedSection>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8 mt-8">
         <AnimatedSection delay={0.1}>
           <ChartCard
@@ -1064,79 +1666,17 @@ export default function Insights() {
             headerAction={drilldownHeaderAction}
             height={300}
           />
-          <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg md:text-xl font-semibold text-white font-display">
-                  {lineItemTitle}
-                </h2>
-                <p className="text-xs text-gray-500 uppercase tracking-[0.28em] mt-1">
-                  {drilldownPath}
-                </p>
-                <p className="text-sm text-gray-400 mt-2 leading-relaxed">
-                  {lineItemSubtitle}
-                </p>
-              </div>
-              {drillLevel !== 'main' && (
-                <button
-                  onClick={clearCategorySelection}
-                  className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
-                >
-                  Clear
-                </button>
-              )}
-            </div>
-            <div className="mt-4 flex-1 overflow-hidden">
-              {selectedCategoryDetails && drillLevel !== 'main' && (
-                <div className="mb-4 flex flex-wrap gap-4 text-xs text-gray-400">
-                  <span>
-                    Main total: {formatCurrency(selectedCategoryDetails.total)} • Items:{' '}
-                    {selectedCategoryDetails.items.length}
-                  </span>
-                  {selectedSubcategoryDetails && (
-                    <span>
-                      Sub total: {formatCurrency(selectedSubcategoryDetails.total)} • Items:{' '}
-                      {selectedSubcategoryDetails.items.length}
-                    </span>
-                  )}
-                </div>
-              )}
-              {drillLevel !== 'main' ? (
-                visibleLineItems.length ? (
-                  <div className="space-y-3 overflow-y-auto pr-2 max-h-[300px]">
-                    {visibleLineItems.map((item) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
-                      >
-                        <div className="flex items-center justify-between text-sm">
-                          <span className="font-semibold text-white">{item.name}</span>
-                          <span className="font-semibold text-violet-300">
-                            {formatCurrency(item.total)}
-                          </span>
-                        </div>
-                        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-400">
-                          <span>
-                            Qty {item.quantity} × {formatCurrency(item.unitPrice)}
-                          </span>
-                          <span>{item.merchant}</span>
-                          <span>{formatDisplayDate(item.date)}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="h-full flex items-center justify-center text-sm text-gray-500 text-center px-4">
-                    No line items found for this selection yet.
-                  </div>
-                )
-              ) : (
-                <div className="h-full flex items-center justify-center text-sm text-gray-500 text-center px-6">
-                  Choose a category from the drilldown chart to see contributing items.
-                </div>
-              )}
-            </div>
-          </div>
+          <ChartCard
+            title="Merchant Breakdown"
+            description={merchantDrilldownDescription}
+            option={merchantDrilldownOption}
+            isLoading={isLoading}
+            hasData={Boolean(merchantDrilldownOption)}
+            onEvents={merchantDrilldownOption ? { click: handleMerchantDrillClick } : undefined}
+            emptyMessage={merchantDrilldownEmptyMessage}
+            headerAction={merchantDrilldownHeaderAction}
+            height={300}
+          />
         </div>
       </AnimatedSection>
 

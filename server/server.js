@@ -1,3 +1,5 @@
+const { getStoreInfo } = require('./storeInfo.js');
+
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
@@ -50,35 +52,55 @@ const docAIClient = new DocumentProcessorServiceClient();
 console.log('🧠 Initialized Google Document AI Client');
 
 // --- Master Items ---
-const MASTER_ITEMS_PATH = path.join(__dirname, 'master_items.json');
-let masterItems = {};
+let masterItems = {}; // In-memory cache now fed from Supabase only
+
 
 async function loadMasterItems() {
-    try {
-        const data = await fs.readFile(MASTER_ITEMS_PATH, 'utf8');
-        masterItems = JSON.parse(data);
-        console.log(`✅ Loaded ${Object.keys(masterItems).length} items from master list.`);
-    } catch (error) {
-        if (error.code === 'ENOENT') {
-            console.log('📝 Master items file not found, starting with empty list.');
-            masterItems = {};
-        } else {
-            console.error('❌ Error loading master items:', error);
-            masterItems = {};
-        }
+    console.log("🔄 Loading master items from Supabase...");
+    const { data, error } = await supabase
+        .from('master_items')
+        .select('item_name, main_category, sub_category');
+
+    if (error) {
+        console.error('❌ Error loading master items from Supabase:', error);
+        masterItems = {};
+        return;
     }
+
+    masterItems = {};
+
+    for (const row of data) {
+        masterItems[row.item_name.toLowerCase().trim()] = {
+            main_category: row.main_category,
+            sub_category: row.sub_category,
+            Item_Name: row.item_name,
+            receipt_ItemNames: [row.item_name]
+        };
+    }
+
+    console.log(`✅ Loaded ${Object.keys(masterItems).length} items from Supabase.`);
 }
 
-async function saveMasterItems() {
-    const tempPath = `${MASTER_ITEMS_PATH}.tmp`;
-    try {
-        await fs.writeFile(tempPath, JSON.stringify(masterItems, null, 2));
-        await fs.rename(tempPath, MASTER_ITEMS_PATH);
-        console.log(`💾 Saved ${Object.keys(masterItems).length} items to master list.`);
-    } catch (error) {
-        console.error('❌ Error saving master items:', error);
-    }
+
+async function saveMasterItem(itemName, main_category, sub_category) {
+    await supabase
+        .from('master_items')
+        .insert([
+            { item_name: itemName, main_category, sub_category }
+        ])
+        .onConflict('item_name')
+        .ignore();
+
+    masterItems[itemName.toLowerCase().trim()] = {
+        main_category,
+        sub_category,
+        Item_Name: itemName,
+        receipt_ItemNames: [itemName]
+    };
+
+    console.log(`💾 Saved to Supabase master_items: ${itemName}`);
 }
+
 
 // --- Middleware ---
 app.use(cors({
@@ -338,7 +360,8 @@ function findInMasterList(itemName) {
     const lowercasedItem = itemName.toLowerCase().trim();
     // First, check for an exact match on a canonical name
     if (masterItems[lowercasedItem]) {
-        return { ...masterItems[lowercasedItem], Item_Name: lowercasedItem };
+        return { ...masterItems[lowercasedItem] };
+
     }
     // Then, check all OCR variations
     for (const canonicalName in masterItems) {
@@ -362,7 +385,8 @@ function findInCategoryKeywords(itemName) {
     return null;
 }
 
-async function categorizeLineItems(lineItems) {
+async function categorizeLineItems(lineItems, userId) {
+
     let isMasterListUpdated = false;
     const categorizedLineItems = [];
 
@@ -370,7 +394,36 @@ async function categorizeLineItems(lineItems) {
         const rawItemName = item.name || item.Name || '';
         if (!rawItemName) continue;
 
-        let masterListEntry = findInMasterList(rawItemName);
+
+// ✅ 1) Check user-specific category override *if* user is logged in
+let userOverride = null;
+
+if (userId) {
+  const result = await supabase
+    .from('user_categories')
+    .select('main_category, sub_category')
+    .eq('user_id', userId)
+    .eq('item_name', rawItemName)
+    .maybeSingle();
+
+  userOverride = result.data;
+}
+
+let masterListEntry;
+
+if (userOverride) {
+  masterListEntry = {
+    Item_Name: rawItemName,
+    main_category: userOverride.main_category,
+    sub_category: userOverride.sub_category
+  };
+  console.log(`🎨 Used USER-SPECIFIC category for "${rawItemName}"`);
+} else {
+  // ✅ Fallback to global master list
+  masterListEntry = findInMasterList(rawItemName);
+}
+
+
 
         if (masterListEntry) { // Found in master list
             categorizedLineItems.push({
@@ -415,21 +468,17 @@ async function categorizeLineItems(lineItems) {
             });
 
             // Add the new item to the master list
-            masterItems[canonicalName] = {
-                main_category: categoryInfo.main_category,
-                sub_category: categoryInfo.sub_category,
-                Item_Name: canonicalName,
-                receipt_ItemNames: [rawItemName]
-            };
-            isMasterListUpdated = true;
+           await saveMasterItem(
+   canonicalName,
+   categoryInfo.main_category,
+   categoryInfo.sub_category
+);
+
             console.log(`✨ Added "${canonicalName}" to master list from ${source}.`);
         }
     }
 
-    if (isMasterListUpdated) {
-        await saveMasterItems();
-    }
-
+    
     return categorizedLineItems;
 }
 
@@ -473,20 +522,35 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
         const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
         
         const lineItems = processedData.items || processedData.Items || [];
-        const categorizedLineItems = await categorizeLineItems(lineItems);
+      const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
 
-        const transformedData = {
-            merchant_name: processedData.merchant || processedData.MerchantName || '',
-            transaction_date: formatDate(processedData.transaction_date || processedData.Date),
-            line_items: categorizedLineItems,
-            total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0
-        };
+
+    const rawMerchant = processedData.merchant || processedData.MerchantName || '';
+const merchant_name = rawMerchant
+  .toLowerCase()
+  .replace(/[^a-z0-9 ]/gi, ' ') // remove special characters like hyphens
+  .replace(/\s+/g, ' ')         // normalize spaces
+  .trim()
+  .replace(/\b\w/g, c => c.toUpperCase()); // recase nicely
+// ✅ Store lookup (this fixes logo + store type)
+const storeInfo = getStoreInfo(merchant_name);
+
+const transformedData = {
+  merchant_name,
+  transaction_date: formatDate(processedData.transaction_date || processedData.Date),
+  line_items: categorizedLineItems,
+  total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
+  store_type: storeInfo?.StoreName_category || 'Other',
+};
+
 
         console.log(`
 📤 === FINAL DATA SENT TO FRONTEND ===`);
         console.log(JSON.stringify(transformedData, null, 2));
+        console.log("🟢 DATA SENT TO FRONTEND:", transformedData);
+res.json(transformedData);
 
-        res.json(transformedData);
+       
     } catch (error) {
         console.error('❌ Error processing receipt:', error);
         res.status(500).json({
@@ -620,6 +684,54 @@ app.post('/api/receipts', isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error('Error saving receipt:', error);
     res.status(500).json({ error: 'Failed to save receipt' });
+  }
+});
+
+app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
+  const { item_name, main_category, sub_category } = req.body;
+
+  if (!item_name || !main_category || !sub_category) {
+    return res.status(400).json({ error: 'Missing fields' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('user_categories')
+      .upsert(
+        { user_id: req.user.id, item_name, main_category, sub_category },
+        { onConflict: 'user_id,item_name' }
+      );
+
+    if (error) {
+      console.error('❌ Supabase error:', error);
+      throw error;
+    }
+
+    console.log(`✨ Saved user-specific override: ${item_name} → ${main_category}/${sub_category}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('❌ Error updating user category:', error);
+    res.status(500).json({ error: 'Failed to update user category' });
+  }
+});
+
+app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
+  const { item_name } = req.body;
+
+  try {
+    await supabase
+      .from('user_categories')
+      .delete()
+      .eq('user_id', req.user.id)
+      .eq('item_name', item_name);
+
+    console.log(`🔄 Reset override for: ${item_name}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('❌ Error resetting category:', error);
+    res.status(500).json({ error: 'Failed to reset category' });
   }
 });
 

@@ -10,8 +10,8 @@ export const STORE_DATA = {
   'iceland': { domain: 'iceland.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'marksandspencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'm&s': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
-  'Marks & Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
-  'Marks and Spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'marks & spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'marks and spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'cooperative': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'costco': { domain: 'costco.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'woolworths': { domain: 'woolworths.co.uk', StoreName_category: 'Groceries - Supermarket' },
@@ -41,7 +41,7 @@ export const STORE_DATA = {
   'zara': { domain: 'zara.com', StoreName_category: 'Fashion & Clothing' },
   'hm': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
   'h&m': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
-  'H&M Hennes & Mauritz UK': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'h&m hennes & mauritz uk': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
   'topshop': { domain: 'topshop.com', StoreName_category: 'Fashion & Clothing' },
   'gap': { domain: 'gap.co.uk', StoreName_category: 'Fashion & Clothing' },
   'river island': { domain: 'riverisland.com', StoreName_category: 'Fashion & Clothing' },  
@@ -72,6 +72,7 @@ export const STORE_DATA = {
   'wilko': { domain: 'wilko.com', StoreName_category: 'Home & DIY' },
   'dunelm': { domain: 'dunelm.com', StoreName_category: 'Home & DIY' },
   'theworks': { domain: 'theworks.co.uk', StoreName_category: 'Books & Stationery' },
+  'the works': { domain: 'theworks.co.uk', StoreName_category: 'Books & Stationery' },
   'robertdyas': { domain: 'robertdyas.co.uk', StoreName_category: 'Home & DIY' },
 
   // 💄 Health & Beauty
@@ -172,13 +173,11 @@ export function getStoreInfo(merchantName) {
   if (!merchantName) return null;
 
   const normalized = merchantName.toLowerCase().trim();
-  
-  for (const key in STORE_DATA) {
-    if (normalized.includes(key.toLowerCase())) {
-      return STORE_DATA[key];
-    }
+
+  if (STORE_DATA[normalized]) {
+    return STORE_DATA[normalized];
   }
-  
+
   const simpleName = normalized.replace(/[^a-z0-9]/g, '');
   return {
       domain: `${simpleName}.com`,

@@ -1,20 +1,20 @@
 {
-  "XL Paper Text Carrier": {
-    "main_category": "other",
-    "sub_category": "miscellaneous",
-    "Item_Name": "XL Paper Text Carrier",
-    "receipt_ItemNames": [
-      "XL Paper Text Carrier"
-    ]
-  },
-  "Air Crew Jumper": {
-    "main_category": "clothing",
-    "sub_category": "jackets",
-    "Item_Name": "Air Crew Jumper",
-    "receipt_ItemNames": [
-      "Air Crew Jumper"
-    ]
-  },
+    "XL Paper Text Carrier": {
+      "main_category": "household",
+      "sub_category": "paper_products",
+      "Item_Name": "XL Paper Text Carrier",
+      "receipt_ItemNames": [
+        "XL Paper Text Carrier"
+      ]
+    },
+    "Air Crew Jumper": {
+      "main_category": "clothing",
+      "sub_category": "jackets",
+      "Item_Name": "Air Crew Jumper",
+      "receipt_ItemNames": [
+        "Air Crew Jumper"
+      ]
+    },
   "Polka Dot Jogger": {
     "main_category": "clothing",
     "sub_category": "pants",
@@ -205,6 +205,166 @@
     "Item_Name": "Carryout Bag charge",
     "receipt_ItemNames": [
       "Carryout Bag charge"
+    ]
+  },
+  "Spooky Bun": {
+    "main_category": "bakery",
+    "sub_category": "pastries",
+    "Item_Name": "Spooky Bun",
+    "receipt_ItemNames": [
+      "Spooky Bun"
+    ]
+  },
+  "Southern Fried Chicken Goujons": {
+    "main_category": "poultry",
+    "sub_category": "chicken",
+    "Item_Name": "Southern Fried Chicken Goujons",
+    "receipt_ItemNames": [
+      "Southern Fried Chicken Goujons"
+    ]
+  },
+  "Southern Fried Potato Wedges": {
+    "main_category": "snacks",
+    "sub_category": "chips",
+    "Item_Name": "Southern Fried Potato Wedges",
+    "receipt_ItemNames": [
+      "Southern Fried Potato Wedges"
+    ]
+  },
+  "Mozzarella & Cheddar Cheese": {
+    "main_category": "dairy",
+    "sub_category": "cheese",
+    "Item_Name": "Mozzarella & Cheddar Cheese",
+    "receipt_ItemNames": [
+      "Mozzarella & Cheddar Cheese"
+    ]
+  },
+  "Milk Chocolate Cookie 4 Pack": {
+    "main_category": "dairy",
+    "sub_category": "milk",
+    "Item_Name": "Milk Chocolate Cookie 4 Pack",
+    "receipt_ItemNames": [
+      "Milk Chocolate Cookie 4 Pack"
+    ]
+  },
+  "Innocent Berry Set Go": {
+    "main_category": "beverages",
+    "sub_category": "juice",
+    "Item_Name": "Innocent Berry Set Go",
+    "receipt_ItemNames": [
+      "Innocent Berry Set Go"
+    ]
+  },
+  "Lemon Toffie Slice Cake": {
+    "main_category": "bakery",
+    "sub_category": "cakes",
+    "Item_Name": "Lemon Toffie Slice Cake",
+    "receipt_ItemNames": [
+      "Lemon Toffie Slice Cake"
+    ]
+  },
+  "Mocha": {
+    "main_category": "beverages",
+    "sub_category": "coffee",
+    "Item_Name": "Mocha",
+    "receipt_ItemNames": [
+      "Mocha"
+    ]
+  },
+  "Borek Slice - Normal": {
+    "main_category": "bakery",
+    "sub_category": "pastries",
+    "Item_Name": "Borek Slice - Normal",
+    "receipt_ItemNames": [
+      "Borek Slice - Normal"
+    ]
+  },
+  "Latte": {
+    "main_category": "beverages",
+    "sub_category": "coffee",
+    "Item_Name": "Latte",
+    "receipt_ItemNames": [
+      "Latte"
+    ]
+  },
+  "FTL FAVOURITES": {
+    "main_category": "Kids & Baby",
+    "sub_category": "Toys",
+    "Item_Name": "FTL FAVOURITES",
+    "receipt_ItemNames": [
+      "FTL FAVOURITES"
+    ]
+  },
+  "GAT Fruit": {
+    "main_category": "bakery",
+    "sub_category": "pastries",
+    "Item_Name": "GAT Fruit",
+    "receipt_ItemNames": [
+      "GAT Fruit"
+    ]
+  },
+  "Additions for 8.11.25": {
+    "main_category": "bakery",
+    "sub_category": "pastries",
+    "Item_Name": "Additions for 8.11.25",
+    "receipt_ItemNames": [
+      "Additions for 8.11.25"
+    ]
+  },
+  "Gabbys dollhouse activity set": {
+    "main_category": "Kids & Baby",
+    "sub_category": "Toys",
+    "Item_Name": "Gabbys dollhouse activity set",
+    "receipt_ItemNames": [
+      "Gabbys dollhouse activity set"
+    ]
+  },
+  "Tennents 4x568ml": {
+    "main_category": "beverages",
+    "sub_category": "beer",
+    "Item_Name": "Tennents 4x568ml",
+    "receipt_ItemNames": [
+      "Tennents 4x568ml"
+    ]
+  },
+  "Barefoot White Zinfandel 187ml": {
+    "main_category": "beverages",
+    "sub_category": "wine",
+    "Item_Name": "Barefoot White Zinfandel 187ml",
+    "receipt_ItemNames": [
+      "Barefoot White Zinfandel 187ml"
+    ]
+  },
+  "2G 2PK COSY: Black": {
+    "main_category": "clothing",
+    "sub_category": "accessories",
+    "Item_Name": "2G 2PK COSY: Black",
+    "receipt_ItemNames": [
+      "2G 2PK COSY: Black"
+    ]
+  },
+  "AOP DITSY LEG: Oatm": {
+    "main_category": "clothing",
+    "sub_category": "jeans",
+    "Item_Name": "AOP DITSY LEG: Oatm",
+    "receipt_ItemNames": [
+      "AOP DITSY LEG: Oatm"
+    ]
+  },
+  "2G POLKA CORD JACK": {
+    "main_category": "clothing",
+    "sub_category": "jackets",
+    "Item_Name": "2G POLKA CORD JACK",
+    "receipt_ItemNames": [
+      "2G POLKA CORD JACK"
+    ]
+  },
+  "AOP DITSY LS TOP": {
+    "main_category": "clothing",
+    "sub_category": "t_shirts",
+    "Item_Name": "AOP DITSY LS TOP",
+    "receipt_ItemNames": [
+      "AOP DITSY LS TOP"
     ]
   }
 }

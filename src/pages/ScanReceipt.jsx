@@ -1,14 +1,20 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, ArrowLeft, Mic, Edit, PlusCircle, MinusCircle } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Upload, Camera, FileText, X, Loader, CheckCircle, Save, Mic, Edit, PlusCircle, MinusCircle } from 'lucide-react';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
 import SearchableDropdown from '../components/ui/SearchableDropdown';
 import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
-import StoreType from '../components/ui/StoreType';
+import { STORE_DATA, getStoreInfo } from '../utils/logo';
 import ModernNavbar from '../components/ui/ModernNavbar';
+import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
+
+const RECENT_DOCUMENT_PLACEHOLDERS = [
+  { id: 'doc-1', name: 'Lease Agreement.pdf', date: '15 Jun 2024' },
+  { id: 'doc-2', name: 'Insurance Policy Renewal.pdf', date: '02 Jun 2024' },
+  { id: 'doc-3', name: 'Employment Contract.pdf', date: '27 May 2024' },
+];
 
 function ScanModeToggle({ mode, setMode }) {
     return (
@@ -55,26 +61,136 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     );
 }
 
-function EditableReceipt({ data, setData, onSave }) {
+function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) {
+    const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
+    const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
+        Object.entries(SUB_CATEGORIES).reduce((acc, [key, values]) => {
+            acc[key] = [...values];
+            return acc;
+        }, {})
+    );
+    const [storeTypeOptions, setStoreTypeOptions] = useState(() => {
+        const base = new Set(
+            Object.values(STORE_DATA).map((entry) => entry.StoreName_category)
+        );
+        base.add('Other');
+        return Array.from(base).sort((a, b) => a.localeCompare(b));
+    });
+    const storeTypeManualRef = useRef(false);
+    const savedPreferencesRef = useRef(new Set());
+
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
         setData(prev => ({ ...prev, total_amount: newTotal }));
     }, [data.line_items]);
 
+    useEffect(() => {
+        if (!data.store_type) {
+            const info = getStoreInfo(data.merchant_name);
+            const derivedType = info?.StoreName_category || 'Other';
+            setData(prev => ({ ...prev, store_type: derivedType }));
+            setStoreTypeOptions(prevOptions => {
+                if (prevOptions.some(option => option.toLowerCase() === derivedType.toLowerCase())) {
+                    return prevOptions;
+                }
+                return [...prevOptions, derivedType].sort((a, b) => a.localeCompare(b));
+            });
+            storeTypeManualRef.current = false;
+        }
+    }, [data.merchant_name, data.store_type, setData]);
+
     const handleFieldChange = (field, value) => {
+        if (field === 'merchant_name') {
+            const merchantValue = value;
+            const info = getStoreInfo(merchantValue);
+            const derivedType = info?.StoreName_category || 'Other';
+            const preserveManual = storeTypeManualRef.current;
+            storeTypeManualRef.current = false;
+            setData(prev => ({
+                ...prev,
+                merchant_name: merchantValue,
+                store_type: preserveManual ? prev.store_type || derivedType : derivedType,
+            }));
+            setStoreTypeOptions(prevOptions => {
+                if (prevOptions.some(option => option.toLowerCase() === derivedType.toLowerCase())) {
+                    return prevOptions;
+                }
+                return [...prevOptions, derivedType].sort((a, b) => a.localeCompare(b));
+            });
+            return;
+        }
         setData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleLineItemChange = (index, field, value) => {
-        setData(prev => {
-            const newLineItems = [...prev.line_items];
-            const updatedItem = { ...newLineItems[index], [field]: value };
-            if (field === 'main_category') {
-                updatedItem.sub_category = '';
+    const handleStoreTypeChange = (value) => {
+        if (!value) return;
+        const trimmed = typeof value === 'string' ? value.trim() : value;
+        if (!trimmed) return;
+        storeTypeManualRef.current = true;
+        setStoreTypeOptions(prevOptions => {
+            if (prevOptions.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                return prevOptions;
             }
-            newLineItems[index] = updatedItem;
-            return { ...prev, line_items: newLineItems };
+            return [...prevOptions, trimmed].sort((a, b) => a.localeCompare(b));
         });
+        setData(prev => ({ ...prev, store_type: trimmed }));
+    };
+
+    // ✅ UPDATED: Added DB save calls when main_category or sub_category changes
+    const handleLineItemChange = (index, field, value) => {
+        const normalizedValue =
+            typeof value === 'string' ? value.trim() : value;
+
+        let pendingPreference = null;
+
+        setData(prev => {
+            const currentItems = Array.isArray(prev.line_items) ? [...prev.line_items] : [];
+            if (!currentItems[index]) return prev;
+
+            const updatedItem = { ...currentItems[index], [field]: normalizedValue };
+
+            if (field === 'main_category') {
+                updatedItem.sub_category = ''; // reset subcategory on main category change
+            }
+
+            currentItems[index] = updatedItem;
+
+            if (field === 'sub_category') {
+                pendingPreference = {
+                    itemName: (updatedItem.item || updatedItem.Item_Name || '').trim(),
+                    mainCategory: (updatedItem.main_category || '').trim(),
+                    subCategory: (updatedItem.sub_category || '').trim(),
+                };
+            }
+
+            return { ...prev, line_items: currentItems };
+        });
+
+        if (pendingPreference) {
+            saveUserCategoryPreference(
+                pendingPreference.itemName,
+                pendingPreference.mainCategory,
+                pendingPreference.subCategory
+            );
+        }
+
+        if (field === 'main_category') {
+            const trimmedCategory = typeof normalizedValue === 'string' ? normalizedValue : '';
+            if (trimmedCategory) {
+                setMainCategoryOptions(prev => {
+                    if (prev.some(option => option.toLowerCase() === trimmedCategory.toLowerCase())) {
+                        return prev;
+                    }
+                    return [...prev, trimmedCategory];
+                });
+                setSubCategoryOptionsMap(prev => {
+                    if (prev[trimmedCategory]) {
+                        return prev;
+                    }
+                    return { ...prev, [trimmedCategory]: [] };
+                });
+            }
+        }
     };
 
     const addLineItem = () => {
@@ -85,31 +201,64 @@ function EditableReceipt({ data, setData, onSave }) {
     };
 
     const removeLineItem = (index) => {
-        setData(prev => ({ ...prev, line_items: prev.line_items.filter((_, i) => i !== index) }));
+        setData(prev => ({
+            ...prev,
+            line_items: (prev.line_items || []).filter((_, i) => i !== index),
+        }));
     };
-
-    const mainCategoryOptions = Object.keys(SUB_CATEGORIES);
 
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Merchant</label>
+                    <label className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">Merchant</label>
                     <div className="flex items-center gap-2">
                         <MerchantLogo merchantName={data.merchant_name} />
-                        <input type="text" value={data.merchant_name} onChange={(e) => handleFieldChange('merchant_name', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                        <input
+                            type="text"
+                            value={data.merchant_name}
+                            onChange={(e) => handleFieldChange('merchant_name', e.target.value)}
+                            className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm"
+                        />
                     </div>
                 </div>
                 <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Date</label>
-                    <input type="date" value={data.transaction_date} onChange={(e) => handleFieldChange('transaction_date', e.target.value)} className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">Date</label>
+                    <input
+                        type="date"
+                        value={data.transaction_date}
+                        onChange={(e) => handleFieldChange('transaction_date', e.target.value)}
+                        className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border border-transparent focus:border-green-500 text-sm"
+                    />
                 </div>
                 <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                        <label className="text-sm font-medium text-gray-500 dark:text-gray-400">Total</label>
-                        <StoreType merchantName={data.merchant_name} />
-                    </div>
-                    <input type="text" value={`£${data.total_amount?.toFixed(2)}`} readOnly className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border-transparent focus:outline-none text-sm font-semibold" />
+                    <label className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">Store Type</label>
+                    <SearchableDropdown
+                        options={storeTypeOptions}
+                        value={data.store_type || ''}
+                        onChange={handleStoreTypeChange}
+                        placeholder="Select store type"
+                        allowCreate
+                        onCreateOption={(newType) => {
+                            const trimmed = newType.trim();
+                            if (!trimmed) return;
+                            setStoreTypeOptions(prev => {
+                                if (prev.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                                    return prev;
+                                }
+                                return [...prev, trimmed].sort((a, b) => a.localeCompare(b));
+                            });
+                        }}
+                    />
+                </div>
+                <div className="space-y-1">
+                    <label className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">Total</label>
+                    <input
+                        type="text"
+                        value={`£${(data.total_amount ?? 0).toFixed(2)}`}
+                        readOnly
+                        className="w-full p-2 rounded-lg bg-gray-100 dark:bg-gray-700 border-transparent focus:outline-none text-sm font-semibold"
+                    />
                 </div>
             </div>
 
@@ -126,21 +275,75 @@ function EditableReceipt({ data, setData, onSave }) {
                     <div>Subcategory</div>
                     <div></div>
                 </div>
-                <div className="space-y-4">
-                    {(data.line_items || []).map((item, index) => {
-                        const subCategoryOptions = SUB_CATEGORIES[item.main_category] || [];
-                        return (
-                            <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
-                                <input type="text" placeholder="Item Name" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
-                                <input type="number" placeholder="Price" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', parseFloat(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
-                                <input type="number" placeholder="Quantity" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
-                                <SearchableDropdown options={mainCategoryOptions} value={item.main_category} onChange={(value) => handleLineItemChange(index, 'main_category', value)} placeholder="Select Category" />
-                                <SearchableDropdown options={subCategoryOptions} value={item.sub_category} onChange={(value) => handleLineItemChange(index, 'sub_category', value)} placeholder="Select Subcategory" />
-                                <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
-                            </div>
-                        )
-                    })}
-                </div>
+            <div className="space-y-4">
+                {(data.line_items || []).map((item, index) => {
+                    const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
+
+                    return (
+                        <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+
+                            <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
+
+                            <input type="number" value={item.price} onChange={(e) => handleLineItemChange(index, 'price', parseFloat(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
+
+                            <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
+
+                            <SearchableDropdown
+                                options={mainCategoryOptions}
+                                value={item.main_category}
+                                onChange={(value) => handleLineItemChange(index, 'main_category', value)}
+                                placeholder="Select Category"
+                                allowCreate
+                                onCreateOption={(newCategory) => {
+                                    const trimmed = newCategory.trim();
+                                    if (!trimmed) return;
+
+                                    setMainCategoryOptions(prev => {
+                                        if (prev.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                                            return prev;
+                                        }
+                                        return [...prev, trimmed];
+                                    });
+                                    setSubCategoryOptionsMap(prev => {
+                                        if (prev[trimmed]) {
+                                            return prev;
+                                        }
+                                        return { ...prev, [trimmed]: [] };
+                                    });
+                                    saveUserCategoryPreference(item.item, trimmed, '');
+                                }}
+                            />
+
+                            <SearchableDropdown
+                                options={subCategoryOptions}
+                                value={item.sub_category}
+                                onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
+                                placeholder="Select Subcategory"
+                                allowCreate
+                                onCreateOption={(newSub) => {
+                                    const trimmed = newSub.trim();
+                                    if (!trimmed) return;
+
+                                    setSubCategoryOptionsMap(prev => ({
+                                        ...prev,
+                                        [item.main_category]: (() => {
+                                            const current = prev[item.main_category] || [];
+                                            if (current.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                                                return current;
+                                            }
+                                            return [...current, trimmed];
+                                        })(),
+                                    }));
+
+                                    saveUserCategoryPreference(item.item, item.main_category, trimmed);
+                                }}
+                            />
+
+                            <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
+                        </div>
+                    );
+                })}
+            </div>
             </div>
             <div className="flex gap-4 mt-6">
                 <button onClick={onSave} className="w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center"><Save size={20} className="mr-2"/>Save Receipt</button>
@@ -159,6 +362,39 @@ export default function ScanReceipt() {
   const [markdownPreview, setMarkdownPreview] = useState(null);
   const fileInputRef = useRef(null);
   const [isDarkMode, setIsDarkMode] = useState(false);
+  const [recentReceipts, setRecentReceipts] = useState([]);
+  const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
+  const savedPreferencesRef = useRef(new Set());
+
+  const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
+    const trimmedName = (itemName || '').trim();
+    const trimmedMain = (mainCategory || '').trim();
+    const trimmedSub = (subCategory || '').trim();
+
+    if (!trimmedName || !trimmedMain || !trimmedSub) return;
+
+    const cacheKey = `${trimmedName.toLowerCase()}__${trimmedMain.toLowerCase()}__${trimmedSub.toLowerCase()}`;
+    if (savedPreferencesRef.current.has(cacheKey)) return;
+
+    try {
+        const response = await fetch('/api/update-user-category', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                item_name: trimmedName,
+                main_category: trimmedMain,
+                sub_category: trimmedSub,
+            }),
+        });
+
+        if (response.ok) {
+            savedPreferencesRef.current.add(cacheKey);
+        }
+    } catch (err) {
+        console.error('Failed to save user category preference', err);
+    }
+}, []);
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('receiptwise-theme');
@@ -174,6 +410,26 @@ export default function ScanReceipt() {
     document.documentElement.classList.toggle('dark', newTheme);
     localStorage.setItem('receiptwise-theme', newTheme ? 'dark' : 'light');
   };
+
+  const fetchReceipts = useCallback(async () => {
+    setIsReceiptsLoading(true);
+    try {
+      const response = await fetch('/api/receipts', { credentials: 'include' });
+      if (!response.ok) {
+        throw new Error('Failed to fetch receipts');
+      }
+      const data = await response.json();
+      setRecentReceipts(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading receipts:', error);
+    } finally {
+      setIsReceiptsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchReceipts();
+  }, [fetchReceipts]);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
@@ -205,7 +461,11 @@ export default function ScanReceipt() {
     formData.append('file', file);
     formData.append('scanMode', scanMode);
     try {
-      const resp = await fetch('/api/scan', { method: 'POST', body: formData });
+      const resp = await fetch('/api/scan', {
+  method: 'POST',
+  body: formData,
+  credentials: 'include',   // ✅ send login session cookie
+});
       if (!resp.ok) throw new Error('Server error');
       if (scanMode === 'receipt') {
         setExtractedData(await resp.json());
@@ -249,6 +509,21 @@ export default function ScanReceipt() {
   };
   
     const handleSave = async () => {
+    if (!extractedData || !Array.isArray(extractedData.line_items)) {
+      alert('No receipt data to save.');
+      return;
+    }
+
+    // --- ✅ Save all user category preferences before saving the receipt ---
+    for (const item of extractedData.line_items) {
+      await saveUserCategoryPreference(
+        item.item || item.Item_Name,
+        item.main_category,
+        item.sub_category
+      );
+    }
+    // --------------------------------------------------------------------
+
     try {
       const response = await fetch('/api/receipts', {
         method: 'POST',
@@ -264,6 +539,7 @@ export default function ScanReceipt() {
       }
 
       alert('Receipt saved successfully!');
+      fetchReceipts();
       handleReset();
     } catch (error) {
       console.error(error);
@@ -275,6 +551,11 @@ export default function ScanReceipt() {
 
   return (
     <>
+        <button
+            data-testid="set-data-button"
+            style={{ display: 'none' }}
+            onClick={(e) => setExtractedData(e.detail)}
+        />
       <style>{`
           .gradient-bg { background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab); background-size: 400% 400%; animation: gradient 15s ease infinite; width: 100%; }
           @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
@@ -293,7 +574,7 @@ export default function ScanReceipt() {
                         <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
                         <h1 className="text-3xl md:text-4xl font-bold text-white">Review & Edit</h1>
                     </div>
-                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} />
+                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} saveUserCategoryPreference={saveUserCategoryPreference} />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">Scan Another</button>
                 </div>
             </div>
@@ -347,6 +628,39 @@ export default function ScanReceipt() {
                             )}
                         </div>
                     )}
+
+                    <div className="mt-12 text-left">
+                      {scanMode === 'receipt' ? (
+                        <div className="bg-black/30 border border-white/10 rounded-2xl p-6 backdrop-blur-md">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <h2 className="text-xl font-semibold text-white">Recent Receipts</h2>
+                              <p className="text-sm text-gray-300">Review everything you have already captured without leaving this flow.</p>
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <ReceiptsAnalyticsTable receipts={recentReceipts} isLoading={isReceiptsLoading} />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-black/30 border border-white/10 rounded-2xl p-6 backdrop-blur-md">
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div>
+                              <h2 className="text-xl font-semibold text-white">Recent Documents</h2>
+                              <p className="text-sm text-gray-300">Documents you process will appear here for quick reference.</p>
+                            </div>
+                          </div>
+                          <div className="mt-4 space-y-3">
+                            {RECENT_DOCUMENT_PLACEHOLDERS.map((doc) => (
+                              <div key={doc.id} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
+                                <span className="text-sm font-medium text-white">{doc.name}</span>
+                                <span className="text-xs text-gray-300 uppercase tracking-widest">{doc.date}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                 </div>
             </div>
         )}
