@@ -169,10 +169,22 @@ export const STORE_DATA = {
   'ryman': { domain: 'ryman.co.uk', StoreName_category: 'Books & Stationery' }
 };
 
-export function getStoreInfo(merchantName) {
+export function getStoreInfo(merchantName, userStoreOverrides = null) {
   if (!merchantName) return null;
 
   const normalized = merchantName.toLowerCase().trim();
+
+  if (userStoreOverrides && userStoreOverrides[normalized]) {
+    const overriddenCategory = userStoreOverrides[normalized];
+    // Find the original store data to keep the domain if it exists
+    const originalStoreData = STORE_DATA[normalized] || 
+                              Object.values(STORE_DATA).find(d => d.domain === `${normalized.replace(/[^a-z0-9]/g, '')}.com`);
+
+    return { 
+      ...originalStoreData,
+      StoreName_category: overriddenCategory 
+    };
+  }
 
   if (STORE_DATA[normalized]) {
     return STORE_DATA[normalized];

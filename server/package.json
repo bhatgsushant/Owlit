@@ -8,7 +8,8 @@
     "start": "node server.js",
     "mock": "node mock-server.js",
     "llm": "node llm-server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "populate-db": "node populate_store_info.js"
   },
   "keywords": [],
   "author": "",

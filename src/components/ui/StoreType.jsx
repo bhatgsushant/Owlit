@@ -1,6 +1,7 @@
 import React from 'react';
 import { getStoreInfo } from '@/utils/logo';
 import { Tag } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const getCategoryColor = (category) => {
     const colorMap = {
@@ -33,7 +34,8 @@ const getCategoryColor = (category) => {
 };
 
 const StoreType = ({ merchantName }) => {
-    const storeInfo = getStoreInfo(merchantName);
+    const { userStoreOverrides } = useAuth();
+    const storeInfo = getStoreInfo(merchantName, userStoreOverrides);
     const storeType = storeInfo ? storeInfo.StoreName_category : 'Other';
     const colorClass = getCategoryColor(storeType);
 

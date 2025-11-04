@@ -6,6 +6,7 @@ import { SUB_CATEGORIES } from '../utils/categorize';
 import SearchableDropdown from '../components/ui/SearchableDropdown';
 import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
+import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
 import ModernNavbar from '../components/ui/ModernNavbar';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
@@ -61,7 +62,7 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     );
 }
 
-function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) {
+function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides }) {
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
     const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
         Object.entries(SUB_CATEGORIES).reduce((acc, [key, values]) => {
@@ -78,6 +79,18 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) 
     });
     const storeTypeManualRef = useRef(false);
     const savedPreferencesRef = useRef(new Set());
+    const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
+
+    useEffect(() => {
+        if (file) {
+            const url = URL.createObjectURL(file);
+            setImagePreviewUrl(url);
+
+            return () => {
+                URL.revokeObjectURL(url);
+            };
+        }
+    }, [file]);
 
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
@@ -85,24 +98,22 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) 
     }, [data.line_items]);
 
     useEffect(() => {
-        if (!data.store_type) {
-            const info = getStoreInfo(data.merchant_name);
-            const derivedType = info?.StoreName_category || 'Other';
-            setData(prev => ({ ...prev, store_type: derivedType }));
-            setStoreTypeOptions(prevOptions => {
-                if (prevOptions.some(option => option.toLowerCase() === derivedType.toLowerCase())) {
-                    return prevOptions;
-                }
-                return [...prevOptions, derivedType].sort((a, b) => a.localeCompare(b));
-            });
-            storeTypeManualRef.current = false;
-        }
-    }, [data.merchant_name, data.store_type, setData]);
+        const info = getStoreInfo(data.merchant_name, userStoreOverrides);
+        const derivedType = info?.StoreName_category || 'Other';
+        setData(prev => ({ ...prev, store_type: derivedType }));
+        setStoreTypeOptions(prevOptions => {
+            if (prevOptions.some(option => option.toLowerCase() === derivedType.toLowerCase())) {
+                return prevOptions;
+            }
+            return [...prevOptions, derivedType].sort((a, b) => a.localeCompare(b));
+        });
+        storeTypeManualRef.current = false;
+    }, [data.merchant_name, setData, userStoreOverrides]);
 
     const handleFieldChange = (field, value) => {
         if (field === 'merchant_name') {
             const merchantValue = value;
-            const info = getStoreInfo(merchantValue);
+            const info = getStoreInfo(merchantValue, userStoreOverrides);
             const derivedType = info?.StoreName_category || 'Other';
             const preserveManual = storeTypeManualRef.current;
             storeTypeManualRef.current = false;
@@ -122,7 +133,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) 
         setData(prev => ({ ...prev, [field]: value }));
     };
 
-    const handleStoreTypeChange = (value) => {
+    const handleStoreTypeChange = async (value) => {
         if (!value) return;
         const trimmed = typeof value === 'string' ? value.trim() : value;
         if (!trimmed) return;
@@ -134,6 +145,23 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) 
             return [...prevOptions, trimmed].sort((a, b) => a.localeCompare(b));
         });
         setData(prev => ({ ...prev, store_type: trimmed }));
+
+        // Call the new endpoint to save the override
+        try {
+            await fetch('/api/user-store-type-overrides', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    merchant_name: data.merchant_name,
+                    store_type: trimmed,
+                }),
+                credentials: 'include',
+            });
+        } catch (error) {
+            console.error('Failed to save store type override:', error);
+        }
     };
 
     // ✅ UPDATED: Added DB save calls when main_category or sub_category changes
@@ -209,6 +237,11 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference }) 
 
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
+            {imagePreviewUrl && (
+                <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                    <img src={imagePreviewUrl} alt="Receipt Preview" className="w-full h-auto object-contain max-h-96" />
+                </div>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1">
                     <label className="text-[11px] font-medium uppercase tracking-[0.24em] text-gray-400 dark:text-gray-500">Merchant</label>
@@ -365,6 +398,7 @@ export default function ScanReceipt() {
   const [recentReceipts, setRecentReceipts] = useState([]);
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const savedPreferencesRef = useRef(new Set());
+  const { userStoreOverrides } = useAuth();
 
   const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
     const trimmedName = (itemName || '').trim();
@@ -514,23 +548,16 @@ export default function ScanReceipt() {
       return;
     }
 
-    // --- ✅ Save all user category preferences before saving the receipt ---
-    for (const item of extractedData.line_items) {
-      await saveUserCategoryPreference(
-        item.item || item.Item_Name,
-        item.main_category,
-        item.sub_category
-      );
+    const formData = new FormData();
+    formData.append('receiptData', JSON.stringify(extractedData));
+    if (file) {
+      formData.append('receiptImage', file);
     }
-    // --------------------------------------------------------------------
 
     try {
       const response = await fetch('/api/receipts', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(extractedData),
+        body: formData,
         credentials: 'include',
       });
 
@@ -541,7 +568,7 @@ export default function ScanReceipt() {
       alert('Receipt saved successfully!');
       fetchReceipts();
       handleReset();
-    } catch (error) {
+    } catch (error) { 
       console.error(error);
       alert(`Failed to save receipt: ${error.message}`);
     }
@@ -574,7 +601,7 @@ export default function ScanReceipt() {
                         <CheckCircle size={48} className="text-green-500 mx-auto mb-4" />
                         <h1 className="text-3xl md:text-4xl font-bold text-white">Review & Edit</h1>
                     </div>
-                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} saveUserCategoryPreference={saveUserCategoryPreference} />
+                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} saveUserCategoryPreference={saveUserCategoryPreference} file={file} userStoreOverrides={userStoreOverrides} />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">Scan Another</button>
                 </div>
             </div>

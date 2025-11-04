@@ -1,4 +1,4 @@
-const { getStoreInfo } = require('./storeInfo.js');
+
 
 require('dotenv').config();
 const express = require('express');
@@ -85,11 +85,10 @@ async function loadMasterItems() {
 async function saveMasterItem(itemName, main_category, sub_category) {
     await supabase
         .from('master_items')
-        .insert([
-            { item_name: itemName, main_category, sub_category }
-        ])
-        .onConflict('item_name')
-        .ignore();
+        .upsert(
+            { item_name: itemName, main_category, sub_category },
+            { onConflict: 'item_name' }
+        );
 
     masterItems[itemName.toLowerCase().trim()] = {
         main_category,
@@ -286,6 +285,8 @@ ${CATEGORY_PROMPT_TEXT}
 {
   "merchant": "",
   "transaction_date": "",
+  "main_category": "",
+  "store_type": "",
   "items": [
     {"name": "", "quantity": 1, "price": 0.0, "category": "", "sub_category": ""}
   ],
@@ -296,8 +297,9 @@ ${CATEGORY_PROMPT_TEXT}
 1. Use the Google Document AI text as the primary source. Use the Tesseract hint to resolve ambiguities.
 2. Quantity defaults to 1 if missing.
 3. Price must be a number only (no currency symbols).
-4. Assign a logical category/sub_category from the provided taxonomy.
-5. Return **JSON only**, no explanations.
+4. Assign a logical category/sub_category from the provided taxonomy for each item.
+5. Based on the merchant name and items, infer the store's main_category (e.g., "Groceries", "Fashion", "Electronics") and store_type (e.g., "Supermarket", "Clothing Store", "Electronics Store").
+6. Return **JSON only**, no explanations.
 `;
     for (let i = 0; i <= MAX_RETRIES; i++) {
         try {
@@ -532,15 +534,64 @@ const merchant_name = rawMerchant
   .replace(/\s+/g, ' ')         // normalize spaces
   .trim()
   .replace(/\b\w/g, c => c.toUpperCase()); // recase nicely
-// ✅ Store lookup (this fixes logo + store type)
-const storeInfo = getStoreInfo(merchant_name);
+
+// --- New Store Type Logic ---
+let store_type = 'Other';
+let main_category = 'Other';
+const userId = req.user?.id || null;
+
+if (userId) {
+    const { data: override } = await supabase
+        .from('user_store_type_overrides')
+        .select('store_type')
+        .eq('user_id', userId)
+        .eq('merchant_name', merchant_name)
+        .single();
+
+    if (override) {
+        store_type = override.store_type;
+        console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
+    }
+}
+
+// Fallback to database if no override was found
+if (store_type === 'Other') {
+    const { data: storeInfo, error } = await supabase
+        .from('store_info')
+        .select('main_category, store_type')
+        .eq('merchant_name', merchant_name)
+        .single();
+
+    if (storeInfo) {
+        main_category = storeInfo.main_category;
+        store_type = storeInfo.store_type;
+    } else {
+        // If not in our DB, use OpenAI's suggestion and save it
+        main_category = processedData.main_category || 'Other';
+        store_type = processedData.store_type || 'Other';
+        if (store_type !== 'Other') {
+            const { error: insertError } = await supabase
+                .from('store_info')
+                .insert({
+                    merchant_name: merchant_name,
+                    main_category: main_category,
+                    store_type: store_type,
+                });
+            if (insertError) {
+                console.error('Error inserting new store type:', insertError);
+            }
+        }
+    }
+}
+// --- End New Store Type Logic ---
 
 const transformedData = {
   merchant_name,
   transaction_date: formatDate(processedData.transaction_date || processedData.Date),
   line_items: categorizedLineItems,
   total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
-  store_type: storeInfo?.StoreName_category || 'Other',
+  main_category: main_category,
+  store_type: store_type, // Use the determined store_type
 };
 
 
@@ -665,9 +716,36 @@ app.get('/api/receipts', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/receipts', isAuthenticated, async (req, res) => {
+app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async (req, res) => {
   try {
-    const { merchant_name, transaction_date, total_amount, line_items } = req.body;
+    const receiptData = JSON.parse(req.body.receiptData);
+    const { merchant_name, transaction_date, total_amount, line_items } = receiptData;
+    let receipt_url = null;
+
+    if (req.file) {
+      const receiptId = require('crypto').randomUUID();
+      const extension = path.extname(req.file.originalname);
+      const now = new Date();
+      const time = now.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
+      const fileName = `${merchant_name}-${transaction_date}-${time}-${receiptId}${extension}`;
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, req.file.buffer, {
+          contentType: req.file.mimetype,
+        });
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('receipts')
+        .getPublicUrl(fileName);
+
+      receipt_url = publicUrlData.publicUrl;
+    }
+
     const { data, error } = await supabase
       .from('receipts')
       .insert({
@@ -676,6 +754,7 @@ app.post('/api/receipts', isAuthenticated, async (req, res) => {
         transaction_date,
         total_amount,
         line_items,
+        receipt_url,
       })
       .select();
 
@@ -732,6 +811,59 @@ app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error('❌ Error resetting category:', error);
     res.status(500).json({ error: 'Failed to reset category' });
+  }
+});
+
+app.post('/api/user-store-type-overrides', isAuthenticated, async (req, res) => {
+  const { merchant_name, store_type } = req.body;
+  const userId = req.user.id;
+
+  if (!merchant_name || !store_type) {
+    return res.status(400).json({ error: 'Missing merchant_name or store_type' });
+  }
+
+  try {
+    const { error } = await supabase
+      .from('user_store_type_overrides')
+      .upsert({
+        user_id: userId,
+        merchant_name,
+        store_type
+      }, { onConflict: 'user_id,merchant_name' });
+
+    if (error) {
+      throw error;
+    }
+
+    res.json({ success: true, message: 'Store type override saved.' });
+  } catch (error) {
+    console.error('Error saving store type override:', error);
+    res.status(500).json({ error: 'Failed to save store type override' });
+  }
+});
+
+app.get('/api/user-store-type-overrides', isAuthenticated, async (req, res) => {
+  const userId = req.user.id;
+
+  try {
+    const { data, error } = await supabase
+      .from('user_store_type_overrides')
+      .select('merchant_name, store_type')
+      .eq('user_id', userId);
+
+    if (error) {
+      throw error;
+    }
+
+    const overrides = data.reduce((acc, row) => {
+      acc[row.merchant_name] = row.store_type;
+      return acc;
+    }, {});
+
+    res.json(overrides);
+  } catch (error) {
+    console.error('Error fetching store type overrides:', error);
+    res.status(500).json({ error: 'Failed to fetch store type overrides' });
   }
 });
 
