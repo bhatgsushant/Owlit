@@ -1,0 +1,63 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\froman\fcharset0 Times-Bold;}
+{\colortbl;\red255\green255\blue255;\red0\green0\blue0;}
+{\*\expandedcolortbl;;\cssrgb\c0\c0\c0;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\deftab720
+\pard\pardeftab720\sa321\partightenfactor0
+
+\f0\b\fs48 \cf0 \expnd0\expndtw0\kerning0
+I want to upgrade my Basket Composition chart so it actually shows meaningful insights. Right now it only shows a single total number without legend, percentages, or clear time periods.\
+\
+Make the following changes cleanly and without breaking any existing layout styles:\
+\
+1) In `/src/components/analytics/`, create a new component:\
+   `BasketGranularitySelector.jsx`\
+   - It should render toggle buttons for: day, week, month, year\
+   - Selected button gets white background and dark text, others stay semi-transparent\
+   - Props:\
+       value (string)\
+       onChange(newValue)\
+\
+2) In `src/pages/Insights.jsx` (or wherever BasketComposition is currently rendered):\
+   - Import BasketGranularitySelector and BasketComposition\
+   - Add state:\
+       const [granularity, setGranularity] = useState("month");\
+   - Render <BasketGranularitySelector value=\{granularity\} onChange=\{setGranularity\} /> above the chart UI.\
+   - Based on `granularity`, fetch or compute the correct time-aggregated basket data:\
+       day level \uc0\u8594  group by transaction_date\
+       week level \uc0\u8594  group by ISO week number (or W1\'96W4 inside selected month)\
+       month level \uc0\u8594  group by year-month\
+       year level \uc0\u8594  group by year\
+\
+3) Update BasketComposition.jsx:\
+   - For each data row, compute category percentages:\
+       total = healthy + snacks + alcohol + other\
+       healthyPct, snacksPct, alcoholPct, otherPct = (value/total)*100\
+   - Render a stacked bar chart using percentages, NOT raw currency.\
+   - Keep the tooltip, but change formatter to show BOTH % and \'a3:\
+       "42.3% (\'a312.50)"\
+   - Add a legend showing Healthy (green), Snacks (orange), Alcohol (red), Other (purple).\
+   - Y-axis should be percentages (0\'96100%), not currency.\
+\
+4) Enable weekly drilldown:\
+   - When granularity === "week":\
+       If a user is viewing a specific month, break the month into four week buckets:\
+       W1 = 1-7\
+       W2 = 8-14\
+       W3 = 15-21\
+       W4 = 22-end\
+   - We should be able to reuse the same stacked bar logic \'97 just change the period label to "2025-01-W2" etc.\
+\
+5) Do NOT remove or change any unrelated existing charts or app logic. Just refactor Basket Composition to follow the above behavior.\
+\
+6) Keep styling consistent with the rest of the app (rounded-2xl background white/5 border-white/10, text-slate-200 headers). Ensure dark mode readability.\
+\
+Goal state:\
+- Each bar = a period (day/week/month/year)\
+- Each bar is stacked by healthy/snacks/alcohol/other\
+- Legend visible and clean\
+- Tooltip shows both % and \'a3\
+- User can switch time scale and drill into weeks\
+- Chart is visually readable and meaningful\
+}

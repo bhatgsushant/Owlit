@@ -1,13 +1,19 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
+import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
+import { getMerchantLogoUrl } from '../utils/logoUtils';
+import ItemPriceTrendChart from '@/components/analytics/ItemPriceTrendChart';
+import BasketCompositionChart from '@/components/analytics/BasketCompositionChart';
+import BasketGranularitySelector from '@/components/analytics/BasketGranularitySelector';
 import {
   format,
-  parse,
+  parseISO,
   startOfYear,
   startOfMonth,
   startOfWeek,
+  startOfQuarter,
   startOfDay,
   subYears,
   subMonths,
@@ -27,6 +33,50 @@ const formatDisplayDate = (value) => {
     return value;
   }
   return format(parsed, 'dd MMM yyyy');
+};
+
+const truncateLabel = (value, maxLength = 26) => {
+  if (!value) return '';
+  return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3))}...` : value;
+};
+
+const useAnimatedNumber = (target, duration = 900) => {
+  const [displayValue, setDisplayValue] = useState(Number(target) || 0);
+  const previousRef = useRef(Number(target) || 0);
+  const frameRef = useRef(null);
+
+  useEffect(() => {
+    const nextValue = Number(target) || 0;
+    const startValue = previousRef.current;
+    const delta = nextValue - startValue;
+    if (!Number.isFinite(delta) || Math.abs(delta) < 0.0001) {
+      previousRef.current = nextValue;
+      setDisplayValue(nextValue);
+      return () => null;
+    }
+
+    const easeOutCubic = (t) => 1 - Math.pow(1 - t, 3);
+    const startTime = performance.now();
+
+    const tick = (now) => {
+      const elapsed = now - startTime;
+      const progress = Math.min(1, elapsed / duration);
+      const eased = easeOutCubic(progress);
+      setDisplayValue(startValue + delta * eased);
+      if (progress < 1) {
+        frameRef.current = requestAnimationFrame(tick);
+      } else {
+        previousRef.current = nextValue;
+      }
+    };
+
+    frameRef.current = requestAnimationFrame(tick);
+    return () => {
+      if (frameRef.current) cancelAnimationFrame(frameRef.current);
+    };
+  }, [target, duration]);
+
+  return displayValue;
 };
 
 const ChartCard = ({
@@ -70,15 +120,22 @@ const ChartCard = ({
   );
 };
 
-const StatsCard = ({ label, value, helper }) => (
-  <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl backdrop-blur md:min-h-[140px]">
-    <span className="text-xs uppercase tracking-[0.2em] text-gray-400 font-semibold">{label}</span>
-    <span className="text-2xl md:text-3xl font-bold text-white font-display">{value}</span>
-    {helper && <span className="text-xs text-gray-400 leading-relaxed">{helper}</span>}
-  </div>
-);
+const StatsCard = ({ label, value = 0, helper }) => {
+  const isNumber = typeof value === 'number' && Number.isFinite(value);
+  const animatedValue = useAnimatedNumber(isNumber ? value : 0);
+  const displayValue = isNumber ? formatCurrency(animatedValue) : value;
+  return (
+    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl backdrop-blur md:min-h-[140px]">
+      <span className="text-xs uppercase tracking-[0.2em] text-gray-400 font-semibold">{label}</span>
+      <span className="text-2xl md:text-3xl font-bold text-white font-display">
+        {displayValue}
+      </span>
+      {helper && <span className="text-xs text-gray-400 leading-relaxed">{helper}</span>}
+    </div>
+  );
+};
 
-const TimeframeCard = ({ label, current, previous }) => {
+const TimeframeCard = ({ label, current = 0, previous = 0 }) => {
   const delta =
     previous === 0
       ? current > 0
@@ -102,10 +159,15 @@ const TimeframeCard = ({ label, current, previous }) => {
       ? 'text-emerald-300'
       : 'text-rose-300';
 
+  const animatedCurrent = useAnimatedNumber(current);
+  const animatedPrevious = useAnimatedNumber(previous);
+
   return (
     <div className="bg-black/30 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-md flex flex-col gap-2 shadow-xl">
       <span className="text-xs uppercase tracking-[0.32em] text-gray-400 font-semibold">{label}</span>
-      <span className="text-xl md:text-2xl font-semibold text-white font-display">{formatCurrency(current)}</span>
+      <span className="text-xl md:text-2xl font-semibold text-white font-display">
+        {formatCurrency(animatedCurrent)}
+      </span>
       <span className={`text-xs font-medium ${deltaClass}`}>
         {deltaLabel}{' '}
         <span className="text-gray-500">
@@ -114,12 +176,44 @@ const TimeframeCard = ({ label, current, previous }) => {
       </span>
       {previous > 0 && (
         <span className="text-[11px] text-gray-500">
-          Previous: {formatCurrency(previous)}
+          Previous: {formatCurrency(animatedPrevious)}
         </span>
       )}
     </div>
   );
 };
+
+const granularityOrder = ['day', 'week', 'month', 'quarter', 'year'];
+
+const granularityLabels = {
+  day: 'Day',
+  week: 'Week',
+  month: 'Month',
+  quarter: 'Quarter',
+  year: 'Year',
+};
+
+const TimeGranularityToggle = ({ value, onChange }) => (
+  <div className="inline-flex items-center rounded-full border border-white/12 bg-white/5 p-1 text-xs font-semibold text-slate-300 shadow-inner shadow-black/10">
+    {granularityOrder.map((key) => {
+      const active = key === value;
+      return (
+        <button
+          key={key}
+          type="button"
+          onClick={() => onChange(key)}
+          className={`relative rounded-full px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+            active
+              ? 'bg-emerald-500/25 text-emerald-200 shadow-md shadow-emerald-500/20'
+              : 'hover:bg-white/10 hover:text-slate-100'
+          }`}
+        >
+          {granularityLabels[key]}
+        </button>
+      );
+    })}
+  </div>
+);
 
 export default function Insights() {
   const [receipts, setReceipts] = useState([]);
@@ -128,10 +222,14 @@ export default function Insights() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [drillLevel, setDrillLevel] = useState('main');
-  const [selectedMerchant, setSelectedMerchant] = useState(null);
-  const [selectedMerchantCategory, setSelectedMerchantCategory] = useState(null);
-  const [selectedMerchantSubcategory, setSelectedMerchantSubcategory] = useState(null);
-  const [merchantDrillLevel, setMerchantDrillLevel] = useState('merchant');
+  const [timeGranularity, setTimeGranularity] = useState('day');
+  const [selectedTimelineYear, setSelectedTimelineYear] = useState(null);
+  const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
+  const [selectedCategoryTimelineYear, setSelectedCategoryTimelineYear] = useState(null);
+  const [selectedCategoryTimelineMonth, setSelectedCategoryTimelineMonth] = useState(null);
+  const [basketGranularity, setBasketGranularity] = useState('day');
+  const [itemTotalsGranularity, setItemTotalsGranularity] = useState('day');
+  const [selectedTrendItem, setSelectedTrendItem] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -174,8 +272,21 @@ export default function Insights() {
         return sum + price * multiplier;
       }, 0);
 
-      const parsedDate = receipt.transaction_date ? new Date(receipt.transaction_date) : null;
-      const isValidDate = parsedDate instanceof Date && !Number.isNaN(parsedDate);
+      const rawDate =
+        receipt.receipt_date ||
+        receipt.transaction_date ||
+        receipt.date ||
+        receipt.Date ||
+        null;
+      let parsedDate = null;
+      if (rawDate) {
+        try {
+          parsedDate = parseISO(String(rawDate));
+        } catch {
+          parsedDate = new Date(rawDate);
+        }
+      }
+      const isValidDate = parsedDate instanceof Date && !Number.isNaN(parsedDate.getTime());
 
       return {
         ...receipt,
@@ -216,30 +327,216 @@ export default function Insights() {
 
     if (!processedReceipts.length) {
       return {
+        timelineSeries: {
+          day: [],
+          week: [],
+          month: [],
+          quarter: [],
+          year: [],
+        },
         monthlySeries: [],
         categoryHierarchy: [],
         merchantSeries: [],
         merchantDrilldown: { merchants: [], details: {} },
         weekdaySeries: [],
         categoryTimeline: null,
+        categoryTimelineByFrame: {
+          day: { categories: [], entries: [] },
+          week: { categories: [], entries: [] },
+          month: { categories: [], entries: [] },
+          quarter: { categories: [], entries: [] },
+          year: { categories: [], entries: [] },
+        },
         categoryDetails: {},
         categoryNames: [],
         itemTotals: [],
+        itemPriceTrends: [],
+        basketComposition: [],
+        itemTotalsByGranularity: {
+          day: [],
+          week: [],
+          month: [],
+          year: [],
+        },
+        basketByGranularity: {
+          day: [],
+          week: [],
+          month: [],
+          year: [],
+        },
         stats: null,
         timeframeInsights: timeframeTotals,
       };
     }
 
-    const monthlyMap = new Map();
+    const granularityConfigs = {
+      day: {
+        startFn: (date) => startOfDay(date),
+        periodFormatter: (date) => format(date, 'yyyy-MM-dd'),
+        labelFormatter: (date) => format(date, 'MMM d'),
+      },
+      week: {
+        startFn: (date) => startOfWeek(date, { weekStartsOn: 1 }),
+        periodFormatter: (date) => format(date, 'yyyy-MM-dd'),
+        labelFormatter: (date) => format(date, 'MMM d'),
+      },
+      month: {
+        startFn: (date) => startOfMonth(date),
+        periodFormatter: (date) => format(date, 'yyyy-MM'),
+        labelFormatter: (date) => format(date, 'MMM yy'),
+      },
+      quarter: {
+        startFn: (date) => startOfQuarter(date),
+        periodFormatter: (date) => format(date, "yyyy-'Q'Q"),
+        labelFormatter: (_date, period) => period,
+      },
+      year: {
+        startFn: (date) => startOfYear(date),
+        periodFormatter: (date) => format(date, 'yyyy'),
+        labelFormatter: (_date, period) => period,
+      },
+    };
+
+    const granularityKeys = Object.keys(granularityConfigs);
+
+    const timelineTotals = granularityKeys.reduce((acc, key) => {
+      acc[key] = new Map();
+      return acc;
+    }, {});
+
+    const categoryTimelineTotals = granularityKeys.reduce((acc, key) => {
+      acc[key] = new Map();
+      return acc;
+    }, {});
+
+    const healthyKeywords = [
+      'fruit',
+      'vegetable',
+      'veggie',
+      'produce',
+      'salad',
+      'grain',
+      'whole',
+      'protein',
+      'meat',
+      'fish',
+      'seafood',
+      'egg',
+      'dairy',
+      'yoghurt',
+      'yogurt',
+      'milk',
+      'nut',
+      'seed',
+      'legume',
+      'bean',
+    ];
+    const snackKeywords = [
+      'snack',
+      'chips',
+      'crisps',
+      'sweet',
+      'candy',
+      'chocolate',
+      'dessert',
+      'cookie',
+      'biscuit',
+      'cake',
+      'pastry',
+      'cracker',
+    ];
+    const alcoholKeywords = [
+      'alcohol',
+      'beer',
+      'wine',
+      'spirit',
+      'vodka',
+      'whisky',
+      'whiskey',
+      'rum',
+      'gin',
+      'cider',
+      'lager',
+      'liqueur',
+    ];
+
+    const classifyBasketCategory = (mainCategory, subCategory, itemName) => {
+      const combined = `${mainCategory || ''} ${subCategory || ''} ${itemName || ''}`.toLowerCase();
+      if (alcoholKeywords.some((keyword) => combined.includes(keyword))) return 'alcohol';
+      if (snackKeywords.some((keyword) => combined.includes(keyword))) return 'snacks';
+      if (healthyKeywords.some((keyword) => combined.includes(keyword))) return 'healthy';
+      return 'other';
+    };
+
+    const itemPriceHistory = new Map();
     const categoryMap = new Map();
     const merchantMap = new Map();
     const merchantDrilldownMap = new Map();
     const weekdayTotals = new Array(7).fill(0);
-    const categoryTimelineMap = new Map(); // month -> Map(category -> total)
     const itemTotalsMap = new Map(); // item name -> total spend
+    const itemTotalsByGranularityMaps = {
+      day: new Map(),
+      week: new Map(),
+      month: new Map(),
+      year: new Map(),
+    };
+    const basketByGranularityMaps = {
+      day: new Map(),
+      week: new Map(),
+      month: new Map(),
+      year: new Map(),
+    };
+
+    const ensureBasketBucket = (granularity, key, sortKey) => {
+      const map = basketByGranularityMaps[granularity];
+      if (!map.has(key)) {
+        map.set(key, {
+          period: key,
+          healthy: 0,
+          snacks: 0,
+          alcohol: 0,
+          other: 0,
+          sortKey,
+        });
+      }
+      const bucket = map.get(key);
+      if (sortKey < bucket.sortKey) {
+        bucket.sortKey = sortKey;
+      }
+      return bucket;
+    };
+
+
+    const getBasketKey = (granularity, dateObj) => {
+      switch (granularity) {
+        case 'day': {
+          const period = format(dateObj, 'yyyy-MM-dd');
+          return { period, sortKey: startOfDay(dateObj).getTime() };
+        }
+        case 'week': {
+          const dayOfMonth = dateObj.getDate();
+          const weekIndex = Math.min(4, Math.ceil(dayOfMonth / 7));
+          const period = `${format(dateObj, 'yyyy-MM')}-W${weekIndex}`;
+          const bucketStartDay = (weekIndex - 1) * 7 + 1;
+          const sortDate = new Date(dateObj.getFullYear(), dateObj.getMonth(), bucketStartDay);
+          return { period, sortKey: sortDate.getTime() };
+        }
+        case 'month': {
+          const period = format(dateObj, 'yyyy-MM');
+          return { period, sortKey: startOfMonth(dateObj).getTime() };
+        }
+        case 'year': {
+          const period = format(dateObj, 'yyyy');
+          return { period, sortKey: startOfYear(dateObj).getTime() };
+        }
+        default:
+          return null;
+      }
+    };
 
     let totalSpent = 0;
     let highestReceipt = null;
+    let thisMonthReceiptCount = 0;
 
     processedReceipts.forEach((receipt) => {
       const receiptTotal = Number(receipt.total_amount) || 0;
@@ -264,6 +561,7 @@ export default function Insights() {
 
         if (time >= currentMonthStartTime) {
           timeframeTotals.month.current += receiptTotal;
+          thisMonthReceiptCount += 1;
         } else if (time >= previousMonthStartTime && time < currentMonthStartTime) {
           timeframeTotals.month.previous += receiptTotal;
         }
@@ -280,11 +578,24 @@ export default function Insights() {
           timeframeTotals.day.previous += receiptTotal;
         }
 
-        const monthKey = format(receipt.dateObj, 'yyyy-MM');
-        monthlyMap.set(monthKey, (monthlyMap.get(monthKey) || 0) + receiptTotal);
-
         const weekdayIndex = receipt.dateObj.getDay();
         weekdayTotals[weekdayIndex] += receiptTotal;
+
+        Object.entries(granularityConfigs).forEach(([granularity, cfg]) => {
+          const baseDate = cfg.startFn(receipt.dateObj);
+          const sortKey = baseDate.getTime();
+          const period = cfg.periodFormatter(baseDate);
+          const existing =
+            timelineTotals[granularity].get(sortKey) ||
+            {
+              period,
+              total: 0,
+              sortKey,
+              date: baseDate,
+            };
+          existing.total += receiptTotal;
+          timelineTotals[granularity].set(sortKey, existing);
+        });
       }
 
       const merchantName = receipt.merchant_name || 'Unknown merchant';
@@ -333,6 +644,49 @@ export default function Insights() {
           subCategory,
         };
 
+        if (receipt.dateObj && price > 0) {
+          const dateKey = format(receipt.dateObj, 'yyyy-MM-dd');
+          if (!itemPriceHistory.has(itemKey)) {
+            itemPriceHistory.set(itemKey, new Map());
+          }
+          const historyMap = itemPriceHistory.get(itemKey);
+          if (!historyMap.has(dateKey)) {
+            historyMap.set(dateKey, { totalPrice: 0, count: 0 });
+          }
+          const historyEntry = historyMap.get(dateKey);
+          historyEntry.totalPrice += price;
+          historyEntry.count += 1;
+        }
+
+        const basketCategory = classifyBasketCategory(mainCategory, subCategory, itemName);
+
+        if (receipt.dateObj) {
+          const time = receipt.dateObj.getTime();
+          if (time >= currentDayStartTime) {
+            const map = itemTotalsByGranularityMaps.day;
+            map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
+          }
+          if (time >= currentWeekStartTime) {
+            const map = itemTotalsByGranularityMaps.week;
+            map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
+          }
+          if (time >= currentMonthStartTime) {
+            const map = itemTotalsByGranularityMaps.month;
+            map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
+          }
+          if (time >= currentYearStartTime) {
+            const map = itemTotalsByGranularityMaps.year;
+            map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
+          }
+
+          ['day', 'week', 'month', 'year'].forEach((granularity) => {
+            const info = getBasketKey(granularity, receipt.dateObj);
+            if (!info) return;
+            const record = ensureBasketBucket(granularity, info.period, info.sortKey || 0);
+            record[basketCategory] += lineTotal;
+          });
+        }
+
         itemTotalsMap.set(itemKey, (itemTotalsMap.get(itemKey) || 0) + lineTotal);
 
         entry.items.push(lineItemRecord);
@@ -376,28 +730,99 @@ export default function Insights() {
         merchantSubEntry.items.push(lineItemRecord);
 
         if (receipt.dateObj) {
-          const monthKey = format(receipt.dateObj, 'yyyy-MM');
-          if (!categoryTimelineMap.has(monthKey)) {
-            categoryTimelineMap.set(monthKey, new Map());
-          }
-          const monthEntry = categoryTimelineMap.get(monthKey);
-          monthEntry.set(mainCategory, (monthEntry.get(mainCategory) || 0) + lineTotal);
+          Object.entries(granularityConfigs).forEach(([granularity, cfg]) => {
+            const baseDate = cfg.startFn(receipt.dateObj);
+            const sortKey = baseDate.getTime();
+            const period = cfg.periodFormatter(baseDate);
+            if (!categoryTimelineTotals[granularity].has(sortKey)) {
+              categoryTimelineTotals[granularity].set(sortKey, {
+                period,
+                sortKey,
+                date: baseDate,
+                totals: new Map(),
+              });
+            }
+            const entry = categoryTimelineTotals[granularity].get(sortKey);
+            entry.totals.set(mainCategory, (entry.totals.get(mainCategory) || 0) + lineTotal);
+          });
         }
       });
     });
 
-    const monthlySeries = Array.from(monthlyMap.entries())
-      .map(([key, value]) => {
-        const parsed = parse(`${key}-01`, 'yyyy-MM-dd', new Date());
-        const isValid = parsed instanceof Date && !Number.isNaN(parsed);
+    const timelineSeries = granularityKeys.reduce((acc, key) => {
+      const cfg = granularityConfigs[key];
+      const entries = Array.from(timelineTotals[key].values())
+        .sort((a, b) => a.sortKey - b.sortKey)
+        .map(({ period, total, sortKey, date }) => {
+          const baseDate =
+            date instanceof Date && !Number.isNaN(date.getTime()) ? date : new Date(sortKey);
+          const month = baseDate.getMonth();
+          return {
+            period,
+            total: roundToTwo(total),
+            sortKey,
+            date: baseDate,
+            year: baseDate.getFullYear(),
+            month,
+            quarter: Math.floor(month / 3) + 1,
+            chartLabel: cfg.labelFormatter(baseDate, period),
+          };
+        });
+      acc[key] = entries;
+      return acc;
+    }, {});
+
+    const monthlySeries = timelineSeries.month || [];
+
+    const itemPriceTrends = Array.from(itemPriceHistory.entries())
+      .map(([itemName, historyMap]) => {
+        const entries = Array.from(historyMap.entries())
+          .map(([dateKey, stats]) => {
+            const unitPrice =
+              stats.count > 0 ? roundToTwo(stats.totalPrice / stats.count) : 0;
+            const sortKey = new Date(dateKey).getTime();
+            return {
+              date: dateKey,
+              unit_price: unitPrice,
+              sortKey: Number.isFinite(sortKey) ? sortKey : 0,
+            };
+          })
+          .filter((entry) => entry.unit_price > 0)
+          .sort((a, b) => a.sortKey - b.sortKey)
+          .map(({ sortKey, ...rest }) => rest);
         return {
-          key,
-          label: isValid ? format(parsed, 'MMM yyyy') : key,
-          value: roundToTwo(value),
-          sortKey: isValid ? parsed.getTime() : Number.MAX_SAFE_INTEGER,
+          itemName,
+          data: entries,
         };
       })
-      .sort((a, b) => a.sortKey - b.sortKey);
+      .filter((entry) => entry.data.length >= 2);
+
+    const basketByGranularity = Object.fromEntries(
+      Object.entries(basketByGranularityMaps).map(([granularity, map]) => {
+        const entries = Array.from(map.values())
+          .sort((a, b) => (a.sortKey || 0) - (b.sortKey || 0))
+          .map(({ sortKey, ...rest }) => ({
+            ...rest,
+            healthy: roundToTwo(rest.healthy),
+            snacks: roundToTwo(rest.snacks),
+            alcohol: roundToTwo(rest.alcohol),
+            other: roundToTwo(rest.other),
+          }));
+        return [granularity, entries];
+      })
+    );
+
+    const basketComposition = basketByGranularity.month || [];
+
+    const itemTotalsByGranularity = Object.fromEntries(
+      Object.entries(itemTotalsByGranularityMaps).map(([granularity, map]) => {
+        const arr = Array.from(map.entries())
+          .map(([name, total]) => ({ name, value: roundToTwo(total) }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 12);
+        return [granularity, arr];
+      })
+    );
 
     const categoryHierarchy = Array.from(categoryMap.entries())
       .map(([main, details]) => ({
@@ -509,14 +934,62 @@ export default function Insights() {
       value: roundToTwo(weekdayTotals[index]),
     }));
 
+    const categoryTimelineByFrame = granularityKeys.reduce((acc, key) => {
+      const cfg = granularityConfigs[key];
+      const entries = Array.from(categoryTimelineTotals[key].values()).sort((a, b) => a.sortKey - b.sortKey);
+      if (!entries.length) {
+        acc[key] = { categories: [], entries: [] };
+        return acc;
+      }
+
+      const categories = Array.from(
+        entries.reduce((set, entry) => {
+          entry.totals.forEach((_, category) => set.add(category));
+          return set;
+        }, new Set())
+      );
+
+      const enrichedEntries = entries.map((entry) => {
+        const baseDate =
+          entry.date instanceof Date && !Number.isNaN(entry.date.getTime())
+            ? entry.date
+            : new Date(entry.sortKey);
+        const month = baseDate.getMonth();
+        return {
+          ...entry,
+          chartLabel: cfg.labelFormatter(baseDate, entry.period),
+          year: baseDate.getFullYear(),
+          month,
+          quarter: Math.floor(month / 3) + 1,
+          date: baseDate,
+        };
+      });
+
+      acc[key] = { categories, entries: enrichedEntries };
+      return acc;
+    }, {});
+
+    const categoryTimeline = (() => {
+      const base = categoryTimelineByFrame.month;
+      if (!base || !base.categories.length) return null;
+      const source = [
+        ['label', ...base.categories],
+        ...base.entries.map((entry) => [
+          entry.chartLabel,
+          ...base.categories.map((category) => roundToTwo(entry.totals.get(category) || 0)),
+        ]),
+      ];
+      return { categories: base.categories, source };
+    })();
+
     const monthOverMonth =
       monthlySeries.length >= 2
         ? (() => {
             const last = monthlySeries[monthlySeries.length - 1];
             const prev = monthlySeries[monthlySeries.length - 2];
-            if (prev.value === 0 && last.value > 0) return Infinity;
-            if (prev.value === 0) return 0;
-            return ((last.value - prev.value) / prev.value) * 100;
+            if (prev.total === 0 && last.total > 0) return Infinity;
+            if (prev.total === 0) return 0;
+            return ((last.total - prev.total) / prev.total) * 100;
           })()
         : null;
 
@@ -524,26 +997,6 @@ export default function Insights() {
       if (!best || current.value > best.value) return current;
       return best;
     }, null);
-
-    const categoryTimeline =
-      categoryNames.length && monthlySeries.length
-        ? {
-            source: [
-              ['Month', ...categoryNames],
-              ...monthlySeries.map(({ key, label }) => {
-                const monthEntry = categoryTimelineMap.get(key) || new Map();
-                return [
-                  label,
-                  ...categoryNames.map((category) =>
-                    roundToTwo(monthEntry.get(category) || 0)
-                  ),
-                ];
-              }),
-            ],
-            months: monthlySeries.map(({ key, label }) => ({ key, label })),
-            categories: categoryNames,
-          }
-        : null;
 
     const itemTotals = Array.from(itemTotalsMap.entries())
       .map(([name, total]) => ({
@@ -554,6 +1007,8 @@ export default function Insights() {
       .slice(0, 12);
 
     return {
+      timelineSeries,
+      categoryTimelineByFrame,
       monthlySeries,
       categoryHierarchy,
       merchantSeries,
@@ -563,12 +1018,18 @@ export default function Insights() {
       categoryDetails,
       categoryNames,
       itemTotals,
+      itemTotalsByGranularity,
+      itemPriceTrends,
+      basketComposition,
+      basketByGranularity,
       timeframeInsights: timeframeTotals,
       stats: {
         totalReceipts: processedReceipts.length,
         totalSpent,
         avgPerReceipt: processedReceipts.length ? totalSpent / processedReceipts.length : 0,
         monthOverMonth,
+        thisMonthSpent: timeframeTotals.month.current,
+        thisMonthCount: thisMonthReceiptCount,
         topCategory: categoryHierarchy[0]?.name || null,
         topMerchant: merchantSeries[0] || null,
         busiestDay,
@@ -576,6 +1037,201 @@ export default function Insights() {
       },
     };
   }, [processedReceipts]);
+
+  const timelineSeriesForGranularity = analytics.timelineSeries?.[timeGranularity] || [];
+  const categoryTimelineForGranularity =
+    analytics.categoryTimelineByFrame?.[timeGranularity] || { categories: [], entries: [] };
+
+  const supportsYearSelection = timeGranularity !== 'year';
+  const requiresMonthSelection = timeGranularity === 'day' || timeGranularity === 'week';
+
+  const timelineYearOptions = useMemo(() => {
+    if (!supportsYearSelection) return [];
+    const years = Array.from(
+      new Set(
+        timelineSeriesForGranularity
+          .map((item) => item.year)
+          .filter((year) => Number.isFinite(year))
+      )
+    ).sort((a, b) => a - b);
+    return years.map((year) => ({ value: year, label: String(year) }));
+  }, [timelineSeriesForGranularity, supportsYearSelection]);
+
+  const timelineMonthOptions = useMemo(() => {
+    if (!requiresMonthSelection || selectedTimelineYear == null) return [];
+    const months = Array.from(
+      new Set(
+        timelineSeriesForGranularity
+          .filter((item) => item.year === selectedTimelineYear)
+          .map((item) => item.month)
+          .filter((month) => Number.isFinite(month))
+      )
+    ).sort((a, b) => a - b);
+    return months.map((month) => ({
+      value: month,
+      label: format(new Date(selectedTimelineYear, month, 1), 'MMM'),
+    }));
+  }, [timelineSeriesForGranularity, requiresMonthSelection, selectedTimelineYear]);
+
+  const categoryTimelineYearOptions = useMemo(() => {
+    if (!supportsYearSelection) return [];
+    const entries = categoryTimelineForGranularity.entries || [];
+    const years = Array.from(
+      new Set(
+        entries.map((entry) => entry.year).filter((year) => Number.isFinite(year))
+      )
+    ).sort((a, b) => a - b);
+    return years.map((year) => ({ value: year, label: String(year) }));
+  }, [categoryTimelineForGranularity, supportsYearSelection]);
+
+  const categoryTimelineMonthOptions = useMemo(() => {
+    if (!requiresMonthSelection || selectedCategoryTimelineYear == null) return [];
+    const entries = categoryTimelineForGranularity.entries || [];
+    const months = Array.from(
+      new Set(
+        entries
+          .filter((entry) => entry.year === selectedCategoryTimelineYear)
+          .map((entry) => entry.month)
+          .filter((month) => Number.isFinite(month))
+      )
+    ).sort((a, b) => a - b);
+    return months.map((month) => ({
+      value: month,
+      label: format(new Date(selectedCategoryTimelineYear, month, 1), 'MMM'),
+    }));
+  }, [
+    categoryTimelineForGranularity,
+    requiresMonthSelection,
+    selectedCategoryTimelineYear,
+  ]);
+
+  const itemPriceTrendOptions = useMemo(
+    () => (analytics.itemPriceTrends || []).sort((a, b) => b.data.length - a.data.length),
+    [analytics.itemPriceTrends]
+  );
+
+  useEffect(() => {
+    if (itemPriceTrendOptions.length === 0) {
+      if (selectedTrendItem !== null) setSelectedTrendItem(null);
+      return;
+    }
+    if (!selectedTrendItem || !itemPriceTrendOptions.some((option) => option.itemName === selectedTrendItem)) {
+      setSelectedTrendItem(itemPriceTrendOptions[0].itemName);
+    }
+  }, [itemPriceTrendOptions, selectedTrendItem]);
+
+  const activeItemPriceTrend = useMemo(
+    () => itemPriceTrendOptions.find((option) => option.itemName === selectedTrendItem) || null,
+    [itemPriceTrendOptions, selectedTrendItem]
+  );
+
+  const basketCompositionData = useMemo(
+    () => analytics.basketByGranularity?.[basketGranularity] || [],
+    [analytics.basketByGranularity, basketGranularity]
+  );
+
+  const itemTotalsData = useMemo(
+    () => analytics.itemTotalsByGranularity?.[itemTotalsGranularity] || [],
+    [analytics.itemTotalsByGranularity, itemTotalsGranularity]
+  );
+
+  const spendTimelineHeaderAction = useMemo(
+    () => (
+      <div className="flex items-center gap-2">
+        <TimeGranularityToggle value={timeGranularity} onChange={setTimeGranularity} />
+        {supportsYearSelection && timelineYearOptions.length > 0 && (
+          <select
+            value={selectedTimelineYear ?? ''}
+            onChange={(e) =>
+              setSelectedTimelineYear(e.target.value === '' ? null : Number(e.target.value))
+            }
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+          >
+            {timelineYearOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {requiresMonthSelection && timelineMonthOptions.length > 0 && (
+          <select
+            value={selectedTimelineMonth ?? ''}
+            onChange={(e) =>
+              setSelectedTimelineMonth(e.target.value === '' ? null : Number(e.target.value))
+            }
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+          >
+            {timelineMonthOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    ),
+    [
+      timeGranularity,
+      supportsYearSelection,
+      timelineYearOptions,
+      selectedTimelineYear,
+      requiresMonthSelection,
+      timelineMonthOptions,
+      selectedTimelineMonth,
+    ]
+  );
+
+  const categoryTimelineHeaderAction = useMemo(
+    () => (
+      <div className="flex items-center gap-2">
+        <TimeGranularityToggle value={timeGranularity} onChange={setTimeGranularity} />
+        {supportsYearSelection && categoryTimelineYearOptions.length > 0 && (
+          <select
+            value={selectedCategoryTimelineYear ?? ''}
+            onChange={(e) =>
+              setSelectedCategoryTimelineYear(
+                e.target.value === '' ? null : Number(e.target.value)
+              )
+            }
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+          >
+            {categoryTimelineYearOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+        {requiresMonthSelection && categoryTimelineMonthOptions.length > 0 && (
+          <select
+            value={selectedCategoryTimelineMonth ?? ''}
+            onChange={(e) =>
+              setSelectedCategoryTimelineMonth(
+                e.target.value === '' ? null : Number(e.target.value)
+              )
+            }
+            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+          >
+            {categoryTimelineMonthOptions.map((option) => (
+              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+                {option.label}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+    ),
+    [
+      timeGranularity,
+      supportsYearSelection,
+      categoryTimelineYearOptions,
+      selectedCategoryTimelineYear,
+      requiresMonthSelection,
+      categoryTimelineMonthOptions,
+      selectedCategoryTimelineMonth,
+    ]
+  );
 
   useEffect(() => {
     if (!analytics.categoryNames.length) {
@@ -620,113 +1276,158 @@ export default function Insights() {
   }, [drillLevel, selectedSubCategory, selectedCategory]);
 
   useEffect(() => {
-    const merchantData = analytics.merchantDrilldown;
-    if (!merchantData?.merchants?.length) {
-      setSelectedMerchant(null);
-      setSelectedMerchantCategory(null);
-      setSelectedMerchantSubcategory(null);
-      setMerchantDrillLevel('merchant');
+    const series = analytics.timelineSeries?.[timeGranularity] || [];
+    if (!series.length) {
+      if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
+      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
       return;
     }
 
-    if (selectedMerchant && !merchantData.details?.[selectedMerchant]) {
-      setSelectedMerchant(null);
-      setSelectedMerchantCategory(null);
-      setSelectedMerchantSubcategory(null);
-      setMerchantDrillLevel('merchant');
-    }
-  }, [analytics.merchantDrilldown, selectedMerchant]);
-
-  useEffect(() => {
-    if (!selectedMerchant) {
-      if (selectedMerchantCategory) {
-        setSelectedMerchantCategory(null);
-      }
-      if (selectedMerchantSubcategory) {
-        setSelectedMerchantSubcategory(null);
-      }
-      if (merchantDrillLevel !== 'merchant') {
-        setMerchantDrillLevel('merchant');
-      }
+    if (!supportsYearSelection) {
+      if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
+      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
       return;
     }
 
-    const merchantInfo = analytics.merchantDrilldown?.details?.[selectedMerchant];
-    if (!merchantInfo) return;
+    const years = Array.from(
+      new Set(
+        series.map((item) => item.year).filter((year) => Number.isFinite(year))
+      )
+    ).sort((a, b) => a - b);
 
-    if (
-      selectedMerchantCategory &&
-      !merchantInfo.categoryLookup[selectedMerchantCategory]
-    ) {
-      setSelectedMerchantCategory(null);
-      setSelectedMerchantSubcategory(null);
-      setMerchantDrillLevel('main');
+    if (!years.length) {
+      if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
+      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
       return;
     }
 
-    if (merchantDrillLevel === 'merchant' && merchantInfo.categories.length) {
-      setMerchantDrillLevel('main');
+    const targetYear = years.includes(selectedTimelineYear)
+      ? selectedTimelineYear
+      : years[years.length - 1];
+
+    if (targetYear !== selectedTimelineYear) {
+      setSelectedTimelineYear(targetYear);
+      return;
+    }
+
+    if (!requiresMonthSelection) {
+      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      return;
+    }
+
+    const months = Array.from(
+      new Set(
+        series
+          .filter((item) => item.year === targetYear)
+          .map((item) => item.month)
+          .filter((month) => Number.isFinite(month))
+      )
+    ).sort((a, b) => a - b);
+
+    if (!months.length) {
+      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      return;
+    }
+
+    if (!months.includes(selectedTimelineMonth)) {
+      setSelectedTimelineMonth(months[months.length - 1]);
     }
   }, [
-    analytics.merchantDrilldown,
-    selectedMerchant,
-    selectedMerchantCategory,
-    selectedMerchantSubcategory,
-    merchantDrillLevel,
+    analytics.timelineSeries,
+    timeGranularity,
+    selectedTimelineYear,
+    selectedTimelineMonth,
+    supportsYearSelection,
+    requiresMonthSelection,
   ]);
 
   useEffect(() => {
-    if (!selectedMerchantCategory) {
-      if (selectedMerchantSubcategory) {
-        setSelectedMerchantSubcategory(null);
-      }
-      if (merchantDrillLevel === 'sub' || merchantDrillLevel === 'item') {
-        setMerchantDrillLevel(selectedMerchant ? 'main' : 'merchant');
-      }
+    const timeline = analytics.categoryTimelineByFrame?.[timeGranularity];
+    const entries = timeline?.entries || [];
+    if (!entries.length) {
+      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
+      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
       return;
     }
 
-    const categoryInfo =
-      selectedMerchant && analytics.merchantDrilldown?.details?.[selectedMerchant]
-        ? analytics.merchantDrilldown.details[selectedMerchant].categoryLookup?.[
-            selectedMerchantCategory
-          ]
-        : null;
-
-    if (!categoryInfo) return;
-
-    if (
-      selectedMerchantSubcategory &&
-      !categoryInfo.subCategoryLookup[selectedMerchantSubcategory]
-    ) {
-      setSelectedMerchantSubcategory(null);
-      if (merchantDrillLevel === 'item') {
-        setMerchantDrillLevel('sub');
-      }
+    if (!supportsYearSelection) {
+      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
+      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
       return;
     }
 
-    if (merchantDrillLevel === 'main') {
-      setMerchantDrillLevel('sub');
+    const years = Array.from(
+      new Set(
+        entries.map((entry) => entry.year).filter((year) => Number.isFinite(year))
+      )
+    ).sort((a, b) => a - b);
+
+    if (!years.length) {
+      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
+      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
+      return;
+    }
+
+    const targetYear = years.includes(selectedCategoryTimelineYear)
+      ? selectedCategoryTimelineYear
+      : years[years.length - 1];
+
+    if (targetYear !== selectedCategoryTimelineYear) {
+      setSelectedCategoryTimelineYear(targetYear);
+      return;
+    }
+
+    if (!requiresMonthSelection) {
+      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
+      return;
+    }
+
+    const months = Array.from(
+      new Set(
+        entries
+          .filter((entry) => entry.year === targetYear)
+          .map((entry) => entry.month)
+          .filter((month) => Number.isFinite(month))
+      )
+    ).sort((a, b) => a - b);
+
+    if (!months.length) {
+      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
+      return;
+    }
+
+    if (!months.includes(selectedCategoryTimelineMonth)) {
+      setSelectedCategoryTimelineMonth(months[months.length - 1]);
     }
   }, [
-    analytics.merchantDrilldown,
-    selectedMerchant,
-    selectedMerchantCategory,
-    selectedMerchantSubcategory,
-    merchantDrillLevel,
+    analytics.categoryTimelineByFrame,
+    timeGranularity,
+    selectedCategoryTimelineYear,
+    selectedCategoryTimelineMonth,
+    supportsYearSelection,
+    requiresMonthSelection,
   ]);
-
-  useEffect(() => {
-    if (merchantDrillLevel === 'item' && !selectedMerchantSubcategory) {
-      setMerchantDrillLevel(
-        selectedMerchantCategory ? 'sub' : selectedMerchant ? 'main' : 'merchant'
-      );
-    }
-  }, [merchantDrillLevel, selectedMerchantSubcategory, selectedMerchantCategory, selectedMerchant]);
 
   const spendingTrendOption = useMemo(() => {
-    if (!analytics.monthlySeries.length) return null;
+    const baseData = analytics.timelineSeries?.[timeGranularity] || [];
+    if (!baseData.length) return null;
+
+    let filteredData = baseData;
+
+    if (requiresMonthSelection) {
+      if (selectedTimelineYear == null || selectedTimelineMonth == null) {
+        return null;
+      }
+      filteredData = baseData.filter(
+        (entry) =>
+          entry.year === selectedTimelineYear && entry.month === selectedTimelineMonth
+      );
+    } else if (supportsYearSelection && selectedTimelineYear != null) {
+      filteredData = baseData.filter((entry) => entry.year === selectedTimelineYear);
+    }
+
+    if (!filteredData.length) return null;
+
     return {
       backgroundColor: 'transparent',
       tooltip: {
@@ -737,7 +1438,7 @@ export default function Insights() {
       grid: { left: '3%', right: '4%', bottom: '8%', top: 50, containLabel: true },
       xAxis: {
         type: 'category',
-        data: analytics.monthlySeries.map((item) => item.label),
+        data: filteredData.map((item) => item.chartLabel),
         boundaryGap: false,
         axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.4)' } },
         axisLabel: { color: '#E2E8F0', fontSize: 12 },
@@ -759,7 +1460,7 @@ export default function Insights() {
           smooth: true,
           symbol: 'circle',
           symbolSize: 8,
-          data: analytics.monthlySeries.map((item) => item.value),
+          data: filteredData.map((item) => item.total),
           lineStyle: { width: 3, color: '#8B5CF6' },
           itemStyle: { color: '#8B5CF6', borderWidth: 2, borderColor: '#F8FAFC' },
           areaStyle: {
@@ -771,13 +1472,38 @@ export default function Insights() {
         },
       ],
     };
-  }, [analytics.monthlySeries]);
+  }, [
+    analytics.timelineSeries,
+    timeGranularity,
+    supportsYearSelection,
+    requiresMonthSelection,
+    selectedTimelineYear,
+    selectedTimelineMonth,
+  ]);
 
   const stackedCategoryOption = useMemo(() => {
-    const timeline = analytics.categoryTimeline;
-    if (!timeline || !timeline.categories.length || timeline.source.length <= 1) {
+    const timeline = analytics.categoryTimelineByFrame?.[timeGranularity];
+    if (!timeline || !timeline.categories.length) {
       return null;
     }
+
+    let entries = timeline.entries;
+    if (requiresMonthSelection) {
+      if (
+        selectedCategoryTimelineYear == null ||
+        selectedCategoryTimelineMonth == null
+      ) {
+        return null;
+      }
+      entries = entries.filter(
+        (entry) =>
+          entry.year === selectedCategoryTimelineYear && entry.month === selectedCategoryTimelineMonth
+      );
+    } else if (supportsYearSelection && selectedCategoryTimelineYear != null) {
+      entries = entries.filter((entry) => entry.year === selectedCategoryTimelineYear);
+    }
+
+    if (!entries.length) return null;
 
     const palette = [
       { line: '#6366F1', area: ['rgba(99,102,241,0.45)', 'rgba(99,102,241,0)'] },
@@ -802,7 +1528,15 @@ export default function Insights() {
         textStyle: { color: '#E2E8F0' },
       },
       grid: { left: '3%', right: '4%', bottom: '6%', top: 70, containLabel: true },
-      dataset: { source: timeline.source },
+      dataset: {
+        source: [
+          ['label', ...timeline.categories],
+          ...entries.map((entry) => [
+            entry.chartLabel,
+            ...timeline.categories.map((category) => roundToTwo(entry.totals.get(category) || 0)),
+          ]),
+        ],
+      },
       xAxis: {
         type: 'category',
         axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.4)' } },
@@ -833,11 +1567,64 @@ export default function Insights() {
         };
       }),
     };
-  }, [analytics.categoryTimeline]);
+  }, [
+    analytics.categoryTimelineByFrame,
+    timeGranularity,
+    requiresMonthSelection,
+    supportsYearSelection,
+    selectedCategoryTimelineYear,
+    selectedCategoryTimelineMonth,
+  ]);
 
   const merchantsOption = useMemo(() => {
     if (!analytics.merchantSeries.length) return null;
+
     const categories = [...analytics.merchantSeries].reverse();
+    const dataEntries = categories.map((item, index) => {
+      const logoUrl = getMerchantLogoUrl(item.name);
+      const truncatedName = truncateLabel(item.name, 30);
+      const rich = {
+        value: {
+          color: '#F8FAFC',
+          fontSize: 12,
+          fontWeight: 600,
+          padding: [0, 8, 0, 0],
+        },
+      };
+      if (logoUrl) {
+        rich.logo = {
+          width: 24,
+          height: 24,
+          backgroundColor: {
+            image: logoUrl,
+          },
+          borderRadius: 12,
+          padding: [0, 0, 0, 12],
+        };
+      }
+
+      return {
+        value: item.value,
+        name: item.name,
+        truncatedName,
+        logoUrl,
+        label: {
+          show: true,
+          position: 'right',
+          distance: 10,
+          formatter(params) {
+            const formattedValue = formatCurrency(params.value);
+            const parts = [`{value|${formattedValue}}`];
+            if (params.data.logoUrl) {
+              parts.push('{logo| }');
+            }
+            return parts.join(' ');
+          },
+          rich,
+        },
+      };
+    });
+
     return {
       backgroundColor: 'transparent',
       tooltip: {
@@ -845,7 +1632,7 @@ export default function Insights() {
         axisPointer: { type: 'shadow' },
         valueFormatter: (value) => formatCurrency(value),
       },
-      grid: { left: '28%', right: '6%', top: 40, bottom: 16 },
+      grid: { left: 220, right: '12%', top: 40, bottom: 16 },
       xAxis: {
         type: 'value',
         axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
@@ -853,19 +1640,23 @@ export default function Insights() {
       },
       yAxis: {
         type: 'category',
-        data: categories.map((item) => item.name),
+        data: dataEntries.map((entry) => entry.truncatedName),
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { color: '#F1F5F9', fontSize: 12 },
+        axisLabel: {
+          color: '#F8FAFC',
+          fontSize: 13,
+        },
       },
       series: [
         {
           name: 'Total spend',
           type: 'bar',
-          data: categories.map((item) => item.value),
-          barWidth: 16,
+          data: dataEntries,
+          barWidth: 30,
+          barCategoryGap: '45%',
           itemStyle: {
-            borderRadius: [0, 12, 12, 0],
+            borderRadius: [0, 14, 14, 0],
             color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
               { offset: 0, color: '#6366F1' },
               { offset: 1, color: '#8B5CF6' },
@@ -875,6 +1666,93 @@ export default function Insights() {
       ],
     };
   }, [analytics.merchantSeries]);
+
+  const subcategoryNightingaleOption = useMemo(() => {
+    const categoryDetails = analytics.categoryDetails;
+    if (!categoryDetails || !Object.keys(categoryDetails).length) return null;
+
+    const totals = new Map();
+    Object.values(categoryDetails).forEach((category) => {
+      (category?.subCategories || []).forEach((sub) => {
+        if (!sub?.name) return;
+        totals.set(sub.name, (totals.get(sub.name) || 0) + Number(sub.total || 0));
+      });
+    });
+
+    const entries = Array.from(totals.entries())
+      .filter(([, value]) => value > 0)
+      .sort((a, b) => b[1] - a[1]);
+
+    if (!entries.length) return null;
+
+    const topEntries = entries.slice(0, 14);
+    const data = topEntries.map(([name, value]) => ({
+      name: truncateLabel(name, 20),
+      fullName: name,
+      value: Number(value.toFixed(2)),
+    }));
+
+    return {
+      backgroundColor: 'transparent',
+      color: [
+        '#8B5CF6',
+        '#22D3EE',
+        '#34D399',
+        '#F97316',
+        '#F59E0B',
+        '#EC4899',
+        '#6366F1',
+        '#0EA5E9',
+        '#14B8A6',
+        '#D946EF',
+        '#F97316',
+        '#FBBF24',
+        '#38BDF8',
+        '#A3E635',
+      ],
+      tooltip: {
+        trigger: 'item',
+        formatter: (params) =>
+          `${params.data.fullName}<br/>Total: ${formatCurrency(params.value)}`,
+      },
+      legend: {
+        show: false,
+      },
+      series: [
+        {
+          name: 'Total',
+          type: 'pie',
+          roseType: 'area',
+          radius: ['15%', '70%'],
+          center: ['50%', '50%'],
+          startAngle: 90,
+          clockwise: true,
+          itemStyle: {
+            borderRadius: 8,
+            borderWidth: 1,
+            borderColor: 'rgba(15,23,42,0.35)',
+          },
+          label: {
+            color: '#E2E8F0',
+            formatter: '{b}\n{c|{c}}',
+            rich: {
+              c: {
+                color: '#CBD5F5',
+                fontSize: 11,
+              },
+            },
+          },
+          labelLine: {
+            smooth: true,
+            length: 12,
+            length2: 10,
+            lineStyle: { color: 'rgba(203, 213, 225, 0.6)' },
+          },
+          data,
+        },
+      ],
+    };
+  }, [analytics.categoryDetails]);
 
   const weekdayOption = useMemo(() => {
     if (!analytics.weekdaySeries.length) return null;
@@ -946,20 +1824,6 @@ export default function Insights() {
   const selectedSubcategoryDetails =
     selectedCategoryDetails && selectedSubCategory
       ? selectedCategoryDetails.subCategoryLookup?.[selectedSubCategory] || null
-      : null;
-
-  const selectedMerchantDetails = selectedMerchant
-    ? analytics.merchantDrilldown?.details?.[selectedMerchant] || null
-    : null;
-
-  const selectedMerchantCategoryDetails =
-    selectedMerchantDetails && selectedMerchantCategory
-      ? selectedMerchantDetails.categoryLookup?.[selectedMerchantCategory] || null
-      : null;
-
-  const selectedMerchantSubcategoryDetails =
-    selectedMerchantCategoryDetails && selectedMerchantSubcategory
-      ? selectedMerchantCategoryDetails.subCategoryLookup?.[selectedMerchantSubcategory] || null
       : null;
 
   const drilldownOption = useMemo(() => {
@@ -1084,7 +1948,8 @@ export default function Insights() {
         {
           type: 'bar',
           data: reversedSeries,
-          barWidth: 18,
+          barWidth: 30,
+          barCategoryGap: '40%',
           label: {
             show: true,
             position: 'right',
@@ -1101,152 +1966,6 @@ export default function Insights() {
     selectedCategoryDetails,
     selectedSubcategoryDetails,
     selectedSubCategory,
-  ]);
-
-  const merchantDrilldownOption = useMemo(() => {
-    const drillData = analytics.merchantDrilldown;
-    if (!drillData?.merchants?.length) return null;
-
-    const palette = [
-      '#22D3EE',
-      '#8B5CF6',
-      '#F97316',
-      '#34D399',
-      '#FBBF24',
-      '#6366F1',
-      '#EF4444',
-      '#14B8A6',
-      '#F472B6',
-      '#60A5FA',
-    ];
-
-    let entries = [];
-
-    if (merchantDrillLevel === 'merchant') {
-      entries = drillData.merchants.map((merchant) => ({
-        label: merchant.name,
-        value: merchant.value,
-      }));
-    } else if (merchantDrillLevel === 'main' && selectedMerchantDetails) {
-      entries = selectedMerchantDetails.categories.map((category) => ({
-        label: category.name,
-        value: category.total,
-      }));
-    } else if (merchantDrillLevel === 'sub' && selectedMerchantCategoryDetails) {
-      entries = selectedMerchantCategoryDetails.subCategories.map((sub) => ({
-        label: sub.name,
-        value: sub.total,
-      }));
-    } else if (merchantDrillLevel === 'item' && selectedMerchantSubcategoryDetails) {
-      entries = selectedMerchantSubcategoryDetails.items.map((item) => ({
-        label: item.name,
-        value: item.total,
-        merchant: item.merchant,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        date: item.date,
-        mainCategory: item.mainCategory,
-        subCategory: item.subCategory,
-      }));
-    }
-
-    const filteredEntries = (entries || [])
-      .filter((entry) => entry.value > 0)
-      .sort((a, b) => b.value - a.value)
-      .slice(0, merchantDrillLevel === 'item' ? 12 : 10);
-
-    if (!filteredEntries.length) return null;
-
-    const labelCounts = filteredEntries.reduce((acc, entry) => {
-      const key = entry.label || 'Unnamed';
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
-
-    const labelIndex = {};
-    const displayLabels = filteredEntries.map((entry) => {
-      const base = entry.label || 'Unnamed';
-      if (labelCounts[base] > 1) {
-        const idx = (labelIndex[base] || 0) + 1;
-        labelIndex[base] = idx;
-        return `${base} (${idx})`;
-      }
-      return base;
-    });
-
-    const dataSeries = filteredEntries.map((entry, index) => ({
-      value: entry.value,
-      name: displayLabels[index],
-      raw: entry,
-      itemStyle: {
-        color: palette[index % palette.length],
-      },
-    }));
-
-    const reversedLabels = displayLabels.slice().reverse();
-    const reversedSeries = dataSeries.slice().reverse();
-
-    return {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        formatter: (params) => {
-          if (!params?.length) return '';
-          const [first] = params;
-          const rawEntry = first.data?.raw;
-          const label = rawEntry?.label || first.name;
-          const lines = [`${label}: ${formatCurrency(first.value)}`];
-          if (merchantDrillLevel === 'item' && rawEntry) {
-            if (rawEntry.mainCategory) {
-              lines.push(`Main category: ${rawEntry.mainCategory}`);
-            }
-            if (rawEntry.subCategory) {
-              lines.push(`Sub-category: ${rawEntry.subCategory}`);
-            }
-            if (Number.isFinite(rawEntry.quantity) && Number.isFinite(rawEntry.unitPrice)) {
-              lines.push(`Qty ${rawEntry.quantity} × ${formatCurrency(rawEntry.unitPrice)}`);
-            }
-            if (rawEntry.date) {
-              lines.push(`Date: ${formatDisplayDate(rawEntry.date)}`);
-            }
-          }
-          return lines.join('<br/>');
-        },
-      },
-      grid: { left: '32%', right: '8%', top: 40, bottom: 16 },
-      xAxis: {
-        type: 'value',
-        axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
-        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
-      },
-      yAxis: {
-        type: 'category',
-        data: reversedLabels,
-        axisTick: { show: false },
-        axisLine: { show: false },
-        axisLabel: { color: '#F8FAFC', fontSize: 12 },
-      },
-      series: [
-        {
-          type: 'bar',
-          data: reversedSeries,
-          barWidth: 18,
-          label: {
-            show: true,
-            position: 'right',
-            color: '#E2E8F0',
-            formatter: ({ value }) => formatCurrency(value),
-          },
-        },
-      ],
-    };
-  }, [
-    analytics.merchantDrilldown,
-    merchantDrillLevel,
-    selectedMerchantDetails,
-    selectedMerchantCategoryDetails,
-    selectedMerchantSubcategoryDetails,
   ]);
 
   const handleDrillClick = (params) => {
@@ -1269,42 +1988,6 @@ export default function Insights() {
       setDrillLevel('main');
       setSelectedCategory(null);
     }
-  };
-
-  const handleMerchantDrillClick = (params) => {
-    const targetName = params?.data?.raw?.label || params?.name;
-    if (!targetName) return;
-
-    if (merchantDrillLevel === 'merchant') {
-      setSelectedMerchant(targetName);
-      setMerchantDrillLevel('main');
-    } else if (merchantDrillLevel === 'main') {
-      setSelectedMerchantCategory(targetName);
-      setMerchantDrillLevel('sub');
-    } else if (merchantDrillLevel === 'sub') {
-      setSelectedMerchantSubcategory(targetName);
-      setMerchantDrillLevel('item');
-    }
-  };
-
-  const merchantStepBack = () => {
-    if (merchantDrillLevel === 'item') {
-      setMerchantDrillLevel('sub');
-      setSelectedMerchantSubcategory(null);
-    } else if (merchantDrillLevel === 'sub') {
-      setMerchantDrillLevel('main');
-      setSelectedMerchantCategory(null);
-    } else if (merchantDrillLevel === 'main') {
-      setMerchantDrillLevel('merchant');
-      setSelectedMerchant(null);
-    }
-  };
-
-  const clearMerchantSelection = () => {
-    setSelectedMerchant(null);
-    setSelectedMerchantCategory(null);
-    setSelectedMerchantSubcategory(null);
-    setMerchantDrillLevel('merchant');
   };
 
   const drilldownDescription = useMemo(() => {
@@ -1344,52 +2027,6 @@ export default function Insights() {
     </div>
   );
 
-  const merchantDrilldownDescription = useMemo(() => {
-    if (merchantDrillLevel === 'merchant') {
-      return 'Review where your spending concentrates. Click a merchant to inspect its category mix.';
-    }
-    if (merchantDrillLevel === 'main' && selectedMerchant) {
-      return `Viewing ${selectedMerchant}'s categories. Choose one to uncover its sub-categories.`;
-    }
-    if (merchantDrillLevel === 'sub' && selectedMerchant && selectedMerchantCategory) {
-      return `Exploring ${selectedMerchantCategory} from ${selectedMerchant}. Drill into a sub-category to reveal items.`;
-    }
-    if (merchantDrillLevel === 'item' && selectedMerchant && selectedMerchantSubcategory) {
-      return `Line items contributing to ${selectedMerchantSubcategory} at ${selectedMerchant}.`;
-    }
-    return '';
-  }, [merchantDrillLevel, selectedMerchant, selectedMerchantCategory, selectedMerchantSubcategory]);
-
-  const merchantDrilldownPath = useMemo(() => {
-    const segments = ['All merchants'];
-    if (selectedMerchant) segments.push(selectedMerchant);
-    if (selectedMerchantCategory) segments.push(selectedMerchantCategory);
-    if (selectedMerchantSubcategory) segments.push(selectedMerchantSubcategory);
-    return segments.join(' › ');
-  }, [selectedMerchant, selectedMerchantCategory, selectedMerchantSubcategory]);
-
-  const merchantDrilldownHeaderAction = (
-    <div className="flex items-center gap-3 text-xs text-gray-400">
-      <span className="hidden sm:inline">{merchantDrilldownPath}</span>
-      {merchantDrillLevel !== 'merchant' && (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={merchantStepBack}
-            className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
-          >
-            Back
-          </button>
-          <button
-            onClick={clearMerchantSelection}
-            className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
-          >
-            Clear
-          </button>
-        </div>
-      )}
-    </div>
-  );
-
   const drilldownEmptyMessage = useMemo(() => {
     if (!analytics.categoryNames.length) {
       return 'No categorised spending yet. Scan receipts with line items to populate this view.';
@@ -1403,24 +2040,8 @@ export default function Insights() {
     return 'No data available yet.';
   }, [analytics.categoryNames, drillLevel]);
 
-  const merchantDrilldownEmptyMessage = useMemo(() => {
-    if (!analytics.merchantDrilldown?.merchants?.length) {
-      return 'No merchant insights yet. Scan receipts with line items to populate this view.';
-    }
-    if (merchantDrillLevel === 'main') {
-      return 'This merchant has no categorised spend yet.';
-    }
-    if (merchantDrillLevel === 'sub') {
-      return 'No sub-categories recorded for this selection.';
-    }
-    if (merchantDrillLevel === 'item') {
-      return 'No line items captured for this sub-category.';
-    }
-    return 'No data available yet.';
-  }, [analytics.merchantDrilldown, merchantDrillLevel]);
-
   const itemTotalsOption = useMemo(() => {
-    if (!analytics.itemTotals.length) return null;
+    if (!itemTotalsData.length) return null;
 
     const palette = [
       '#38BDF8',
@@ -1437,7 +2058,7 @@ export default function Insights() {
       '#EF4444',
     ];
 
-    const entries = analytics.itemTotals
+    const entries = itemTotalsData
       .filter((entry) => entry.value > 0)
       .slice(0, 12);
 
@@ -1482,7 +2103,7 @@ export default function Insights() {
         },
       ],
     };
-  }, [analytics.itemTotals]);
+  }, [itemTotalsData]);
 
   const insightHighlights = useMemo(() => {
     if (!analytics.stats) return [];
@@ -1551,36 +2172,38 @@ export default function Insights() {
         </AnimatedSection>
       )}
 
-      <AnimatedSection delay={0.05}>
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6 mt-6">
-          <StatsCard
-            label="Total Spend Captured"
-            value={formatCurrency(analytics.stats?.totalSpent || 0)}
-            helper={`Across ${analytics.stats?.totalReceipts || 0} receipts`}
-          />
-          <StatsCard
-            label="Average Per Receipt"
-            value={formatCurrency(analytics.stats?.avgPerReceipt || 0)}
-            helper="Smarter batching keeps individual trips lower"
-          />
-          <StatsCard
-            label="Top Category"
-            value={analytics.stats?.topCategory || '—'}
-            helper="Based on captured line items"
-          />
-          <StatsCard
-            label="Month-over-Month"
-            value={
-              analytics.stats?.monthOverMonth == null
-                ? '—'
-                : analytics.stats.monthOverMonth === Infinity
-                ? 'New spend'
-                : `${analytics.stats.monthOverMonth > 0 ? '+' : ''}${analytics.stats.monthOverMonth.toFixed(1)}%`
-            }
-            helper="Change versus previous month"
-          />
-        </div>
-      </AnimatedSection>
+      {analytics.stats && (
+        <AnimatedSection delay={0.05}>
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
+            <StatsCard
+              label="Total Spend Captured"
+              value={analytics.stats.totalSpent || 0}
+              helper={`Across ${analytics.stats.totalReceipts || 0} receipts`}
+            />
+            <StatsCard
+              label="Average Per Receipt"
+              value={analytics.stats.avgPerReceipt || 0}
+              helper="Smarter batching keeps individual trips lower"
+            />
+            <StatsCard
+              label="Top Category"
+              value={analytics.stats.topCategory || '—'}
+              helper="Based on captured line items"
+            />
+            <StatsCard
+              label="Month-over-Month"
+              value={
+                analytics.stats.monthOverMonth == null
+                  ? '—'
+                  : analytics.stats.monthOverMonth === Infinity
+                  ? 'New spend'
+                  : `${analytics.stats.monthOverMonth > 0 ? '+' : ''}${analytics.stats.monthOverMonth.toFixed(1)}%`
+              }
+              helper="Change versus previous month"
+            />
+          </div>
+        </AnimatedSection>
+      )}
 
       {analytics.timeframeInsights && (
         <AnimatedSection delay={0.07}>
@@ -1612,29 +2235,31 @@ export default function Insights() {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8 mt-8">
         <AnimatedSection delay={0.1}>
           <ChartCard
-            title="Monthly Spend Trend"
-            description="Follow how your overall expenditure evolves month-to-month. Hover over the line to inspect exact totals."
+            title="Timeline Spend Trend"
+            description="Pivot between day, week, month, quarter, or year totals to see how spending patterns evolve."
             option={spendingTrendOption}
             isLoading={isLoading}
-            hasData={Boolean(analytics.monthlySeries.length)}
+            hasData={Boolean(spendingTrendOption)}
             height={320}
+            headerAction={spendTimelineHeaderAction}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.12}>
           <ChartCard
-            title="Category Momentum"
-            description="Stacked view of monthly outlay by main category. Click a category to drill into its sub-categories."
+            title="Category Timeline"
+            description="Compare how each category contributes to overall spend for the selected timeline granularity."
             option={stackedCategoryOption}
             isLoading={isLoading}
-            hasData={Boolean(analytics.categoryTimeline && analytics.categoryTimeline.source.length > 1)}
+            hasData={Boolean(stackedCategoryOption)}
             emptyMessage="Capture receipts with line items to unlock category trends."
             height={320}
+            headerAction={categoryTimelineHeaderAction}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.14}>
           <ChartCard
             title="Top Merchants"
-            description="Identify where you allocate the most money. This highlights your top merchants by total spend."
+            description="This highlights your top merchants by total spend."
             option={merchantsOption}
             isLoading={isLoading}
             hasData={Boolean(analytics.merchantSeries.length)}
@@ -1667,16 +2292,58 @@ export default function Insights() {
             height={300}
           />
           <ChartCard
-            title="Merchant Breakdown"
-            description={merchantDrilldownDescription}
-            option={merchantDrilldownOption}
+            title="Sub-category Nightingale"
+            description="A Nightingale rose chart showcasing which sub-categories dominate your overall spend."
+            option={subcategoryNightingaleOption}
             isLoading={isLoading}
-            hasData={Boolean(merchantDrilldownOption)}
-            onEvents={merchantDrilldownOption ? { click: handleMerchantDrillClick } : undefined}
-            emptyMessage={merchantDrilldownEmptyMessage}
-            headerAction={merchantDrilldownHeaderAction}
+            hasData={Boolean(subcategoryNightingaleOption)}
+            emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
             height={300}
           />
+        </div>
+      </AnimatedSection>
+
+      <AnimatedSection delay={0.2}>
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
+          <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white font-display">Item Price Trend</h3>
+                <p className="text-xs text-slate-400">
+                  Track how the unit price for a frequent item is changing over time.
+                </p>
+              </div>
+              {itemPriceTrendOptions.length > 1 && (
+                <select
+                  value={selectedTrendItem ?? ''}
+                  onChange={(event) => setSelectedTrendItem(event.target.value || null)}
+                  className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                >
+                  {itemPriceTrendOptions.map((option) => (
+                    <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
+                      {truncateLabel(option.itemName, 32)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <ItemPriceTrendChart
+              data={activeItemPriceTrend?.data || []}
+              itemName={activeItemPriceTrend?.itemName || '—'}
+            />
+          </div>
+          <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white font-display">Basket Composition</h3>
+                <p className="text-xs text-slate-400">
+                  See how healthy, snack, and alcohol purchases contribute to each basket over time.
+                </p>
+              </div>
+              <BasketGranularitySelector value={basketGranularity} onChange={setBasketGranularity} />
+            </div>
+            <BasketCompositionChart data={basketCompositionData} />
+          </div>
         </div>
       </AnimatedSection>
 
@@ -1690,6 +2357,9 @@ export default function Insights() {
             hasData={Boolean(itemTotalsOption)}
             emptyMessage="Add more receipts with line items to populate this chart."
             height={300}
+            headerAction={
+              <TimeGranularityToggle value={itemTotalsGranularity} onChange={setItemTotalsGranularity} />
+            }
           />
         </div>
       </AnimatedSection>
@@ -1711,6 +2381,16 @@ export default function Insights() {
               Add more receipts to unlock personalised insights and recommendations.
             </div>
           )}
+        </div>
+      </AnimatedSection>
+
+      <AnimatedSection delay={0.24}>
+        <div className="mt-10">
+          <ReceiptsAnalyticsTable
+            receipts={processedReceipts}
+            isLoading={isLoading}
+            showInsightsLink={false}
+          />
         </div>
       </AnimatedSection>
     </div>

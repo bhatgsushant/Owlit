@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronDown, PlusCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export default function SearchableDropdown({
   options = [],
@@ -8,6 +9,11 @@ export default function SearchableDropdown({
   placeholder,
   allowCreate = false,
   onCreateOption,
+  startIcon,
+  pill = false,
+  className,
+  buttonClassName,
+  labelClassName,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -68,14 +74,26 @@ export default function SearchableDropdown({
     }
   };
 
+  const baseButtonClasses =
+    'w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 flex justify-between items-center text-left transition-colors';
+  const pillClasses =
+    'rounded-full bg-gray-100 dark:bg-gray-700 border border-transparent px-4 py-2 hover:border-green-500 focus-visible:border-green-500 focus-visible:ring-2 focus-visible:ring-green-500/30';
+  const regularClasses =
+    'hover:border-green-500 focus-visible:border-green-500 focus-visible:ring-2 focus-visible:ring-green-500/30';
+
   return (
-    <div className="relative w-full" ref={dropdownRef}>
+    <div className={cn('relative w-full', className)} ref={dropdownRef}>
       <button
         type="button"
-        className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-gray-300 dark:border-gray-500 flex justify-between items-center text-left"
+        className={cn(
+          baseButtonClasses,
+          pill ? pillClasses : regularClasses,
+          buttonClassName
+        )}
         onClick={() => setIsOpen((prev) => !prev)}
       >
-        <span className="truncate">
+        <span className={cn('truncate flex items-center gap-2', labelClassName || 'text-sm')}>
+          {startIcon ? <span className="shrink-0">{startIcon}</span> : null}
           {value || placeholder || 'Select...'}
         </span>
         <ChevronDown size={20} className={`transition-transform ${isOpen ? 'rotate-180' : ''}`} />

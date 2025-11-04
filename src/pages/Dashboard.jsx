@@ -4,7 +4,6 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, AreaChart, Area, Legend
 } from 'recharts';
 import StatsGrid from '../components/StatsGrid';
-import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import { subDays, format, eachDayOfInterval } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
@@ -276,11 +275,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="mt-6 md:mt-8">
-        <AnimatedSection delay={0.2}>
-            <ReceiptsAnalyticsTable receipts={filteredReceipts} isLoading={isLoading} />
-        </AnimatedSection>
-      </div>
     </motion.div>
   );
 }

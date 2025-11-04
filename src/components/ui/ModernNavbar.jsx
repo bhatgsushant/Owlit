@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
@@ -20,9 +20,16 @@ function Logo() {
 // Main component for the modern navigation bar
 export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const location = useLocation();
   const navRef = useRef(null);
   const { user, logout } = useAuth();
+  const { scrollYProgress } = useScroll();
+  const scrollIndicator = useSpring(scrollYProgress, {
+    stiffness: 120,
+    damping: 28,
+    restDelta: 0.001,
+  });
 
   // Menu items configuration
   const menuItems = [
@@ -55,70 +62,139 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleScroll = () => setHasScrolled(window.scrollY > 12);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const desktopLinkVariants = {
+    initial: { opacity: 0.7, y: 4 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.35 } },
+    whileHover: { opacity: 1, y: -2, transition: { duration: 0.2 } },
+  };
+
+  const navVariants = {
+    hidden: { y: -16, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  };
+
   return (
-    <nav ref={navRef} className="fixed top-0 left-0 right-0 z-50">
-      {/* Top bar */}
-      <div className="flex items-center justify-between h-20 px-6 backdrop-blur-xl bg-white/70 dark:bg-black/70 border-b border-gray-200/50 dark:border-white/10">
-        {/* Logo */}
-        <Link to={createPageUrl('Home')} className="flex items-center gap-2 theme-text-primary">
-          <Logo />
-          <span className="text-xl font-bold">ReceiptWise</span>
+    <motion.nav
+      ref={navRef}
+      variants={navVariants}
+      initial="hidden"
+      animate="visible"
+      className="fixed top-0 left-0 right-0 z-50 px-4 pt-3"
+    >
+      <motion.div
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between rounded-full border border-white/10 bg-white/60 px-5 shadow-lg shadow-black/10 backdrop-blur-xl transition-all dark:border-white/10 dark:bg-slate-900/70"
+        animate={{
+          backgroundColor: hasScrolled
+            ? (isDarkMode ? 'rgba(15,23,42,0.88)' : 'rgba(255,255,255,0.92)')
+            : (isDarkMode ? 'rgba(15,23,42,0.75)' : 'rgba(255,255,255,0.65)'),
+          borderColor: hasScrolled
+            ? (isDarkMode ? 'rgba(148,163,184,0.35)' : 'rgba(148,163,184,0.25)')
+            : 'rgba(255,255,255,0.12)',
+        }}
+        transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+      >
+        <Link to={createPageUrl('Home')} className="flex items-center gap-3 text-slate-900 dark:text-white">
+          <motion.div whileHover={{ rotate: 8, scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
+            <Logo />
+          </motion.div>
+          <div className="flex flex-col">
+            <span className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-300">
+              RECEIPTWISE
+            </span>
+            <span className="text-[10px] uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
+              track · save · thrive
+            </span>
+          </div>
         </Link>
 
-        {/* Desktop Menu (hidden on mobile) */}
-        <div className="hidden md:flex items-center gap-8">
-          {menuItems.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              onClick={() => setIsOpen(false)}
-              className={`relative text-sm font-medium transition-colors hover:theme-text-primary ${
-                location.pathname === item.href ? 'theme-text-primary' : 'theme-text-secondary'
-              }`}
-            >
-              {item.name}
-              {location.pathname === item.href && (
-                <motion.div
-                  layoutId="underline"
-                  className="absolute -bottom-1 left-0 w-full h-0.5 bg-current"
-                />
-              )}
-            </Link>
-          ))}
-        </div>
+        <motion.div className="hidden items-center gap-5 md:flex">
+          {menuItems.map((item, index) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <motion.div
+                key={item.name}
+                variants={desktopLinkVariants}
+                initial="initial"
+                animate="animate"
+                whileHover="whileHover"
+                transition={{ delay: index * 0.05 }}
+              >
+                <Link
+                  to={item.href}
+                  onClick={() => setIsOpen(false)}
+                  className={`
+                    relative flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors
+                    ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}
+                  `}
+                >
+                  <span>{item.name}</span>
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 -z-10 rounded-full bg-emerald-500/15 dark:bg-emerald-400/15"
+                    />
+                  )}
+                </Link>
+              </motion.div>
+            );
+          })}
+        </motion.div>
 
-        {/* Action Buttons & Theme Toggle (hidden on mobile) */}
-        <div className="hidden md:flex items-center gap-4">
-          <button onClick={toggleTheme} className="theme-text-secondary hover:theme-text-primary">
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
+        <div className="hidden items-center gap-3 md:flex">
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="rounded-full border border-slate-300/60 bg-white/40 p-2 text-slate-600 shadow-sm hover:border-emerald-400 hover:text-emerald-500 dark:border-slate-500/60 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:text-emerald-300"
+            onClick={toggleTheme}
+          >
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </motion.button>
           {user ? (
-            <div className="relative group">
-              <button className="flex items-center gap-2">
-                <img src={user.avatar} alt={user.displayName} className="w-8 h-8 rounded-full" />
+            <motion.div className="relative group" whileHover={{ scale: 1.02 }}>
+              <button className="flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-3 py-1 shadow-sm dark:bg-slate-800/80">
+                <img src={user.avatar} alt={user.displayName} className="h-8 w-8 rounded-full object-cover" />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{user.displayName}</span>
               </button>
-              <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg py-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <div className="px-4 py-2 text-sm text-gray-700 dark:text-gray-200">{user.displayName}</div>
-                <button onClick={logout} className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center">
-                  <LogOut size={16} className="mr-2" />
+              <div className="pointer-events-none absolute right-0 mt-3 w-48 rounded-2xl border border-white/10 bg-white/90 py-2 opacity-0 shadow-xl shadow-black/10 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 dark:bg-slate-900/90">
+                <button
+                  onClick={logout}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 transition-colors hover:text-emerald-500 dark:text-slate-200 dark:hover:text-emerald-300"
+                >
+                  <LogOut size={16} />
                   Logout
                 </button>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <Link to="/login" className="text-sm font-medium theme-text-secondary hover:theme-text-primary">
+            <Link
+              to="/login"
+              className="rounded-full border border-transparent bg-emerald-500/90 px-4 py-1.5 text-sm font-semibold text-white shadow hover:bg-emerald-500"
+            >
               Login
             </Link>
           )}
         </div>
 
-        {/* Mobile Menu Toggle */}
         <div className="md:hidden">
-          <button onClick={() => setIsOpen(!isOpen)} className="theme-text-primary">
-            {isOpen ? <X size={24} /> : <MenuIcon size={24} />}
-          </button>
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setIsOpen(!isOpen)}
+            className="rounded-full border border-white/30 bg-white/60 p-2 text-slate-700 shadow-sm dark:bg-slate-800/70 dark:text-slate-200"
+          >
+            {isOpen ? <X size={22} /> : <MenuIcon size={22} />}
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
+      <motion.div
+        className="pointer-events-none mx-auto mt-2 hidden h-1 w-[90%] max-w-5xl rounded-full bg-gradient-to-r from-transparent via-emerald-500 to-transparent md:block"
+        style={{ scaleX: scrollIndicator }}
+      />
 
       {/* Full-screen Overlay Menu */}
       <AnimatePresence>
@@ -161,6 +237,6 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
           </motion.div>
         )}
       </AnimatePresence>
-    </nav>
+    </motion.nav>
   );
 }

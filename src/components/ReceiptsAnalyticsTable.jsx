@@ -17,7 +17,7 @@ import StoreType from './ui/StoreType';
 
 const PAGE_SIZE = 5;
 
-export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }) {
+export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, showInsightsLink = true }) {
   const [sortConfig, setSortConfig] = useState({ key: 'transaction_date', direction: 'descending' });
   const [currentPage, setCurrentPage] = useState(1);
   const hasDeleteAction = typeof onDelete === 'function';
@@ -68,12 +68,14 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete }
           <h2 className="font-display text-lg font-semibold text-white">
             All Receipts
           </h2>
-          <Link to={createPageUrl("Insights")}>
-            <Button variant="ghost" size="sm" className="flex items-center gap-2 text-sm font-semibold text-violet-300 hover:bg-violet-500/20">
-              <BarChart2 className="w-4 h-4" />
-              <span className="hidden sm:inline">View Insights</span>
-            </Button>
-          </Link>
+          {showInsightsLink && (
+            <Link to={createPageUrl("Insights")}>
+              <Button variant="ghost" size="sm" className="flex items-center gap-2 text-sm font-semibold text-violet-300 hover:bg-violet-500/20">
+                <BarChart2 className="w-4 h-4" />
+                <span className="hidden sm:inline">View Insights</span>
+              </Button>
+            </Link>
+          )}
       </div>
       <div className="overflow-x-auto">
         <Table className="w-full">

@@ -16,6 +16,32 @@ const cookieParser = require('cookie-parser');
 const passport = require('./auth.js');
 const supabase = require('./supabaseClient.js');
 
+function normalizeMerchantName(name = "") {
+  return name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function resolveMerchant(rawMerchantName, supabaseClient) {
+  const alias = normalizeMerchantName(rawMerchantName);
+
+  const { data: aliasMatch } = await supabaseClient
+    .from("merchant_aliases")
+    .select("merchant_id")
+    .eq("alias", alias)
+    .maybeSingle();
+
+  if (aliasMatch) {
+    return { merchant_id: aliasMatch.merchant_id, alias };
+  }
+
+  return { merchant_id: null, alias };
+}
+
 // --- Auth Middleware ---
 const isAuthenticated = (req, res, next) => {
   if (req.isAuthenticated()) {
@@ -699,6 +725,16 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'ReceiptWise server running' });
 });
 
+app.get('/api/store-info', isAuthenticated, async (req, res) => {
+  const { data, error } = await supabase
+    .from('store_info')
+    .select('id, merchant_name, store_type')
+    .order('merchant_name', { ascending: true });
+
+  if (error) return res.status(500).json({ error });
+  res.json(data);
+});
+
 // --- Receipt API Routes ---
 app.get('/api/receipts', isAuthenticated, async (req, res) => {
   try {
@@ -746,11 +782,15 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
       receipt_url = publicUrlData.publicUrl;
     }
 
+    const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
+
     const { data, error } = await supabase
       .from('receipts')
       .insert({
         user_id: req.user.id,
         merchant_name,
+        merchant_alias: merchantAlias,
+        canonical_merchant_id: canonicalMerchantId,
         transaction_date,
         total_amount,
         line_items,
@@ -764,6 +804,25 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
     console.error('Error saving receipt:', error);
     res.status(500).json({ error: 'Failed to save receipt' });
   }
+});
+
+app.post('/api/merchant-aliases', isAuthenticated, async (req, res) => {
+  const { alias, merchant_id } = req.body || {};
+  if (!alias || !merchant_id) {
+    return res.status(400).json({ error: 'alias and merchant_id are required' });
+  }
+
+  const { data, error } = await supabase
+    .from('merchant_aliases')
+    .insert({ alias, merchant_id })
+    .select();
+
+  if (error) {
+    console.error('Error saving merchant alias:', error);
+    return res.status(500).json({ error: 'Failed to save merchant alias' });
+  }
+
+  res.status(201).json(data?.[0] || null);
 });
 
 app.post('/api/update-user-category', isAuthenticated, async (req, res) => {

@@ -1,0 +1,93 @@
+5) Item price trend (e.g., “eggs”) over time
+
+// components/analytics/ItemPriceTrendChart.tsx
+import React from "react";
+import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+
+// data: [{ date: "2025-01-10", unit_price: 1.35 }]
+export default function ItemPriceTrendChart({ data, itemName }: { data: { date: string; unit_price: number }[]; itemName: string }) {
+  return (
+    <div className="w-full h-72 rounded-2xl p-4 bg-white/5 border border-white/10">
+      <div className="text-sm text-gray-300 mb-2">Price trend: {itemName}</div>
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={data}>
+          <CartesianGrid stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="date" tick={{ fill: "#cbd5e1", fontSize: 12 }} />
+          <YAxis tick={{ fill: "#cbd5e1", fontSize: 12 }} />
+          <Tooltip
+            contentStyle={{ background: "rgba(17,24,39,.9)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12 }}
+            formatter={(v: any) => [`£${Number(v).toFixed(2)}`, "Unit price"]}
+          />
+          <Line dataKey="unit_price" type="monotone" stroke="#22d3ee" strokeWidth={2} dot={false}/>
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+6) Basket composition (healthy vs snacks vs alcohol, etc.)
+
+// components/analytics/BasketComposition.tsx
+import React from "react";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+// data: [{ period: "2025-10", healthy: 42, snacks: 18, alcohol: 12, other: 28 }]
+export default function BasketComposition({ data }: { data: any[] }) {
+  return (
+    <div className="w-full h-80 rounded-2xl p-4 bg-white/5 border border-white/10">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={data}>
+          <CartesianGrid stroke="rgba(255,255,255,0.06)" />
+          <XAxis dataKey="period" tick={{ fill: "#cbd5e1", fontSize: 12 }} />
+          <YAxis tick={{ fill: "#cbd5e1", fontSize: 12 }} />
+          <Tooltip contentStyle={{ background: "rgba(17,24,39,.9)", border: "1px solid rgba(255,255,255,.1)", borderRadius: 12 }}/>
+          <Bar dataKey="healthy" stackId="a" fill="#10b981" />
+          <Bar dataKey="snacks"  stackId="a" fill="#f59e0b" />
+          <Bar dataKey="alcohol" stackId="a" fill="#ef4444" />
+          <Bar dataKey="other"   stackId="a" fill="#8b5cf6" />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
+
+How to wire these up (example)
+
+// pages/Insights.tsx
+import React, { useState } from "react";
+import TimeGranularityToggle from "@/components/analytics/TimeGranularityToggle";
+import SpendingTimelineChart from "@/components/analytics/SpendingTimelineChart";
+import TopMerchantsChart from "@/components/analytics/TopMerchantsChart";
+import CategoryDonut from "@/components/analytics/CategoryDonut";
+import WeekdayHourHeatmap from "@/components/analytics/WeekdayHourHeatmap";
+import ItemPriceTrendChart from "@/components/analytics/ItemPriceTrendChart";
+import BasketComposition from "@/components/analytics/BasketComposition";
+
+export default function InsightsPage({
+  timelineData, topMerchants, categories, heatmap, itemTrend, basketData
+}: any) {
+  const [gran, setGran] = useState<"day"|"week"|"month"|"quarter"|"year">("week");
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h2 className="text-2xl font-semibold text-white">Insights</h2>
+        <TimeGranularityToggle value={gran} onChange={setGran} />
+      </div>
+
+      <SpendingTimelineChart data={timelineData} granularity={gran} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <TopMerchantsChart data={topMerchants} />
+        <CategoryDonut data={categories} />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <WeekdayHourHeatmap data={heatmap} />
+        <ItemPriceTrendChart data={itemTrend} itemName="Eggs (6 pack)" />
+      </div>
+
+      <BasketComposition data={basketData} />
+    </div>
+  );
+}
+
+
