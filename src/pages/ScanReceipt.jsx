@@ -282,6 +282,9 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     );
 }
 
+
+
+
 function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides }) {
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
     const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
@@ -970,6 +973,14 @@ export default function ScanReceipt() {
     }
     if (newMode === 'camera') {
         setIsCameraOpen(true);
+    }
+    if (newMode === 'manual') {
+        setExtractedData({
+            merchant_name: '',
+            transaction_date: new Date().toISOString().split('T')[0],
+            total_amount: 0,
+            line_items: [],
+        });
     }
   };
 
