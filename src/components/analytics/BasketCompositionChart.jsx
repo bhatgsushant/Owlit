@@ -8,12 +8,6 @@ const formatCurrency = (value) =>
     maximumFractionDigits: 2,
   })}`;
 
-const buildSeriesData = (data, key) =>
-  data.map((row) => ({
-    value: Number((row[`${key}Pct`] || 0).toFixed(2)),
-    rawValue: Number(row[key] || 0),
-  }));
-
 export default function BasketCompositionChart({ data }) {
   const chartData = useMemo(() => {
     if (!Array.isArray(data) || data.length === 0) return null;
@@ -24,7 +18,6 @@ export default function BasketCompositionChart({ data }) {
       const alcohol = Number(row.alcohol || 0);
       const other = Number(row.other || 0);
       const total = healthy + snacks + alcohol + other;
-      const safeTotal = total > 0 ? total : 1;
 
       return {
         period: row.period,
@@ -32,10 +25,7 @@ export default function BasketCompositionChart({ data }) {
         snacks,
         alcohol,
         other,
-        healthyPct: (healthy / safeTotal) * 100,
-        snacksPct: (snacks / safeTotal) * 100,
-        alcoholPct: (alcohol / safeTotal) * 100,
-        otherPct: (other / safeTotal) * 100,
+        total,
       };
     });
   }, [data]);
@@ -47,6 +37,13 @@ export default function BasketCompositionChart({ data }) {
       </div>
     );
   }
+
+  const buildSeriesData = (rows, key) =>
+    rows.map((row) => {
+      const value = Number((row[key] || 0).toFixed(2));
+      const share = row.total > 0 ? Number(((value / row.total) * 100).toFixed(1)) : 0;
+      return { value, share };
+    });
 
   const healthySeries = buildSeriesData(chartData, 'healthy');
   const snacksSeries = buildSeriesData(chartData, 'snacks');
@@ -60,8 +57,9 @@ export default function BasketCompositionChart({ data }) {
       formatter: function (params) {
         return params
           .map((p) => {
-            const raw = p.data?.rawValue || 0;
-            return `${p.marker} ${p.seriesName}: ${Number(p.value || 0).toFixed(1)}% (${formatCurrency(raw)})`;
+            const raw = Number(p.data?.value || 0);
+            const share = Number(p.data?.share || 0);
+            return `${p.marker} ${p.seriesName}: ${formatCurrency(raw)} (${share.toFixed(1)}%)`;
           })
           .join('<br/>');
       },
@@ -86,8 +84,11 @@ export default function BasketCompositionChart({ data }) {
     yAxis: {
       type: 'value',
       min: 0,
-      max: 100,
-      axisLabel: { formatter: '{value}%', color: '#cbd5e1', fontSize: 12 },
+      axisLabel: {
+        formatter: (value) => formatCurrency(value),
+        color: '#cbd5e1',
+        fontSize: 12,
+      },
       splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
     },
     series: [

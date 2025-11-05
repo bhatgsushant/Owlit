@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useAuth } from '@/context/AuthContext';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
@@ -6,7 +8,6 @@ import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { getMerchantLogoUrl } from '../utils/logoUtils';
 import ItemPriceTrendChart from '@/components/analytics/ItemPriceTrendChart';
 import BasketCompositionChart from '@/components/analytics/BasketCompositionChart';
-import BasketGranularitySelector from '@/components/analytics/BasketGranularitySelector';
 import {
   format,
   parseISO,
@@ -39,6 +40,19 @@ const truncateLabel = (value, maxLength = 26) => {
   if (!value) return '';
   return value.length > maxLength ? `${value.slice(0, Math.max(0, maxLength - 3))}...` : value;
 };
+
+const formatCategoryLabel = (value) => {
+  if (!value) return '';
+  return String(value)
+    .replace(/[_-]+/g, ' ')
+    .split(' ')
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+};
+
+const periodGranularities = ['day', 'week', 'month', 'quarter', 'year'];
+
 
 const useAnimatedNumber = (target, duration = 900) => {
   const [displayValue, setDisplayValue] = useState(Number(target) || 0);
@@ -91,6 +105,7 @@ const ChartCard = ({
   headerAction,
 }) => {
   const canRenderChart = Boolean(option) && hasData;
+  const descriptionContent = description;
 
   return (
     <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl backdrop-blur-md">
@@ -100,9 +115,9 @@ const ChartCard = ({
           {headerAction}
         </div>
         {description && (
-          <p className="text-sm text-gray-400 leading-relaxed">
-            {description}
-          </p>
+          <div className="text-sm text-gray-400 leading-relaxed">
+            {typeof descriptionContent === 'string' ? descriptionContent : descriptionContent}
+          </div>
         )}
       </div>
       <div className="flex-1 min-h-[200px]">
@@ -215,7 +230,54 @@ const TimeGranularityToggle = ({ value, onChange }) => (
   </div>
 );
 
+const TimeframeControls = ({
+  timeGranularity,
+  onGranularityChange,
+  supportsYearSelection,
+  requiresMonthSelection,
+  yearOptions,
+  monthOptions,
+  selectedYear,
+  selectedMonth,
+  onYearChange,
+  onMonthChange,
+  children,
+  className = '',
+}) => (
+  <div className={`flex items-center gap-2 ${className}`}>
+    <TimeGranularityToggle value={timeGranularity} onChange={onGranularityChange} />
+    {supportsYearSelection && yearOptions.length > 0 && (
+      <select
+        value={selectedYear ?? ''}
+        onChange={(event) => onYearChange?.(event.target.value === '' ? null : Number(event.target.value))}
+        className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+      >
+        {yearOptions.map((option) => (
+          <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )}
+    {requiresMonthSelection && monthOptions.length > 0 && (
+      <select
+        value={selectedMonth ?? ''}
+        onChange={(event) => onMonthChange?.(event.target.value === '' ? null : Number(event.target.value))}
+        className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+      >
+        {monthOptions.map((option) => (
+          <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+            {option.label}
+          </option>
+        ))}
+      </select>
+    )}
+    {children}
+  </div>
+);
+
 export default function Insights() {
+  const { user, loading: authLoading } = useAuth();
   const [receipts, setReceipts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -225,11 +287,8 @@ export default function Insights() {
   const [timeGranularity, setTimeGranularity] = useState('day');
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(null);
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
-  const [selectedCategoryTimelineYear, setSelectedCategoryTimelineYear] = useState(null);
-  const [selectedCategoryTimelineMonth, setSelectedCategoryTimelineMonth] = useState(null);
-  const [basketGranularity, setBasketGranularity] = useState('day');
-  const [itemTotalsGranularity, setItemTotalsGranularity] = useState('day');
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
+  const [categoryPieCategory, setCategoryPieCategory] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -237,11 +296,18 @@ export default function Insights() {
     const fetchReceipts = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/receipts', { credentials: 'include' });
-        if (!response.ok) {
-          throw new Error('Unable to fetch receipts');
+        if (!user) {
+          if (isMounted) setReceipts([]);
+          return;
         }
-        const data = await response.json();
+
+        const { data, error } = await supabase
+          .from('v_receipts_enriched')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('transaction_date', { ascending: true });
+
+        if (error) throw error;
         if (isMounted) {
           setReceipts(Array.isArray(data) ? data : []);
         }
@@ -253,11 +319,14 @@ export default function Insights() {
       }
     };
 
-    fetchReceipts();
+    if (!authLoading) {
+      fetchReceipts();
+    }
+
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [authLoading, user]);
 
   const processedReceipts = useMemo(() => {
     if (!receipts.length) return [];
@@ -298,12 +367,15 @@ export default function Insights() {
     });
   }, [receipts]);
 
-  const analytics = useMemo(() => {
-    const now = new Date();
+
+const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
+    const now = referenceDate ?? new Date();
     const currentYearStart = startOfYear(now);
     const previousYearStart = startOfYear(subYears(now, 1));
     const currentMonthStart = startOfMonth(now);
     const previousMonthStart = startOfMonth(subMonths(now, 1));
+    const currentQuarterStart = startOfQuarter(now);
+    const previousQuarterStart = startOfQuarter(subMonths(now, 3));
     const currentWeekStart = startOfWeek(now, { weekStartsOn: 1 });
     const previousWeekStart = startOfWeek(subWeeks(now, 1), { weekStartsOn: 1 });
     const currentDayStart = startOfDay(now);
@@ -313,6 +385,8 @@ export default function Insights() {
     const previousYearStartTime = previousYearStart.getTime();
     const currentMonthStartTime = currentMonthStart.getTime();
     const previousMonthStartTime = previousMonthStart.getTime();
+    const currentQuarterStartTime = currentQuarterStart.getTime();
+    const previousQuarterStartTime = previousQuarterStart.getTime();
     const currentWeekStartTime = currentWeekStart.getTime();
     const previousWeekStartTime = previousWeekStart.getTime();
     const currentDayStartTime = currentDayStart.getTime();
@@ -321,6 +395,7 @@ export default function Insights() {
     const timeframeTotals = {
       year: { current: 0, previous: 0 },
       month: { current: 0, previous: 0 },
+      quarter: { current: 0, previous: 0 },
       week: { current: 0, previous: 0 },
       day: { current: 0, previous: 0 },
     };
@@ -356,14 +431,18 @@ export default function Insights() {
           day: [],
           week: [],
           month: [],
+          quarter: [],
           year: [],
         },
         basketByGranularity: {
           day: [],
           week: [],
           month: [],
+          quarter: [],
           year: [],
         },
+        categoryTreemap: [],
+        storeTypeTree: [],
         stats: null,
         timeframeInsights: timeframeTotals,
       };
@@ -478,12 +557,14 @@ export default function Insights() {
       day: new Map(),
       week: new Map(),
       month: new Map(),
+      quarter: new Map(),
       year: new Map(),
     };
     const basketByGranularityMaps = {
       day: new Map(),
       week: new Map(),
       month: new Map(),
+      quarter: new Map(),
       year: new Map(),
     };
 
@@ -525,6 +606,11 @@ export default function Insights() {
           const period = format(dateObj, 'yyyy-MM');
           return { period, sortKey: startOfMonth(dateObj).getTime() };
         }
+        case 'quarter': {
+          const quarter = Math.floor(dateObj.getMonth() / 3) + 1;
+          const period = `${format(dateObj, 'yyyy')}-Q${quarter}`;
+          return { period, sortKey: startOfQuarter(dateObj).getTime() };
+        }
         case 'year': {
           const period = format(dateObj, 'yyyy');
           return { period, sortKey: startOfYear(dateObj).getTime() };
@@ -564,6 +650,12 @@ export default function Insights() {
           thisMonthReceiptCount += 1;
         } else if (time >= previousMonthStartTime && time < currentMonthStartTime) {
           timeframeTotals.month.previous += receiptTotal;
+        }
+
+        if (time >= currentQuarterStartTime) {
+          timeframeTotals.quarter.current += receiptTotal;
+        } else if (time >= previousQuarterStartTime && time < currentQuarterStartTime) {
+          timeframeTotals.quarter.previous += receiptTotal;
         }
 
         if (time >= currentWeekStartTime) {
@@ -609,8 +701,10 @@ export default function Insights() {
         const lineTotal = price * multiplier;
         if (lineTotal <= 0) return;
 
-        const mainCategory = item.main_category || item.Category || 'Other';
-        const subCategory = item.sub_category || item.SubCategory || 'Misc';
+        const mainCategory =
+          formatCategoryLabel(item.main_category || item.Category || 'Other') || 'Other';
+        const subCategory =
+          formatCategoryLabel(item.sub_category || item.SubCategory || 'Misc') || 'Misc';
 
         if (!categoryMap.has(mainCategory)) {
           categoryMap.set(mainCategory, {
@@ -674,12 +768,16 @@ export default function Insights() {
             const map = itemTotalsByGranularityMaps.month;
             map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
           }
+          if (time >= currentQuarterStartTime) {
+            const map = itemTotalsByGranularityMaps.quarter;
+            map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
+          }
           if (time >= currentYearStartTime) {
             const map = itemTotalsByGranularityMaps.year;
             map.set(itemKey, (map.get(itemKey) || 0) + lineTotal);
           }
 
-          ['day', 'week', 'month', 'year'].forEach((granularity) => {
+          periodGranularities.forEach((granularity) => {
             const info = getBasketKey(granularity, receipt.dateObj);
             if (!info) return;
             const record = ensureBasketBucket(granularity, info.period, info.sortKey || 0);
@@ -863,6 +961,75 @@ export default function Insights() {
       };
     });
 
+    const aggregateItemsByName = (items = [], limit = 8) => {
+      const grouped = new Map();
+      items.forEach((item) => {
+        if (!item) return;
+        const rawName = (item.name || '').trim() || 'Line item';
+        const key = rawName.toLowerCase();
+        const total = Number(item.total || 0);
+        if (!Number.isFinite(total) || total <= 0) return;
+        if (!grouped.has(key)) {
+          grouped.set(key, { name: rawName, value: 0 });
+        }
+        const entry = grouped.get(key);
+        entry.value += total;
+      });
+      return Array.from(grouped.values())
+        .map(({ name, value }) => ({
+          name,
+          value: roundToTwo(value),
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, limit);
+    };
+
+    const categoryTreemap = categoryHierarchy
+      .map((category) => {
+        const details = categoryDetails[category.name];
+        const subCategories = details?.subCategories || [];
+        return {
+          name: category.name,
+          value: roundToTwo(details?.total ?? category.value ?? 0),
+          children: subCategories
+            .map((sub) => ({
+              name: sub.name,
+              value: roundToTwo(sub.total),
+              children: aggregateItemsByName(sub.items, 8).map((itemEntry) => ({
+                name: truncateLabel(itemEntry.name, 28),
+                fullName: itemEntry.name,
+                value: roundToTwo(itemEntry.value),
+              })),
+            }))
+            .filter((sub) => sub.value > 0),
+        };
+      })
+      .filter((entry) => entry.value > 0);
+
+    const storeTypeTree = categoryHierarchy
+      .map((category) => {
+        const details = categoryDetails[category.name];
+        const subCategories = details?.subCategories || [];
+        return {
+          name: category.name,
+          fullName: category.name,
+          value: roundToTwo(details?.total ?? category.value ?? 0),
+          children: subCategories
+            .map((sub) => ({
+              name: sub.name,
+              fullName: sub.name,
+              value: roundToTwo(sub.total),
+              children: aggregateItemsByName(sub.items, 5).map((itemEntry) => ({
+                name: truncateLabel(itemEntry.name, 24),
+                fullName: itemEntry.name,
+                value: itemEntry.value,
+              })),
+            }))
+            .filter((sub) => sub.value > 0),
+        };
+      })
+      .filter((entry) => entry.value > 0);
+
     const merchantSeries = Array.from(merchantMap.entries())
       .map(([name, value]) => ({ name, value: roundToTwo(value) }))
       .sort((a, b) => b.value - a.value)
@@ -1018,6 +1185,8 @@ export default function Insights() {
       categoryDetails,
       categoryNames,
       itemTotals,
+      categoryTreemap,
+      storeTypeTree,
       itemTotalsByGranularity,
       itemPriceTrends,
       basketComposition,
@@ -1036,12 +1205,17 @@ export default function Insights() {
         highestReceipt,
       },
     };
-  }, [processedReceipts]);
+  
+};
 
-  const timelineSeriesForGranularity = analytics.timelineSeries?.[timeGranularity] || [];
-  const categoryTimelineForGranularity =
-    analytics.categoryTimelineByFrame?.[timeGranularity] || { categories: [], entries: [] };
+  const referenceDate = useMemo(() => new Date(), []);
+  const overallAnalytics = useMemo(
+    () => buildAnalytics(processedReceipts, referenceDate),
+    [processedReceipts, referenceDate]
+  );
 
+  const timelineSeriesForGranularity =
+    overallAnalytics.timelineSeries?.[timeGranularity] || [];
   const supportsYearSelection = timeGranularity !== 'year';
   const requiresMonthSelection = timeGranularity === 'day' || timeGranularity === 'week';
 
@@ -1073,37 +1247,70 @@ export default function Insights() {
     }));
   }, [timelineSeriesForGranularity, requiresMonthSelection, selectedTimelineYear]);
 
-  const categoryTimelineYearOptions = useMemo(() => {
-    if (!supportsYearSelection) return [];
-    const entries = categoryTimelineForGranularity.entries || [];
-    const years = Array.from(
-      new Set(
-        entries.map((entry) => entry.year).filter((year) => Number.isFinite(year))
-      )
-    ).sort((a, b) => a - b);
-    return years.map((year) => ({ value: year, label: String(year) }));
-  }, [categoryTimelineForGranularity, supportsYearSelection]);
-
-  const categoryTimelineMonthOptions = useMemo(() => {
-    if (!requiresMonthSelection || selectedCategoryTimelineYear == null) return [];
-    const entries = categoryTimelineForGranularity.entries || [];
-    const months = Array.from(
-      new Set(
-        entries
-          .filter((entry) => entry.year === selectedCategoryTimelineYear)
-          .map((entry) => entry.month)
-          .filter((month) => Number.isFinite(month))
-      )
-    ).sort((a, b) => a - b);
-    return months.map((month) => ({
-      value: month,
-      label: format(new Date(selectedCategoryTimelineYear, month, 1), 'MMM'),
-    }));
-  }, [
-    categoryTimelineForGranularity,
+  const sharedTimeframeControlProps = {
+    timeGranularity,
+    onGranularityChange: setTimeGranularity,
+    supportsYearSelection,
     requiresMonthSelection,
-    selectedCategoryTimelineYear,
+    yearOptions: timelineYearOptions,
+    monthOptions: timelineMonthOptions,
+    selectedYear: selectedTimelineYear,
+    selectedMonth: selectedTimelineMonth,
+    onYearChange: setSelectedTimelineYear,
+    onMonthChange: setSelectedTimelineMonth,
+  };
+  const filteredReceipts = useMemo(() => {
+    if (!processedReceipts.length) return [];
+
+    return processedReceipts.filter((receipt) => {
+      if (!receipt?.dateObj) return false;
+      const year = receipt.dateObj.getFullYear();
+      const month = receipt.dateObj.getMonth();
+
+      if (requiresMonthSelection) {
+        if (selectedTimelineYear == null || selectedTimelineMonth == null) return false;
+        return year === selectedTimelineYear && month === selectedTimelineMonth;
+      }
+
+      if (supportsYearSelection && selectedTimelineYear != null) {
+        return year === selectedTimelineYear;
+      }
+
+      return true;
+    });
+  }, [
+    processedReceipts,
+    requiresMonthSelection,
+    supportsYearSelection,
+    selectedTimelineYear,
+    selectedTimelineMonth,
   ]);
+
+  const timeframeReferenceDate = useMemo(() => {
+    if (requiresMonthSelection) {
+      if (selectedTimelineYear != null && selectedTimelineMonth != null) {
+        return new Date(selectedTimelineYear, selectedTimelineMonth, 15);
+      }
+      return referenceDate;
+    }
+
+    if (supportsYearSelection && selectedTimelineYear != null) {
+      return new Date(selectedTimelineYear, 6, 15);
+    }
+
+    return referenceDate;
+  }, [
+    requiresMonthSelection,
+    supportsYearSelection,
+    selectedTimelineYear,
+    selectedTimelineMonth,
+    referenceDate,
+  ]);
+
+  const analytics = useMemo(
+    () => buildAnalytics(filteredReceipts, timeframeReferenceDate),
+    [filteredReceipts, timeframeReferenceDate]
+  );
 
   const itemPriceTrendOptions = useMemo(
     () => (analytics.itemPriceTrends || []).sort((a, b) => b.data.length - a.data.length),
@@ -1126,118 +1333,39 @@ export default function Insights() {
   );
 
   const basketCompositionData = useMemo(
-    () => analytics.basketByGranularity?.[basketGranularity] || [],
-    [analytics.basketByGranularity, basketGranularity]
+    () => analytics.basketByGranularity?.[timeGranularity] || [],
+    [analytics.basketByGranularity, timeGranularity]
   );
 
-  const itemTotalsData = useMemo(
-    () => analytics.itemTotalsByGranularity?.[itemTotalsGranularity] || [],
-    [analytics.itemTotalsByGranularity, itemTotalsGranularity]
-  );
+  const categoryPieData = useMemo(() => {
+    const categories = (analytics.categoryNames || [])
+      .map((name) => ({
+        name,
+        value: roundToTwo(analytics.categoryDetails?.[name]?.total || 0),
+      }))
+      .filter((entry) => entry.value > 0)
+      .sort((a, b) => b.value - a.value);
 
-  const spendTimelineHeaderAction = useMemo(
-    () => (
-      <div className="flex items-center gap-2">
-        <TimeGranularityToggle value={timeGranularity} onChange={setTimeGranularity} />
-        {supportsYearSelection && timelineYearOptions.length > 0 && (
-          <select
-            value={selectedTimelineYear ?? ''}
-            onChange={(e) =>
-              setSelectedTimelineYear(e.target.value === '' ? null : Number(e.target.value))
-            }
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-          >
-            {timelineYearOptions.map((option) => (
-              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {requiresMonthSelection && timelineMonthOptions.length > 0 && (
-          <select
-            value={selectedTimelineMonth ?? ''}
-            onChange={(e) =>
-              setSelectedTimelineMonth(e.target.value === '' ? null : Number(e.target.value))
-            }
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-          >
-            {timelineMonthOptions.map((option) => (
-              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-    ),
-    [
-      timeGranularity,
-      supportsYearSelection,
-      timelineYearOptions,
-      selectedTimelineYear,
-      requiresMonthSelection,
-      timelineMonthOptions,
-      selectedTimelineMonth,
-    ]
-  );
+    const subCategories =
+      categoryPieCategory && analytics.categoryDetails?.[categoryPieCategory]
+        ? (analytics.categoryDetails[categoryPieCategory].subCategories || [])
+            .map((sub) => ({
+              name: sub.name,
+              value: roundToTwo(sub.total || 0),
+            }))
+            .filter((entry) => entry.value > 0)
+            .sort((a, b) => b.value - a.value)
+        : [];
 
-  const categoryTimelineHeaderAction = useMemo(
-    () => (
-      <div className="flex items-center gap-2">
-        <TimeGranularityToggle value={timeGranularity} onChange={setTimeGranularity} />
-        {supportsYearSelection && categoryTimelineYearOptions.length > 0 && (
-          <select
-            value={selectedCategoryTimelineYear ?? ''}
-            onChange={(e) =>
-              setSelectedCategoryTimelineYear(
-                e.target.value === '' ? null : Number(e.target.value)
-              )
-            }
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-          >
-            {categoryTimelineYearOptions.map((option) => (
-              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {requiresMonthSelection && categoryTimelineMonthOptions.length > 0 && (
-          <select
-            value={selectedCategoryTimelineMonth ?? ''}
-            onChange={(e) =>
-              setSelectedCategoryTimelineMonth(
-                e.target.value === '' ? null : Number(e.target.value)
-              )
-            }
-            className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-          >
-            {categoryTimelineMonthOptions.map((option) => (
-              <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-    ),
-    [
-      timeGranularity,
-      supportsYearSelection,
-      categoryTimelineYearOptions,
-      selectedCategoryTimelineYear,
-      requiresMonthSelection,
-      categoryTimelineMonthOptions,
-      selectedCategoryTimelineMonth,
-    ]
-  );
+    return { categories, subCategories };
+  }, [analytics.categoryNames, analytics.categoryDetails, categoryPieCategory]);
 
   useEffect(() => {
     if (!analytics.categoryNames.length) {
       setSelectedCategory(null);
       setSelectedSubCategory(null);
       setDrillLevel('main');
+      if (categoryPieCategory !== null) setCategoryPieCategory(null);
       return;
     }
     if (selectedCategory && !analytics.categoryDetails?.[selectedCategory]) {
@@ -1246,6 +1374,12 @@ export default function Insights() {
       setDrillLevel('main');
     }
   }, [analytics.categoryNames, analytics.categoryDetails, selectedCategory]);
+
+  useEffect(() => {
+    if (categoryPieCategory && !analytics.categoryDetails?.[categoryPieCategory]) {
+      setCategoryPieCategory(null);
+    }
+  }, [categoryPieCategory, analytics.categoryDetails]);
 
   useEffect(() => {
     if (!selectedCategory) {
@@ -1276,7 +1410,7 @@ export default function Insights() {
   }, [drillLevel, selectedSubCategory, selectedCategory]);
 
   useEffect(() => {
-    const series = analytics.timelineSeries?.[timeGranularity] || [];
+    const series = overallAnalytics.timelineSeries?.[timeGranularity] || [];
     if (!series.length) {
       if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
       if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
@@ -1288,6 +1422,10 @@ export default function Insights() {
       if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
       return;
     }
+
+    const previousMonthDate = subMonths(referenceDate, 1);
+    const previousYear = previousMonthDate.getFullYear();
+    const previousMonth = previousMonthDate.getMonth();
 
     const years = Array.from(
       new Set(
@@ -1301,9 +1439,16 @@ export default function Insights() {
       return;
     }
 
-    const targetYear = years.includes(selectedTimelineYear)
-      ? selectedTimelineYear
-      : years[years.length - 1];
+    let targetYear = years[years.length - 1];
+    if (years.includes(previousYear)) {
+      if (requiresMonthSelection) {
+        targetYear = previousYear;
+      } else if (supportsYearSelection) {
+        targetYear = previousYear;
+      }
+    } else if (years.includes(selectedTimelineYear)) {
+      targetYear = selectedTimelineYear;
+    }
 
     if (targetYear !== selectedTimelineYear) {
       setSelectedTimelineYear(targetYear);
@@ -1329,87 +1474,28 @@ export default function Insights() {
       return;
     }
 
-    if (!months.includes(selectedTimelineMonth)) {
-      setSelectedTimelineMonth(months[months.length - 1]);
+    let targetMonth = months[months.length - 1];
+    if (targetYear === previousYear && months.includes(previousMonth)) {
+      targetMonth = previousMonth;
+    } else if (months.length >= 2) {
+      targetMonth = months[months.length - 2];
+    }
+
+    if (targetMonth !== selectedTimelineMonth) {
+      setSelectedTimelineMonth(targetMonth);
     }
   }, [
-    analytics.timelineSeries,
+    overallAnalytics.timelineSeries,
     timeGranularity,
     selectedTimelineYear,
     selectedTimelineMonth,
     supportsYearSelection,
     requiresMonthSelection,
-  ]);
-
-  useEffect(() => {
-    const timeline = analytics.categoryTimelineByFrame?.[timeGranularity];
-    const entries = timeline?.entries || [];
-    if (!entries.length) {
-      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
-      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
-      return;
-    }
-
-    if (!supportsYearSelection) {
-      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
-      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
-      return;
-    }
-
-    const years = Array.from(
-      new Set(
-        entries.map((entry) => entry.year).filter((year) => Number.isFinite(year))
-      )
-    ).sort((a, b) => a - b);
-
-    if (!years.length) {
-      if (selectedCategoryTimelineYear !== null) setSelectedCategoryTimelineYear(null);
-      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
-      return;
-    }
-
-    const targetYear = years.includes(selectedCategoryTimelineYear)
-      ? selectedCategoryTimelineYear
-      : years[years.length - 1];
-
-    if (targetYear !== selectedCategoryTimelineYear) {
-      setSelectedCategoryTimelineYear(targetYear);
-      return;
-    }
-
-    if (!requiresMonthSelection) {
-      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
-      return;
-    }
-
-    const months = Array.from(
-      new Set(
-        entries
-          .filter((entry) => entry.year === targetYear)
-          .map((entry) => entry.month)
-          .filter((month) => Number.isFinite(month))
-      )
-    ).sort((a, b) => a - b);
-
-    if (!months.length) {
-      if (selectedCategoryTimelineMonth !== null) setSelectedCategoryTimelineMonth(null);
-      return;
-    }
-
-    if (!months.includes(selectedCategoryTimelineMonth)) {
-      setSelectedCategoryTimelineMonth(months[months.length - 1]);
-    }
-  }, [
-    analytics.categoryTimelineByFrame,
-    timeGranularity,
-    selectedCategoryTimelineYear,
-    selectedCategoryTimelineMonth,
-    supportsYearSelection,
-    requiresMonthSelection,
+    referenceDate,
   ]);
 
   const spendingTrendOption = useMemo(() => {
-    const baseData = analytics.timelineSeries?.[timeGranularity] || [];
+    const baseData = overallAnalytics.timelineSeries?.[timeGranularity] || [];
     if (!baseData.length) return null;
 
     let filteredData = baseData;
@@ -1473,7 +1559,7 @@ export default function Insights() {
       ],
     };
   }, [
-    analytics.timelineSeries,
+    overallAnalytics.timelineSeries,
     timeGranularity,
     supportsYearSelection,
     requiresMonthSelection,
@@ -1489,18 +1575,15 @@ export default function Insights() {
 
     let entries = timeline.entries;
     if (requiresMonthSelection) {
-      if (
-        selectedCategoryTimelineYear == null ||
-        selectedCategoryTimelineMonth == null
-      ) {
+      if (selectedTimelineYear == null || selectedTimelineMonth == null) {
         return null;
       }
       entries = entries.filter(
         (entry) =>
-          entry.year === selectedCategoryTimelineYear && entry.month === selectedCategoryTimelineMonth
+          entry.year === selectedTimelineYear && entry.month === selectedTimelineMonth
       );
-    } else if (supportsYearSelection && selectedCategoryTimelineYear != null) {
-      entries = entries.filter((entry) => entry.year === selectedCategoryTimelineYear);
+    } else if (supportsYearSelection && selectedTimelineYear != null) {
+      entries = entries.filter((entry) => entry.year === selectedTimelineYear);
     }
 
     if (!entries.length) return null;
@@ -1572,8 +1655,8 @@ export default function Insights() {
     timeGranularity,
     requiresMonthSelection,
     supportsYearSelection,
-    selectedCategoryTimelineYear,
-    selectedCategoryTimelineMonth,
+    selectedTimelineYear,
+    selectedTimelineMonth,
   ]);
 
   const merchantsOption = useMemo(() => {
@@ -2014,7 +2097,7 @@ export default function Insights() {
   }, [drillLevel, selectedCategory, selectedSubCategory]);
 
   const drilldownHeaderAction = (
-    <div className="flex items-center gap-3 text-xs text-gray-400">
+    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
       <span className="hidden sm:inline">{drilldownPath}</span>
       {drillLevel !== 'main' && (
         <button
@@ -2024,6 +2107,7 @@ export default function Insights() {
           Back
         </button>
       )}
+      <TimeframeControls {...sharedTimeframeControlProps} className="ml-auto" />
     </div>
   );
 
@@ -2040,75 +2124,114 @@ export default function Insights() {
     return 'No data available yet.';
   }, [analytics.categoryNames, drillLevel]);
 
-  const itemTotalsOption = useMemo(() => {
-    if (!itemTotalsData.length) return null;
+  const categoryPieOption = useMemo(() => {
+    const source = categoryPieCategory ? categoryPieData.subCategories : categoryPieData.categories;
+    if (!source.length) return null;
 
     const palette = [
-      '#38BDF8',
-      '#818CF8',
-      '#F97316',
-      '#34D399',
-      '#EC4899',
-      '#FBBF24',
-      '#60A5FA',
-      '#F472B6',
-      '#10B981',
-      '#F59E0B',
-      '#A855F7',
-      '#EF4444',
+      '#34d399',
+      '#38bdf8',
+      '#f472b6',
+      '#f97316',
+      '#a855f7',
+      '#22d3ee',
+      '#facc15',
+      '#2dd4bf',
+      '#fca5a5',
+      '#c084fc',
     ];
-
-    const entries = itemTotalsData
-      .filter((entry) => entry.value > 0)
-      .slice(0, 12);
-
-    const categories = entries.map((entry) => entry.name);
-    const dataSeries = entries.map((entry, index) => ({
-      value: entry.value,
-      name: entry.name,
-      itemStyle: { color: palette[index % palette.length] },
-    }));
 
     return {
       backgroundColor: 'transparent',
+      title: {
+        text: categoryPieCategory ? `${categoryPieCategory}` : 'Spending by Category',
+        left: 'center',
+        top: 10,
+        textStyle: { color: '#E2E8F0', fontSize: 14, fontWeight: 600 },
+        subtext: categoryPieCategory
+          ? 'Click “All categories” to go up a level'
+          : 'Click a slice to drill into its sub-categories',
+        subtextStyle: { color: 'rgba(226,232,240,0.65)', fontSize: 11, fontWeight: 400 },
+      },
       tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        valueFormatter: (value) => formatCurrency(value),
+        trigger: 'item',
+        formatter: ({ name, value, percent }) =>
+          `${name}<br/>${formatCurrency(value)} • ${Number(percent || 0).toFixed(1)}%`,
       },
-      grid: { left: '32%', right: '8%', top: 40, bottom: 16 },
-      xAxis: {
-        type: 'value',
-        axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
-        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
-      },
-      yAxis: {
-        type: 'category',
-        data: categories.slice().reverse(),
-        axisTick: { show: false },
-        axisLine: { show: false },
-        axisLabel: { color: '#F8FAFC', fontSize: 12 },
-      },
+      legend: { show: false },
       series: [
         {
-          type: 'bar',
-          data: dataSeries.slice().reverse(),
-          barWidth: 18,
-          label: {
-            show: true,
-            position: 'right',
-            color: '#E2E8F0',
-            formatter: ({ value }) => formatCurrency(value),
+          name: categoryPieCategory ? `${categoryPieCategory} sub-categories` : 'Categories',
+          type: 'pie',
+          radius: ['32%', '72%'],
+          center: ['50%', '58%'],
+          itemStyle: {
+            borderRadius: 12,
+            borderColor: 'rgba(15,23,42,0.85)',
+            borderWidth: 2,
           },
+          label: {
+            color: '#E2E8F0',
+            formatter: ({ name, value, percent }) =>
+              `${truncateLabel(name, 20)}\n${formatCurrency(value)} • ${Number(percent || 0).toFixed(1)}%`,
+            rich: {
+              b: { fontSize: 13, fontWeight: 600, color: '#F8FAFC' },
+            },
+          },
+          labelLine: {
+            length: 16,
+            length2: 12,
+            smooth: true,
+            lineStyle: { width: 1.4, color: 'rgba(148, 163, 184, 0.45)' },
+          },
+          data: source.map((entry, index) => ({
+            name: entry.name,
+            value: entry.value,
+            itemStyle: { color: palette[index % palette.length] },
+          })),
         },
       ],
     };
-  }, [itemTotalsData]);
+  }, [categoryPieCategory, categoryPieData]);
+
+  const categoryPieEvents = useMemo(
+    () => ({
+      click: (params) => {
+        const targetName = params?.name;
+        if (!targetName) return;
+        const hasSubCategories =
+          analytics.categoryDetails?.[targetName]?.subCategories?.length > 0;
+        if (!categoryPieCategory && hasSubCategories) {
+          setCategoryPieCategory(targetName);
+        }
+      },
+    }),
+    [categoryPieCategory, analytics.categoryDetails]
+  );
+
+  const categoryPieHeaderAction = <TimeframeControls {...sharedTimeframeControlProps} />;
+
+  const categoryPieDescription = (
+    <div className="flex flex-wrap items-center gap-3">
+      <span>
+        Inspect how spend divides across categories, then drill into sub-categories to see where money concentrates.
+      </span>
+      {categoryPieCategory && (
+        <button
+          type="button"
+          onClick={() => setCategoryPieCategory(null)}
+          className="rounded-full border border-violet-300/40 bg-violet-500/20 px-3 py-1 text-xs font-semibold text-violet-100 shadow-sm transition hover:bg-violet-500/30"
+        >
+          All categories
+        </button>
+      )}
+    </div>
+  );
 
   const insightHighlights = useMemo(() => {
-    if (!analytics.stats) return [];
+    if (!overallAnalytics.stats) return [];
     const highlights = [];
-    const { topCategory, topMerchant, monthOverMonth, busiestDay, highestReceipt } = analytics.stats;
+    const { topCategory, topMerchant, monthOverMonth, busiestDay, highestReceipt } = overallAnalytics.stats;
 
     if (topCategory) {
       highlights.push(`Most of your item-level spending flows into the ${topCategory} category.`);
@@ -2148,7 +2271,7 @@ export default function Insights() {
     }
 
     return highlights;
-  }, [analytics.stats]);
+  }, [overallAnalytics.stats]);
 
   return (
     <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gray-950 text-gray-100 font-sans">
@@ -2172,32 +2295,32 @@ export default function Insights() {
         </AnimatedSection>
       )}
 
-      {analytics.stats && (
+      {overallAnalytics.stats && (
         <AnimatedSection delay={0.05}>
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
             <StatsCard
               label="Total Spend Captured"
-              value={analytics.stats.totalSpent || 0}
-              helper={`Across ${analytics.stats.totalReceipts || 0} receipts`}
+              value={overallAnalytics.stats.totalSpent || 0}
+              helper={`Across ${overallAnalytics.stats.totalReceipts || 0} receipts`}
             />
             <StatsCard
               label="Average Per Receipt"
-              value={analytics.stats.avgPerReceipt || 0}
+              value={overallAnalytics.stats.avgPerReceipt || 0}
               helper="Smarter batching keeps individual trips lower"
             />
             <StatsCard
               label="Top Category"
-              value={analytics.stats.topCategory || '—'}
+              value={overallAnalytics.stats.topCategory || '—'}
               helper="Based on captured line items"
             />
             <StatsCard
               label="Month-over-Month"
               value={
-                analytics.stats.monthOverMonth == null
+                overallAnalytics.stats.monthOverMonth == null
                   ? '—'
-                  : analytics.stats.monthOverMonth === Infinity
+                  : overallAnalytics.stats.monthOverMonth === Infinity
                   ? 'New spend'
-                  : `${analytics.stats.monthOverMonth > 0 ? '+' : ''}${analytics.stats.monthOverMonth.toFixed(1)}%`
+                  : `${overallAnalytics.stats.monthOverMonth > 0 ? '+' : ''}${overallAnalytics.stats.monthOverMonth.toFixed(1)}%`
               }
               helper="Change versus previous month"
             />
@@ -2205,28 +2328,28 @@ export default function Insights() {
         </AnimatedSection>
       )}
 
-      {analytics.timeframeInsights && (
+      {overallAnalytics.timeframeInsights && (
         <AnimatedSection delay={0.07}>
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
             <TimeframeCard
               label="Year to Date"
-              current={analytics.timeframeInsights.year.current}
-              previous={analytics.timeframeInsights.year.previous}
+              current={overallAnalytics.timeframeInsights.year.current}
+              previous={overallAnalytics.timeframeInsights.year.previous}
             />
             <TimeframeCard
               label="This Month"
-              current={analytics.timeframeInsights.month.current}
-              previous={analytics.timeframeInsights.month.previous}
+              current={overallAnalytics.timeframeInsights.month.current}
+              previous={overallAnalytics.timeframeInsights.month.previous}
             />
             <TimeframeCard
               label="This Week"
-              current={analytics.timeframeInsights.week.current}
-              previous={analytics.timeframeInsights.week.previous}
+              current={overallAnalytics.timeframeInsights.week.current}
+              previous={overallAnalytics.timeframeInsights.week.previous}
             />
             <TimeframeCard
               label="Today"
-              current={analytics.timeframeInsights.day.current}
-              previous={analytics.timeframeInsights.day.previous}
+              current={overallAnalytics.timeframeInsights.day.current}
+              previous={overallAnalytics.timeframeInsights.day.previous}
             />
           </div>
         </AnimatedSection>
@@ -2241,7 +2364,7 @@ export default function Insights() {
             isLoading={isLoading}
             hasData={Boolean(spendingTrendOption)}
             height={320}
-            headerAction={spendTimelineHeaderAction}
+            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.12}>
@@ -2253,7 +2376,7 @@ export default function Insights() {
             hasData={Boolean(stackedCategoryOption)}
             emptyMessage="Capture receipts with line items to unlock category trends."
             height={320}
-            headerAction={categoryTimelineHeaderAction}
+            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.14}>
@@ -2264,6 +2387,7 @@ export default function Insights() {
             isLoading={isLoading}
             hasData={Boolean(analytics.merchantSeries.length)}
             height={320}
+            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.16}>
@@ -2274,6 +2398,7 @@ export default function Insights() {
             isLoading={isLoading}
             hasData={Boolean(analytics.weekdaySeries.some((item) => item.value > 0))}
             height={320}
+            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
       </div>
@@ -2299,6 +2424,7 @@ export default function Insights() {
             hasData={Boolean(subcategoryNightingaleOption)}
             emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
             height={300}
+            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </div>
       </AnimatedSection>
@@ -2313,19 +2439,21 @@ export default function Insights() {
                   Track how the unit price for a frequent item is changing over time.
                 </p>
               </div>
-              {itemPriceTrendOptions.length > 1 && (
-                <select
-                  value={selectedTrendItem ?? ''}
-                  onChange={(event) => setSelectedTrendItem(event.target.value || null)}
-                  className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-                >
-                  {itemPriceTrendOptions.map((option) => (
-                    <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
-                      {truncateLabel(option.itemName, 32)}
-                    </option>
-                  ))}
-                </select>
-              )}
+              <TimeframeControls {...sharedTimeframeControlProps}>
+                {itemPriceTrendOptions.length > 1 && (
+                  <select
+                    value={selectedTrendItem ?? ''}
+                    onChange={(event) => setSelectedTrendItem(event.target.value || null)}
+                    className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                  >
+                    {itemPriceTrendOptions.map((option) => (
+                      <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
+                        {truncateLabel(option.itemName, 32)}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </TimeframeControls>
             </div>
             <ItemPriceTrendChart
               data={activeItemPriceTrend?.data || []}
@@ -2340,7 +2468,7 @@ export default function Insights() {
                   See how healthy, snack, and alcohol purchases contribute to each basket over time.
                 </p>
               </div>
-              <BasketGranularitySelector value={basketGranularity} onChange={setBasketGranularity} />
+              <TimeframeControls {...sharedTimeframeControlProps} />
             </div>
             <BasketCompositionChart data={basketCompositionData} />
           </div>
@@ -2350,16 +2478,15 @@ export default function Insights() {
       <AnimatedSection delay={0.22}>
         <div className="mt-8">
           <ChartCard
-            title="Top Receipt Items"
-            description="Quick view of the items capturing the most spend across all receipts."
-            option={itemTotalsOption}
+            title="Category Mix"
+            description={categoryPieDescription}
+            option={categoryPieOption}
             isLoading={isLoading}
-            hasData={Boolean(itemTotalsOption)}
-            emptyMessage="Add more receipts with line items to populate this chart."
-            height={300}
-            headerAction={
-              <TimeGranularityToggle value={itemTotalsGranularity} onChange={setItemTotalsGranularity} />
-            }
+            hasData={Boolean(categoryPieOption)}
+            emptyMessage="Add receipts with categorised line items to populate this chart."
+            height={340}
+            headerAction={categoryPieHeaderAction}
+            onEvents={categoryPieOption ? categoryPieEvents : undefined}
           />
         </div>
       </AnimatedSection>
