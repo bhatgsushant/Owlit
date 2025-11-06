@@ -123,8 +123,8 @@ export default function Home() {
           </Link>
           
           <div className="flex items-center gap-4">
-            <Link to={createPageUrl("Dashboard")}>
-              <Button variant="ghost" className="text-sm">Dashboard</Button>
+            <Link to={createPageUrl("Insights")}>
+              <Button variant="ghost" className="text-sm">Insights</Button>
             </Link>
             <Link to={createPageUrl("ScanReceipt")}>
               <Button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl transition-all duration-300 text-sm">

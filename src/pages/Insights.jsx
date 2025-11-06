@@ -2476,7 +2476,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       </AnimatedSection>
 
       <AnimatedSection delay={0.22}>
-        <div className="mt-8">
+        <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
           <ChartCard
             title="Category Mix"
             description={categoryPieDescription}
@@ -2488,36 +2488,42 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             headerAction={categoryPieHeaderAction}
             onEvents={categoryPieOption ? categoryPieEvents : undefined}
           />
-        </div>
-      </AnimatedSection>
 
-      <AnimatedSection delay={0.2}>
-        <div className="mt-8 bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
-          <h2 className="text-lg md:text-xl font-semibold text-white font-display">Key takeaways</h2>
-          <p className="text-sm text-gray-400 mt-2 mb-4">
-            A quick narrative summary distilled from your latest data points.
-          </p>
-          {insightHighlights.length ? (
-            <ul className="list-disc list-inside space-y-2 text-sm md:text-base text-gray-200">
-              {insightHighlights.map((highlight, index) => (
-                <li key={index}>{highlight}</li>
-              ))}
-            </ul>
-          ) : (
-            <div className="text-sm text-gray-500">
-              Add more receipts to unlock personalised insights and recommendations.
+          <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
+            <div>
+              <h2 className="text-lg md:text-xl font-semibold text-white font-display">Key takeaways</h2>
+              <p className="text-sm text-gray-400 mt-2">
+                A quick narrative summary distilled from your latest data points.
+              </p>
             </div>
-          )}
+            {insightHighlights.length ? (
+              <ul className="list-disc list-inside space-y-2 text-sm md:text-base text-gray-200">
+                {insightHighlights.map((highlight, index) => (
+                  <li key={index}>{highlight}</li>
+                ))}
+              </ul>
+            ) : (
+              <div className="text-sm text-gray-500">
+                Add more receipts to unlock personalised insights and recommendations.
+              </div>
+            )}
+          </div>
         </div>
       </AnimatedSection>
 
       <AnimatedSection delay={0.24}>
-        <div className="mt-10">
-          <ReceiptsAnalyticsTable
-            receipts={processedReceipts}
-            isLoading={isLoading}
-            showInsightsLink={false}
-          />
+        <div className="mt-10 space-y-4 bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <h3 className="text-lg font-semibold text-white font-display">All Receipts</h3>
+            <TimeframeControls {...sharedTimeframeControlProps} />
+          </div>
+          <div className="border border-white/5 rounded-2xl overflow-hidden">
+            <ReceiptsAnalyticsTable
+              receipts={processedReceipts}
+              isLoading={isLoading}
+              showInsightsLink={false}
+            />
+          </div>
         </div>
       </AnimatedSection>
     </div>
