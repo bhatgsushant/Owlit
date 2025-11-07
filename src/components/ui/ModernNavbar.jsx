@@ -1,18 +1,30 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
+import { X, Menu as MenuIcon, Sun, Moon, LogOut, Sparkles } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
 import { useAuth } from '@/hooks/useAuth';
 
-// A simple SVG logo component
-function Logo() {
+// Shared brand mark to mirror the home page styling
+function BrandMark() {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M9 3h6l2 4-2 4H9Z" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M15 21h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <div className="flex items-center gap-3">
+      <motion.div
+        whileHover={{ scale: 1.08, rotate: 5 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+        className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/25"
+      >
+        <Sparkles className="h-5 w-5 text-white" />
+      </motion.div>
+      <div className="flex flex-col leading-none">
+        <span className="bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-500 bg-clip-text text-base font-semibold tracking-tight text-transparent">
+          ReceiptWise
+        </span>
+        <span className="text-[11px] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
+          track · save · thrive
+        </span>
+      </div>
+    </div>
   );
 }
 
@@ -100,18 +112,8 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
         }}
         transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
       >
-        <Link to={createPageUrl('Home')} className="flex items-center gap-3 text-slate-900 dark:text-white">
-          <motion.div whileHover={{ rotate: 8, scale: 1.05 }} transition={{ type: 'spring', stiffness: 300 }}>
-            <Logo />
-          </motion.div>
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold uppercase tracking-[0.3em] text-slate-500 dark:text-slate-300">
-              RECEIPTWISE
-            </span>
-            <span className="text-[10px] uppercase tracking-[0.35em] text-slate-400 dark:text-slate-500">
-              track · save · thrive
-            </span>
-          </div>
+        <Link to={createPageUrl('Home')} className="text-slate-900 dark:text-white">
+          <BrandMark />
         </Link>
 
         <motion.div className="hidden items-center gap-5 md:flex">
@@ -204,8 +206,11 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
             animate={{ opacity: 1, y: '0%' }}
             exit={{ opacity: 0, y: '-100%' }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 bg-black bg-opacity-90 backdrop-blur-lg h-screen w-screen flex flex-col items-center justify-center md:hidden"
+            className="fixed inset-0 flex h-screen w-screen flex-col items-center justify-center bg-black bg-opacity-90 backdrop-blur-lg md:hidden"
           >
+            <div className="mb-10">
+              <BrandMark />
+            </div>
             <div className="flex flex-col items-center gap-8">
               {menuItems.map((item) => (
                 <Link

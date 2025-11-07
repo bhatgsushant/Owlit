@@ -54,7 +54,6 @@ import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
-import ModernNavbar from '../components/ui/ModernNavbar';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { cn } from '@/lib/utils';
 
@@ -791,8 +790,9 @@ export default function ScanReceipt() {
   const [mode, setMode] = useState('upload');
   const [scanMode, setScanMode] = useState('receipt');
   const [markdownPreview, setMarkdownPreview] = useState(null);
+  const [duplicatePrompt, setDuplicatePrompt] = useState(null);
+  const [saveSuccessPrompt, setSaveSuccessPrompt] = useState(false);
   const fileInputRef = useRef(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const [recentReceipts, setRecentReceipts] = useState([]);
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const savedPreferencesRef = useRef(new Set());
@@ -840,21 +840,6 @@ export default function ScanReceipt() {
         console.error('Failed to save user category preference', err);
     }
 }, []);
-
-  useEffect(() => {
-    const savedTheme = localStorage.getItem('receiptwise-theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
-    setIsDarkMode(shouldUseDark);
-    document.documentElement.classList.toggle('dark', shouldUseDark);
-  }, []);
-
-  const toggleTheme = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    document.documentElement.classList.toggle('dark', newTheme);
-    localStorage.setItem('receiptwise-theme', newTheme ? 'dark' : 'light');
-  };
 
   const fetchReceipts = useCallback(async () => {
     setIsReceiptsLoading(true);
@@ -997,9 +982,11 @@ export default function ScanReceipt() {
     setMarkdownPreview(null);
     setMode('upload');
     resetProcessingTimeline();
+    setDuplicatePrompt(null);
+    setSaveSuccessPrompt(false);
   };
   
-    const handleSave = async () => {
+    const handleSave = async (options = {}) => {
     if (!extractedData || !Array.isArray(extractedData.line_items)) {
       alert('No receipt data to save.');
       return;
@@ -1035,6 +1022,12 @@ export default function ScanReceipt() {
     if (file) {
       formData.append('receiptImage', file);
     }
+    if (options.duplicateAction) {
+      formData.append('duplicateAction', options.duplicateAction);
+    }
+    if (options.existingReceiptId) {
+      formData.append('existingReceiptId', options.existingReceiptId);
+    }
 
     try {
       const response = await fetch('/api/receipts', {
@@ -1044,22 +1037,107 @@ export default function ScanReceipt() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to save receipt');
+        let message = 'Failed to save receipt';
+        let errorPayload = null;
+        try {
+          errorPayload = await response.json();
+          if (errorPayload?.error) {
+            message = errorPayload.error;
+          }
+        } catch (_) {
+          // ignore JSON parse issues
+        }
+
+        if (response.status === 409) {
+          if (errorPayload?.code === 'DUPLICATE_RECEIPT' && errorPayload?.existingReceiptId) {
+            setDuplicatePrompt({
+              receiptId: errorPayload.existingReceiptId,
+              message,
+            });
+            return;
+          }
+
+          alert(message);
+          return;
+        }
+
+        throw new Error(message);
       }
 
-      alert('Receipt saved successfully!');
       fetchReceipts();
       handleReset();
+      setSaveSuccessPrompt(true);
     } catch (error) { 
       console.error(error);
       alert(`Failed to save receipt: ${error.message}`);
     }
   };
 
+  const handleDuplicateDecision = (action) => {
+    if (!duplicatePrompt) return;
+    const payload = {
+      duplicateAction: action,
+      existingReceiptId: duplicatePrompt.receiptId,
+    };
+    setDuplicatePrompt(null);
+    handleSave(payload);
+  };
+
   const pageTitle = scanMode === 'receipt' ? 'Scan Receipt' : 'Scan Document';
 
   return (
     <>
+      {duplicatePrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <p className="text-lg font-semibold text-gray-900">This receipt already exists.</p>
+            <p className="mt-2 text-sm text-gray-600">
+              {duplicatePrompt.message && duplicatePrompt.message !== 'This receipt already exists.'
+                ? duplicatePrompt.message
+                : 'Choose whether to replace the existing record or keep both copies.'}
+            </p>
+            <div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <button
+                onClick={() => handleDuplicateDecision('replace')}
+                className="rounded-xl bg-red-500 px-4 py-3 text-white font-semibold hover:bg-red-600 transition-colors"
+              >
+                Replace
+              </button>
+              <button
+                onClick={() => handleDuplicateDecision('keep')}
+                className="rounded-xl border border-gray-300 px-4 py-3 font-semibold text-gray-800 hover:bg-gray-50 transition-colors"
+              >
+                Keep Both
+              </button>
+              <button
+                onClick={() => setDuplicatePrompt(null)}
+                className="rounded-xl border border-gray-200 px-4 py-3 font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {saveSuccessPrompt && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-center">
+            <CheckCircle size={48} className="mx-auto text-green-500" />
+            <p className="mt-4 text-xl font-semibold text-gray-900">Receipt saved</p>
+            <p className="mt-2 text-sm text-gray-600">
+              Your receipt has been stored successfully.
+            </p>
+            <div className="mt-6">
+              <button
+                onClick={() => setSaveSuccessPrompt(false)}
+                className="w-full rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition-colors"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
         <button
             data-testid="set-data-button"
             style={{ display: 'none' }}
@@ -1069,9 +1147,6 @@ export default function ScanReceipt() {
           .gradient-bg { background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab); background-size: 400% 400%; animation: gradient 15s ease infinite; width: 100%; }
           @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
       `}</style>
-      <motion.div initial={{ y: -100, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5, ease: 'easeInOut' }}>
-        <ModernNavbar isDarkMode={isDarkMode} toggleTheme={toggleTheme} />
-      </motion.div>
 
       <div className="gradient-bg pt-16 min-h-screen">
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}

@@ -15,16 +15,136 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const passport = require('./auth.js');
 const supabase = require('./supabaseClient.js');
+const crypto = require('crypto');
+const {
+  normalizeMerchantName,
+  buildReceiptHash,
+} = require('./utils/receiptHash.js');
 
-function normalizeMerchantName(name = "") {
-  return name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+class ValidationError extends Error {
+  constructor(message, statusCode = 400) {
+    super(message);
+    this.name = 'ValidationError';
+    this.statusCode = statusCode;
+  }
 }
+
+const ALLOWED_UPLOAD_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'application/pdf'
+]);
+
+const MAX_MARKDOWN_LENGTH = 20000;
+
+const ensureEnvVar = (key) => {
+  const value = process.env[key];
+  if (!value) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return value;
+};
+
+const handleApiError = (res, error, fallbackMessage = 'An unexpected error occurred.') => {
+  if (error instanceof ValidationError) {
+    return res.status(error.statusCode).json({ error: error.message });
+  }
+  console.error(fallbackMessage, error);
+  return res.status(500).json({ error: fallbackMessage });
+};
+
+const validateFields = (payload, schema) => {
+  Object.entries(schema).forEach(([field, rules]) => {
+    const value = payload[field];
+    if (rules.required && (value === undefined || value === null || value === '')) {
+      throw new ValidationError(rules.message || `${field} is required.`);
+    }
+    if (value === undefined || value === null) {
+      return;
+    }
+
+    if (rules.type === 'string') {
+      if (typeof value !== 'string') {
+        throw new ValidationError(rules.message || `${field} must be a string.`);
+      }
+      if (rules.trim && value.trim().length === 0) {
+        throw new ValidationError(rules.message || `${field} cannot be empty.`);
+      }
+      if (rules.maxLength && value.length > rules.maxLength) {
+        throw new ValidationError(rules.message || `${field} must be ${rules.maxLength} characters or fewer.`);
+      }
+      if (rules.allowed && !rules.allowed.includes(value)) {
+        throw new ValidationError(rules.message || `${field} contains an invalid value.`);
+      }
+      if (rules.pattern && !rules.pattern.test(value)) {
+        throw new ValidationError(rules.message || `${field} is invalid.`);
+      }
+    } else if (rules.type === 'number') {
+      if (typeof value !== 'number' || Number.isNaN(value)) {
+        throw new ValidationError(rules.message || `${field} must be a valid number.`);
+      }
+      if (rules.min !== undefined && value < rules.min) {
+        throw new ValidationError(rules.message || `${field} must be at least ${rules.min}.`);
+      }
+    } else if (rules.type === 'array') {
+      if (!Array.isArray(value)) {
+        throw new ValidationError(rules.message || `${field} must be an array.`);
+      }
+    }
+
+    if (typeof rules.validate === 'function') {
+      const validationResult = rules.validate(value);
+      if (validationResult !== true) {
+        throw new ValidationError(
+          typeof validationResult === 'string' ? validationResult : (rules.message || `${field} is invalid.`)
+        );
+      }
+    }
+  });
+};
+
+const safeJsonParse = (value, errorMessage) => {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new ValidationError(errorMessage);
+  }
+};
+
+const validateLineItems = (lineItems = []) => {
+  if (!Array.isArray(lineItems)) {
+    throw new ValidationError('line_items must be an array.');
+  }
+  if (lineItems.length === 0) {
+    throw new ValidationError('line_items must include at least one item.');
+  }
+
+  lineItems.forEach((item, index) => {
+    if (!item || typeof item !== 'object') {
+      throw new ValidationError(`line_items[${index}] must be an object.`);
+    }
+    const name = item.item || item.name || item.Item_Name;
+    if (!name || typeof name !== 'string' || !name.trim()) {
+      throw new ValidationError(`line_items[${index}] must include a valid item name.`);
+    }
+    const price = Number(item.price ?? item.Price ?? 0);
+    if (Number.isNaN(price) || price < 0) {
+      throw new ValidationError(`line_items[${index}] must include a valid non-negative price.`);
+    }
+    const quantity = Number(item.quantity ?? item.Quantity ?? 1);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new ValidationError(`line_items[${index}] must include a valid quantity.`);
+    }
+  });
+};
+
+const isSupportedUpload = (mimeType = '') => {
+  if (!mimeType) return false;
+  return ALLOWED_UPLOAD_MIME_TYPES.has(mimeType.toLowerCase());
+};
 
 async function resolveMerchant(rawMerchantName, supabaseClient) {
   const alias = normalizeMerchantName(rawMerchantName);
@@ -60,6 +180,7 @@ console.log("🟢 Starting server...");
 // --- Express App ---
 const app = express();
 const port = process.env.PORT || 3001;
+const SESSION_SECRET = ensureEnvVar('SESSION_SECRET');
 
 // --- OpenAI Setup ---
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -71,9 +192,9 @@ if (!OPENAI_API_KEY) {
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // --- Google Document AI Setup ---
-const DOCAI_PROJECT_ID = '49889892103';
-const DOCAI_LOCATION = 'us';
-const DOCAI_PROCESSOR_ID = 'f263a529ecfd3487';
+const DOCAI_PROJECT_ID = ensureEnvVar('DOCAI_PROJECT_ID');
+const DOCAI_LOCATION = ensureEnvVar('DOCAI_LOCATION');
+const DOCAI_PROCESSOR_ID = ensureEnvVar('DOCAI_PROCESSOR_ID');
 const docAIClient = new DocumentProcessorServiceClient();
 console.log('🧠 Initialized Google Document AI Client');
 
@@ -136,7 +257,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'fallback_secret',
+    secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -512,153 +633,167 @@ if (userOverride) {
 
 // --- API Routes ---
 app.post('/api/scan', upload.single('file'), async (req, res) => {
-    console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
-    if (!req.file) {
-        return res.status(400).json({ error: 'No file uploaded.' });
-    }
-
-    const { scanMode } = req.body;
-
-    if (scanMode === 'document') {
-        console.log('🚀 === STARTING DOCUMENT PROCESSING ===');
-        try {
-            const rawText = await processDocumentWithDocAI(req.file.buffer, req.file.mimetype);
-            const markdown = rawText.split('\n').join('  \n');
-            res.setHeader('Content-Type', 'text/plain');
-            res.send(markdown);
-        } catch (error) {
-            console.error('❌ Error processing document:', error);
-            res.status(500).json({ error: 'Failed to process document.', details: error.message });
-        }
-        return;
-    }
-
-    // --- Modified Receipt Processing Logic ---
-    console.log('🚀 === STARTING RECEIPT PROCESSING ===');
     try {
-        console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
+        console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
+        if (!req.file) {
+            throw new ValidationError('A file upload is required.');
+        }
 
-        const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
+        if (!isSupportedUpload(req.file.mimetype)) {
+            throw new ValidationError('Unsupported file type. Please upload a PDF or image.');
+        }
 
-        // Tesseract pre-pass is kept as requested
-        const tesseractText = await runTesseract(preprocessedImageBuffer);
+        const scanMode = (req.body?.scanMode || 'receipt').toLowerCase();
+        validateFields({ scanMode }, {
+            scanMode: {
+                type: 'string',
+                required: true,
+                allowed: ['receipt', 'document'],
+                message: 'scanMode must be either "receipt" or "document".'
+            }
+        });
 
-        // Google Document AI is now the primary processor, replacing GPT-4o Vision
-        const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-        
-        // Structuring the text with OpenAI (text-only, no image)
-        const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
-        
-        const lineItems = processedData.items || processedData.Items || [];
-      const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
-
-
-    const rawMerchant = processedData.merchant || processedData.MerchantName || '';
-const merchant_name = rawMerchant
-  .toLowerCase()
-  .replace(/[^a-z0-9 ]/gi, ' ') // remove special characters like hyphens
-  .replace(/\s+/g, ' ')         // normalize spaces
-  .trim()
-  .replace(/\b\w/g, c => c.toUpperCase()); // recase nicely
-
-// --- New Store Type Logic ---
-let store_type = 'Other';
-let main_category = 'Other';
-const userId = req.user?.id || null;
-
-if (userId) {
-    const { data: override } = await supabase
-        .from('user_store_type_overrides')
-        .select('store_type')
-        .eq('user_id', userId)
-        .eq('merchant_name', merchant_name)
-        .single();
-
-    if (override) {
-        store_type = override.store_type;
-        console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
-    }
-}
-
-// Fallback to database if no override was found
-if (store_type === 'Other') {
-    const { data: storeInfo, error } = await supabase
-        .from('store_info')
-        .select('main_category, store_type')
-        .eq('merchant_name', merchant_name)
-        .single();
-
-    if (storeInfo) {
-        main_category = storeInfo.main_category;
-        store_type = storeInfo.store_type;
-    } else {
-        // If not in our DB, use OpenAI's suggestion and save it
-        main_category = processedData.main_category || 'Other';
-        store_type = processedData.store_type || 'Other';
-        if (store_type !== 'Other') {
-            const { error: insertError } = await supabase
-                .from('store_info')
-                .insert({
-                    merchant_name: merchant_name,
-                    main_category: main_category,
-                    store_type: store_type,
-                });
-            if (insertError) {
-                console.error('Error inserting new store type:', insertError);
+        if (scanMode === 'document') {
+            console.log('🚀 === STARTING DOCUMENT PROCESSING ===');
+            try {
+                const rawText = await processDocumentWithDocAI(req.file.buffer, req.file.mimetype);
+                const markdown = rawText.split('\n').join('  \n');
+                res.setHeader('Content-Type', 'text/plain');
+                return res.send(markdown);
+            } catch (error) {
+                return handleApiError(res, error, 'Failed to process document.');
             }
         }
-    }
-}
-// --- End New Store Type Logic ---
 
-const transformedData = {
-  merchant_name,
-  transaction_date: formatDate(processedData.transaction_date || processedData.Date),
-  line_items: categorizedLineItems,
-  total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
-  main_category: main_category,
-  store_type: store_type, // Use the determined store_type
-};
+        console.log('🚀 === STARTING RECEIPT PROCESSING ===');
+        try {
+            console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
 
+            const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
 
-        console.log(`
-📤 === FINAL DATA SENT TO FRONTEND ===`);
-        console.log(JSON.stringify(transformedData, null, 2));
-        console.log("🟢 DATA SENT TO FRONTEND:", transformedData);
-res.json(transformedData);
+            const tesseractText = await runTesseract(preprocessedImageBuffer);
 
-       
+            const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+            
+            const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
+            
+            const lineItems = processedData.items || processedData.Items || [];
+            const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
+
+            const rawMerchant = processedData.merchant || processedData.MerchantName || '';
+            const merchant_name = rawMerchant
+              .toLowerCase()
+              .replace(/[^a-z0-9 ]/gi, ' ')
+              .replace(/\s+/g, ' ')
+              .trim()
+              .replace(/\b\w/g, c => c.toUpperCase());
+
+            let store_type = 'Other';
+            let main_category = 'Other';
+            const userId = req.user?.id || null;
+
+            if (userId) {
+                const { data: override } = await supabase
+                    .from('user_store_type_overrides')
+                    .select('store_type')
+                    .eq('user_id', userId)
+                    .eq('merchant_name', merchant_name)
+                    .single();
+
+                if (override) {
+                    store_type = override.store_type;
+                    console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
+                }
+            }
+
+            if (store_type === 'Other') {
+                const { data: storeInfo, error: storeInfoError } = await supabase
+                    .from('store_info')
+                    .select('main_category, store_type')
+                    .eq('merchant_name', merchant_name)
+                    .maybeSingle();
+
+                if (storeInfoError) {
+                    console.error('Error fetching store info:', storeInfoError);
+                }
+
+                if (storeInfo) {
+                    main_category = storeInfo.main_category;
+                    store_type = storeInfo.store_type;
+                } else {
+                    main_category = processedData.main_category || 'Other';
+                    store_type = processedData.store_type || 'Other';
+                    if (store_type !== 'Other') {
+                        const { error: insertError } = await supabase
+                            .from('store_info')
+                            .insert({
+                                merchant_name,
+                                main_category,
+                                store_type,
+                            });
+                        if (insertError) {
+                            console.error('Error inserting new store type:', insertError);
+                        }
+                    }
+                }
+            }
+
+            const transformedData = {
+              merchant_name,
+              transaction_date: formatDate(processedData.transaction_date || processedData.Date),
+              line_items: categorizedLineItems,
+              total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
+              main_category,
+              store_type,
+            };
+
+            console.log(`\n📤 === FINAL DATA SENT TO FRONTEND ===`);
+            console.log(JSON.stringify(transformedData, null, 2));
+            console.log("🟢 DATA SENT TO FRONTEND:", transformedData);
+            return res.json(transformedData);
+
+        } catch (error) {
+            return handleApiError(res, error, 'Failed to process receipt.');
+        }
     } catch (error) {
-        console.error('❌ Error processing receipt:', error);
-        res.status(500).json({
-            error: 'Failed to process receipt.',
-            details: error.message || 'Unknown error occurred.'
-        });
+        return handleApiError(res, error, 'Failed to process upload.');
     }
 });
 
 app.post('/api/process-document', async (req, res) => {
     console.log('📥 Received markdown for processing');
-    const { markdown } = req.body;
-    if (!markdown) {
-        return res.status(400).json({ error: 'No markdown content provided.' });
-    }
-
     try {
+        const { markdown } = req.body || {};
+        validateFields({ markdown }, {
+            markdown: {
+                type: 'string',
+                required: true,
+                trim: true,
+                maxLength: MAX_MARKDOWN_LENGTH,
+                message: 'markdown content is required.'
+            }
+        });
+
         const structuredJson = await convertMarkdownToJSON(markdown);
-        res.json(structuredJson);
+        return res.json(structuredJson);
     } catch (error) {
-        console.error('❌ Error converting markdown to JSON:', error);
-        res.status(500).json({ error: 'Failed to convert markdown to JSON.', details: error.message });
+        return handleApiError(res, error, 'Failed to convert markdown to JSON.');
     }
 });
 
 app.post('/api/summarize-markdown', async (req, res) => {
     console.log('📥 Received markdown for summarization');
-    const { markdown } = req.body;
-    if (!markdown) {
-        return res.status(400).json({ error: 'No markdown content provided.' });
-    }
+    try {
+        const { markdown } = req.body || {};
+        validateFields({ markdown }, {
+            markdown: {
+                type: 'string',
+                required: true,
+                trim: true,
+                maxLength: MAX_MARKDOWN_LENGTH,
+                message: 'markdown content is required.'
+            }
+        });
 
     const prompt = `
         You are a document summarization expert specializing in creating clean, card-style layouts from raw text. Your task is to transform the following unstructured text into a well-organized Markdown summary.
@@ -676,7 +811,6 @@ app.post('/api/summarize-markdown', async (req, res) => {
         **Formatted Card-Style Markdown Output:**
     `;
 
-    try {
         const response = await openai.chat.completions.create({
             model: 'gpt-4o',
             messages: [{ role: 'user', content: prompt }],
@@ -688,10 +822,9 @@ app.post('/api/summarize-markdown', async (req, res) => {
         
         console.log('✅ OpenAI summarization complete.');
         res.setHeader('Content-Type', 'text/plain');
-        res.send(structuredMarkdown);
+        return res.send(structuredMarkdown);
     } catch (error) {
-        console.error('❌ Error summarizing markdown with OpenAI:', error.message);
-        res.status(500).json({ error: 'Failed to summarize markdown.', details: error.message });
+        return handleApiError(res, error, 'Failed to summarize markdown.');
     }
 });
 
@@ -731,7 +864,10 @@ app.get('/api/store-info', isAuthenticated, async (req, res) => {
     .select('id, merchant_name, store_type')
     .order('merchant_name', { ascending: true });
 
-  if (error) return res.status(500).json({ error });
+  if (error) {
+    console.error('Error fetching store info:', error);
+    return res.status(500).json({ error: 'Failed to fetch store info' });
+  }
   res.json(data);
 });
 
@@ -754,18 +890,82 @@ app.get('/api/receipts', isAuthenticated, async (req, res) => {
 
 app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async (req, res) => {
   try {
-    const receiptData = JSON.parse(req.body.receiptData);
+    const payload = req.body?.receiptData;
+    if (!payload) {
+      throw new ValidationError('receiptData payload is required.');
+    }
+
+    const receiptData = safeJsonParse(payload, 'receiptData must be valid JSON.');
     const { merchant_name, transaction_date, total_amount, line_items } = receiptData;
+    const normalizedTotalAmount = typeof total_amount === 'number' ? total_amount : Number(total_amount);
+
+    validateFields({ merchant_name, total_amount: normalizedTotalAmount }, {
+      merchant_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'merchant_name is required.' },
+      total_amount: { type: 'number', required: true, min: 0 }
+    });
+
+    if (!transaction_date || Number.isNaN(Date.parse(transaction_date))) {
+      throw new ValidationError('transaction_date must be a valid date string.');
+    }
+
+    validateLineItems(line_items);
+
+    const normalizedTransactionDate = new Date(transaction_date).toISOString().split('T')[0];
+    const dedupeHash = buildReceiptHash(req.user.id, {
+      merchant_name,
+      transaction_date: normalizedTransactionDate,
+      total_amount: normalizedTotalAmount,
+      line_items,
+    });
+    const duplicateActionRaw = req.body?.duplicateAction;
+    const duplicateAction = typeof duplicateActionRaw === 'string' ? duplicateActionRaw.toLowerCase() : null;
+    const requestedReceiptId = req.body?.existingReceiptId;
+
+    const { data: duplicateMatches, error: duplicateLookupError } = await supabase
+      .from('receipts')
+      .select('id, receipt_hash, receipt_url, created_at')
+      .eq('user_id', req.user.id)
+      .like('receipt_hash', `${dedupeHash}%`)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (duplicateLookupError) {
+      throw duplicateLookupError;
+    }
+
+    const existingReceipt = duplicateMatches?.[0] ?? null;
+    const duplicateTargetMatches = Boolean(existingReceipt && requestedReceiptId === existingReceipt.id);
+
+    let duplicateMode = 'insert'; // insert | keep | replace
+    if (existingReceipt) {
+      if (duplicateAction === 'replace' && duplicateTargetMatches) {
+        duplicateMode = 'replace';
+      } else if (duplicateAction === 'keep' && duplicateTargetMatches) {
+        duplicateMode = 'keep';
+      } else {
+        return res.status(409).json({
+          error: 'This receipt already exists.',
+          code: 'DUPLICATE_RECEIPT',
+          existingReceiptId: existingReceipt.id,
+        });
+      }
+    }
+
+    if (req.file && !isSupportedUpload(req.file.mimetype)) {
+      throw new ValidationError('Unsupported receipt image type.');
+    }
+
     let receipt_url = null;
 
     if (req.file) {
-      const receiptId = require('crypto').randomUUID();
-      const extension = path.extname(req.file.originalname);
+      const receiptId = crypto.randomUUID();
+      const extension = path.extname(req.file.originalname || '');
       const now = new Date();
-      const time = now.toTimeString().split(' ')[0].replace(/:/g, ''); // HHMMSS
-      const fileName = `${merchant_name}-${transaction_date}-${time}-${receiptId}${extension}`;
+      const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+      const safeMerchant = merchant_name.replace(/[^a-z0-9-_]/gi, '_');
+      const fileName = `${safeMerchant}-${normalizedTransactionDate}-${time}-${receiptId}${extension}`;
 
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('receipts')
         .upload(fileName, req.file.buffer, {
           contentType: req.file.mimetype,
@@ -783,6 +983,35 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
     }
 
     const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
+    const finalReceiptUrl = receipt_url ?? (duplicateMode === 'replace' ? existingReceipt?.receipt_url ?? null : null);
+
+    if (duplicateMode === 'replace' && existingReceipt) {
+      const { data: updatedData, error: updateError } = await supabase
+        .from('receipts')
+        .update({
+          merchant_name,
+          merchant_alias: merchantAlias,
+          canonical_merchant_id: canonicalMerchantId,
+          transaction_date: normalizedTransactionDate,
+          total_amount: normalizedTotalAmount,
+          line_items,
+          receipt_url: finalReceiptUrl,
+        })
+        .eq('id', existingReceipt.id)
+        .eq('user_id', req.user.id)
+        .select();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return res.status(200).json(updatedData?.[0] || null);
+    }
+
+    const receiptHashToStore =
+      duplicateMode === 'keep'
+        ? `${dedupeHash}:${crypto.randomUUID()}`
+        : dedupeHash;
 
     const { data, error } = await supabase
       .from('receipts')
@@ -791,48 +1020,58 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
         merchant_name,
         merchant_alias: merchantAlias,
         canonical_merchant_id: canonicalMerchantId,
-        transaction_date,
-        total_amount,
+        transaction_date: normalizedTransactionDate,
+        total_amount: normalizedTotalAmount,
         line_items,
         receipt_url,
+        receipt_hash: receiptHashToStore,
       })
       .select();
 
-    if (error) throw error;
+    if (error) {
+      if (error.code === '23505') {
+        throw new ValidationError('Duplicate receipt detected for this account.', 409);
+      }
+      throw error;
+    }
     res.status(201).json(data[0]);
   } catch (error) {
-    console.error('Error saving receipt:', error);
-    res.status(500).json({ error: 'Failed to save receipt' });
+    return handleApiError(res, error, 'Failed to save receipt');
   }
 });
 
 app.post('/api/merchant-aliases', isAuthenticated, async (req, res) => {
-  const { alias, merchant_id } = req.body || {};
-  if (!alias || !merchant_id) {
-    return res.status(400).json({ error: 'alias and merchant_id are required' });
+  try {
+    const { alias, merchant_id } = req.body || {};
+    validateFields({ alias, merchant_id }, {
+      alias: { type: 'string', required: true, trim: true, maxLength: 255, message: 'alias is required.' },
+      merchant_id: { type: 'string', required: true, trim: true, maxLength: 255, message: 'merchant_id is required.' }
+    });
+
+    const { data, error } = await supabase
+      .from('merchant_aliases')
+      .insert({ alias, merchant_id })
+      .select();
+
+    if (error) {
+      throw error;
+    }
+
+    res.status(201).json(data?.[0] || null);
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to save merchant alias');
   }
-
-  const { data, error } = await supabase
-    .from('merchant_aliases')
-    .insert({ alias, merchant_id })
-    .select();
-
-  if (error) {
-    console.error('Error saving merchant alias:', error);
-    return res.status(500).json({ error: 'Failed to save merchant alias' });
-  }
-
-  res.status(201).json(data?.[0] || null);
 });
 
 app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
-  const { item_name, main_category, sub_category } = req.body;
-
-  if (!item_name || !main_category || !sub_category) {
-    return res.status(400).json({ error: 'Missing fields' });
-  }
-
   try {
+    const { item_name, main_category, sub_category } = req.body || {};
+    validateFields({ item_name, main_category, sub_category }, {
+      item_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'item_name is required.' },
+      main_category: { type: 'string', required: true, trim: true, maxLength: 255 },
+      sub_category: { type: 'string', required: true, trim: true, maxLength: 255 }
+    });
+
     const { error } = await supabase
       .from('user_categories')
       .upsert(
@@ -841,7 +1080,6 @@ app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
       );
 
     if (error) {
-      console.error('❌ Supabase error:', error);
       throw error;
     }
 
@@ -849,15 +1087,17 @@ app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.error('❌ Error updating user category:', error);
-    res.status(500).json({ error: 'Failed to update user category' });
+    return handleApiError(res, error, 'Failed to update user category');
   }
 });
 
 app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
-  const { item_name } = req.body;
-
   try {
+    const { item_name } = req.body || {};
+    validateFields({ item_name }, {
+      item_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'item_name is required.' }
+    });
+
     await supabase
       .from('user_categories')
       .delete()
@@ -868,20 +1108,20 @@ app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
     res.json({ success: true });
 
   } catch (error) {
-    console.error('❌ Error resetting category:', error);
-    res.status(500).json({ error: 'Failed to reset category' });
+    return handleApiError(res, error, 'Failed to reset category');
   }
 });
 
 app.post('/api/user-store-type-overrides', isAuthenticated, async (req, res) => {
-  const { merchant_name, store_type } = req.body;
   const userId = req.user.id;
 
-  if (!merchant_name || !store_type) {
-    return res.status(400).json({ error: 'Missing merchant_name or store_type' });
-  }
-
   try {
+    const { merchant_name, store_type } = req.body || {};
+    validateFields({ merchant_name, store_type }, {
+      merchant_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'merchant_name is required.' },
+      store_type: { type: 'string', required: true, trim: true, maxLength: 255, message: 'store_type is required.' }
+    });
+
     const { error } = await supabase
       .from('user_store_type_overrides')
       .upsert({
@@ -896,8 +1136,7 @@ app.post('/api/user-store-type-overrides', isAuthenticated, async (req, res) => 
 
     res.json({ success: true, message: 'Store type override saved.' });
   } catch (error) {
-    console.error('Error saving store type override:', error);
-    res.status(500).json({ error: 'Failed to save store type override' });
+    return handleApiError(res, error, 'Failed to save store type override');
   }
 });
 

@@ -16,9 +16,13 @@ CREATE TABLE receipts (
   transaction_date DATE,
   total_amount NUMERIC,
   line_items JSONB,
+  receipt_hash TEXT NOT NULL,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT now()
 );
+
+CREATE UNIQUE INDEX receipts_user_hash_unique
+  ON receipts (user_id, receipt_hash);
 ```
 
 Once you have configured these credentials, your authentication and database systems should be ready to use.

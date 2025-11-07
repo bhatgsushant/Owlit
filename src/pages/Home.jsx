@@ -111,15 +111,15 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to={createPageUrl("Home")} className="flex items-center gap-3">
-            <motion.div 
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg"
-            >
-              <Sparkles className="w-6 h-6 text-white" />
-            </motion.div>
-            <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              ReceiptWise
-            </span>
+           <motion.div
+  whileHover={{ scale: 1.1, rotate: 5 }}
+  className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg"
+>
+  <Sparkles className="w-6 h-6 text-white" />
+</motion.div>
+            <span className="text-xl font-bold text-black">
+  ReceiptWise
+</span>
           </Link>
           
           <div className="flex items-center gap-4">
