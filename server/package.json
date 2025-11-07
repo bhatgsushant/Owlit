@@ -17,6 +17,7 @@
   "dependencies": {
     "@google-cloud/documentai": "^9.0.0",
     "@supabase/supabase-js": "^2.78.0",
+    "date-fns": "^4.1.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.6.1",

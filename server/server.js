@@ -16,10 +16,17 @@ const cookieParser = require('cookie-parser');
 const passport = require('./auth.js');
 const supabase = require('./supabaseClient.js');
 const crypto = require('crypto');
+const ITEM_SYNONYMS = {
+  coffee: ["coffee", "latte", "flat white", "espresso", "americano", "mocha", "cappuccino", "macchiato"],
+  tea: ["tea", "chai", "green tea", "matcha"],
+  chocolate: ["chocolate", "choc", "cadbury", "kitkat"],
+};
 const {
   normalizeMerchantName,
   buildReceiptHash,
 } = require('./utils/receiptHash.js');
+const { resolveAiDateRange, analyzeSpendingResults } = require('./utils/askAiHelpers.js');
+const ASK_AI_SUPPORTED_OPERATIONS = new Set(['total_spend', 'item_spend', 'top_merchants', 'list_receipts']);
 
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
@@ -146,6 +153,61 @@ const isSupportedUpload = (mimeType = '') => {
   return ALLOWED_UPLOAD_MIME_TYPES.has(mimeType.toLowerCase());
 };
 
+const startOfCurrentMonth = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+};
+
+const startOfLastMonth = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+};
+
+const startOfCurrentWeek = () => {
+  const now = new Date();
+  const day = now.getDay(); // 0 (Sun) - 6 (Sat)
+  const diff = (day + 6) % 7; // convert to Monday = 0
+  const start = new Date(now);
+  start.setDate(now.getDate() - diff);
+  start.setHours(0, 0, 0, 0);
+  return start;
+};
+
+const toISODate = (date) => date.toISOString().split('T')[0];
+
+const getDateRangeForIntent = (timeRange) => {
+  const now = new Date();
+  let from = null;
+  let to = null;
+
+  switch (timeRange) {
+    case 'this_month':
+      from = startOfCurrentMonth();
+      to = now;
+      break;
+    case 'last_month':
+      from = startOfLastMonth();
+      to = startOfCurrentMonth();
+      break;
+    case 'this_week':
+      from = startOfCurrentWeek();
+      to = now;
+      break;
+    case 'last_7_days':
+      from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      to = now;
+      break;
+    case 'all_time':
+    default:
+      break;
+  }
+
+  return {
+    from: from ? toISODate(from) : null,
+    to: to ? toISODate(to) : null,
+  };
+};
+
 async function resolveMerchant(rawMerchantName, supabaseClient) {
   const alias = normalizeMerchantName(rawMerchantName);
 
@@ -190,11 +252,58 @@ if (!OPENAI_API_KEY) {
     console.log('✅ Loaded OpenAI API Key');
 }
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+const ASK_AI_INTERPRETER_MODEL = process.env.ASK_AI_MODEL || 'gpt-4o-mini';
+const ASK_AI_SYSTEM_PROMPT = `
+You are an intent parser for a personal finance assistant.
+Convert the user's spending question into structured JSON with this schema:
+{
+  "operation": "total_spend|item_spend|top_merchants|list_receipts|clarify",
+  "date_range": { "preset": "this_month|last_month|this_week|last_week|last_7_days|last_30_days|this_year|custom|all_time", "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+  "merchant_terms": ["optional", "merchant", "keywords"],
+  "item_terms": ["optional", "item keywords"],
+  "category_terms": ["optional", "category names"],
+  "amount_filter": { "operator": ">|>=|<|<=|=", "value": 0 },
+  "needs_clarification": false,
+  "clarification_prompt": ""
+}
+
+Rules:
+- Always fill arrays (empty if no filters).
+- Use "clarify" operation and set needs_clarification=true when the request is ambiguous.
+- Prefer presets such as "this_month", but if the user gives explicit dates, set preset to "custom" and include start/end.
+- For questions about individual items (e.g., eggs, coffee), include them in item_terms and set operation to "item_spend".
+- Use the "top_merchants" operation when the user asks for merchants with the highest spend.
+- Use the "list_receipts" operation when the user wants to see actual receipts.
+- Leave amount_filter empty unless the user makes a clear comparison like "over 100".
+- Respond with JSON only.
+`;
 
 // --- Google Document AI Setup ---
 const DOCAI_PROJECT_ID = ensureEnvVar('DOCAI_PROJECT_ID');
 const DOCAI_LOCATION = ensureEnvVar('DOCAI_LOCATION');
 const DOCAI_PROCESSOR_ID = ensureEnvVar('DOCAI_PROCESSOR_ID');
+
+async function interpretSpendingQuestion(question) {
+  try {
+    const response = await openai.chat.completions.create({
+      model: ASK_AI_INTERPRETER_MODEL,
+      temperature: 0,
+      messages: [
+        { role: 'system', content: ASK_AI_SYSTEM_PROMPT },
+        { role: 'user', content: question },
+      ],
+      response_format: { type: 'json_object' },
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('Empty interpretation response');
+    }
+    return safeJsonParse(content, {});
+  } catch (error) {
+    console.error('interpretSpendingQuestion error:', error);
+    throw new Error('I had trouble understanding that question. Please try rephrasing it.');
+  }
+}
 const docAIClient = new DocumentProcessorServiceClient();
 console.log('🧠 Initialized Google Document AI Client');
 
@@ -503,6 +612,220 @@ async function convertMarkdownToJSON(markdown) {
         throw new Error('Failed to convert markdown to JSON with OpenAI.');
     }
 }
+
+async function extractIntent(question = '') {
+    const prompt = `You are an intent extraction assistant for a receipt management app. Read the user question and return strict JSON with the following shape:
+{
+  "time_range": "this_month" | "last_month" | "this_week" | "last_7_days" | "all_time",
+  "item_terms": [string],
+  "categories": [string],
+  "subcategories": [string],
+  "merchants": [string]
+}
+
+Rules:
+- ONLY include values explicitly mentioned. Do not guess.
+- If no time range mentioned, use "all_time".
+- Strings should use the exact phrasing from the user when possible.
+
+Question: ${question}`;
+
+    try {
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            temperature: 0,
+            response_format: { type: 'json_object' },
+            messages: [
+                { role: 'system', content: 'Extract structured intent without guessing.' },
+                { role: 'user', content: prompt },
+            ],
+        });
+
+        const content = response.choices[0]?.message?.content;
+        if (!content) throw new Error('No intent returned');
+        const parsed = JSON.parse(content);
+        return {
+            time_range: parsed.time_range || 'all_time',
+            item_terms: Array.isArray(parsed.item_terms) ? parsed.item_terms : [],
+            categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+            subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
+            merchants: Array.isArray(parsed.merchants) ? parsed.merchants : [],
+        };
+    } catch (error) {
+        console.error('extractIntent error:', error);
+        return {
+            time_range: 'all_time',
+            item_terms: [],
+            categories: [],
+            subcategories: [],
+            merchants: [],
+        };
+    }
+}
+
+const makeQueryKey = (intent) => JSON.stringify(intent || {});
+
+async function fetchFacts(intent, userId) {
+    if (!userId) {
+        throw new ValidationError('userId is required for fetching facts.');
+    }
+
+    const { from, to } = getDateRangeForIntent(intent.time_range || 'all_time');
+
+    let query = supabase
+        .from('v_receipt_line_items_enriched')
+        .select('*')
+        .eq('user_id', userId);
+
+    if (from) {
+        query = query.gte('transaction_date', from);
+    }
+    if (to && intent.time_range === 'last_month') {
+        query = query.lt('transaction_date', to);
+    } else if (to && intent.time_range !== 'last_month') {
+        query = query.lte('transaction_date', to);
+    }
+
+    if (intent.merchants && intent.merchants.length > 0) {
+        query = query.in('merchant_name', intent.merchants);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+        console.error('fetchFacts supabase error:', error);
+        throw new Error('Failed to fetch receipt facts.');
+    }
+
+    const categories = (intent.categories || []).map((c) => c.toLowerCase());
+    const subcategories = (intent.subcategories || []).map((c) => c.toLowerCase());
+    const itemTerms = (intent.item_terms || []).map((t) => t.toLowerCase());
+
+    const filtered = (data || []).filter((row) => {
+        if (categories.length && (!row.main_category || !categories.includes(row.main_category.toLowerCase()))) {
+            return false;
+        }
+        if (subcategories.length && (!row.sub_category || !subcategories.includes(row.sub_category.toLowerCase()))) {
+            return false;
+        }
+       if (itemTerms.length) {
+  const item = (row.item || '').toLowerCase();
+
+  // Expand item terms with synonyms
+  const expandedTerms = itemTerms.flatMap(term => ITEM_SYNONYMS[term] || [term]);
+
+  if (!expandedTerms.some((term) => item.includes(term))) {
+    return false;
+  }
+}
+        return true;
+    });
+
+    const totalsByMerchant = {};
+    let totalSpend = 0;
+    const receiptIds = new Set();
+
+    filtered.forEach((row) => {
+        const price = Number(row.price) || 0;
+        const quantity = Number(row.quantity) || 0;
+        const spend = price * quantity;
+        totalSpend += spend;
+        const merchant = row.merchant_name || 'Unknown';
+        totalsByMerchant[merchant] = (totalsByMerchant[merchant] || 0) + spend;
+        if (row.receipt_id) {
+            receiptIds.add(row.receipt_id);
+        }
+    });
+
+    const merchant_breakdown = Object.entries(totalsByMerchant)
+        .map(([merchant, spend]) => ({ merchant, spend }))
+        .sort((a, b) => b.spend - a.spend);
+
+    return {
+        total_spend: Number(totalSpend.toFixed(2)),
+        merchant_breakdown,
+        receipt_ids: Array.from(receiptIds),
+    };
+}
+
+const containsSQL = (text = '') => {
+  if (!text) return false;
+  const sqlPattern = /\b(select|with|insert|update|delete)\b[\s\S]+?\b(from|into)\b/i;
+  return sqlPattern.test(text);
+};
+
+const summarizeFacts = (facts) => {
+  if (
+    !facts ||
+    !Array.isArray(facts.receipt_ids) ||
+    facts.receipt_ids.length === 0 ||
+    !facts.total_spend ||
+    Number(facts.total_spend) === 0
+  ) {
+    return `
+Aisa lagta hai ki is time range me aapne coffee purchase nahi ki ☕️
+(Ya ho sakta hai item line me "coffee" word mention na ho.)
+
+Agar chaaho to main:
+• "tea", "latte", "cappuccino", "cafe" jaise alternate keywords check kar sakta hun
+• Ya iss mahine ka poora beverages spend bata du
+
+Bol do: "Check beverages this month" 🍵
+`;
+  }
+
+  const total = Number(facts.total_spend).toFixed(2);
+  const count = facts.receipt_ids.length;
+  const topMerchant =
+    facts.merchant_breakdown && facts.merchant_breakdown.length
+      ? facts.merchant_breakdown[0]
+      : null;
+
+  let summary = `Maine ${count} receipt(s) check ki aur total spend approx ₹${total} raha.`;
+  if (topMerchant) {
+    summary += ` Sabse zyada kharch ${topMerchant.merchant} par (₹${topMerchant.spend.toFixed(2)}) hua.`;
+  }
+  summary += ' Agar chaho to main aur detail mein bata sakta hun.';
+  return summary;
+};
+
+async function generateAnswer(question, facts) {
+  if (
+    !facts ||
+    !Array.isArray(facts.receipt_ids) ||
+    facts.receipt_ids.length === 0 ||
+    !facts.total_spend ||
+    Number(facts.total_spend) === 0
+  ) {
+    return summarizeFacts(facts);
+  }
+
+  const resp = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      {
+        role: 'system',
+        content: `
+Use ONLY the provided facts. Never guess or invent numbers.
+Keep the answer warm, friendly, and short.
+If merchant_breakdown exists, summarize top merchants.
+Never output SQL queries or code – reply in natural language only.
+`,
+      },
+      {
+        role: 'user',
+        content: `Question: ${question}\nFacts: ${JSON.stringify(facts)}`,
+      },
+    ],
+  });
+
+  const answer = resp.choices?.[0]?.message?.content?.trim() || '';
+  if (containsSQL(answer)) {
+    return summarizeFacts(facts);
+  }
+  return answer;
+}
+
+
 
 // --- New Self-Learning Categorization Logic ---
 function findInMasterList(itemName) {
@@ -828,6 +1151,51 @@ app.post('/api/summarize-markdown', async (req, res) => {
     }
 });
 
+app.post('/api/ask', async (req, res) => {
+    try {
+        const { question, userId } = req.body || {};
+        validateFields({ question, userId }, {
+            question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' },
+            userId: { type: 'string', required: true, trim: true, maxLength: 255, message: 'userId is required.' }
+        });
+
+        const intent = await extractIntent(question);
+        const key = makeQueryKey(intent);
+
+        const { data: cachedRows, error: cacheError } = await supabase
+            .from('ai_cache')
+            .select('answer, facts')
+            .eq('user_id', userId)
+            .eq('query_key', key)
+            .order('created_at', { ascending: false })
+            .limit(1);
+
+        if (cacheError) {
+            console.error('Cache lookup error:', cacheError);
+        }
+
+        if (cachedRows && cachedRows.length > 0) {
+            const cached = cachedRows[0];
+            return res.json({ answer: cached.answer, facts: cached.facts, cached: true });
+        }
+
+        const facts = await fetchFacts(intent, userId);
+        const answer = await generateAnswer(question, facts);
+
+        const { error: insertError } = await supabase
+            .from('ai_cache')
+            .insert({ user_id: userId, query_key: key, answer, facts });
+
+        if (insertError) {
+            console.error('Cache insert error:', insertError);
+        }
+
+        return res.json({ answer, facts, cached: false });
+    } catch (error) {
+        return handleApiError(res, error, 'Failed to process question.');
+    }
+});
+
 // --- Auth Routes ---
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
@@ -1037,6 +1405,66 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
     res.status(201).json(data[0]);
   } catch (error) {
     return handleApiError(res, error, 'Failed to save receipt');
+  }
+});
+
+app.post('/api/ask-ai', isAuthenticated, async (req, res) => {
+  try {
+    const question = (req.body?.question || '').trim();
+    if (!question) {
+      throw new ValidationError('A question is required to use Ask AI.');
+    }
+
+    const interpretation = await interpretSpendingQuestion(question);
+    interpretation.operation = (interpretation.operation || 'total_spend').toLowerCase();
+
+    if (interpretation.needs_clarification || interpretation.operation === 'clarify') {
+      return res.json({
+        sql_query: '',
+        final_answer:
+          interpretation.clarification_prompt ||
+          'Could you clarify what time range or category you would like me to inspect?',
+        follow_ups: [
+          'How much did I spend on groceries last month?',
+          'Show me receipts that mention coffee this week.',
+        ],
+      });
+    }
+
+    if (!ASK_AI_SUPPORTED_OPERATIONS.has(interpretation.operation)) {
+      interpretation.operation = 'total_spend';
+    }
+
+    const dateRange = resolveAiDateRange(interpretation.date_range || {});
+
+    let receiptsQuery = supabase
+      .from('receipts')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('transaction_date', { ascending: false })
+      .limit(500);
+
+    if (dateRange.start) {
+      receiptsQuery = receiptsQuery.gte('transaction_date', dateRange.start);
+    }
+    if (dateRange.end) {
+      receiptsQuery = receiptsQuery.lte('transaction_date', dateRange.end);
+    }
+
+    const { data: receipts, error } = await receiptsQuery;
+    if (error) {
+      throw error;
+    }
+
+    const analysis = analyzeSpendingResults({
+      receipts: Array.isArray(receipts) ? receipts : [],
+      interpretation,
+      dateRange,
+    });
+
+    res.json(analysis);
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to answer Ask AI question');
   }
 });
 

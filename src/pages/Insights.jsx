@@ -105,17 +105,26 @@ const ChartCard = ({
   headerAction,
 }) => {
   const canRenderChart = Boolean(option) && hasData;
+  const normalizedOption = option
+    ? {
+        ...option,
+        textStyle: {
+          color: '#ffffff',
+          ...(option.textStyle || {}),
+        },
+      }
+    : null;
   const descriptionContent = description;
 
   return (
-    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl backdrop-blur-md">
+    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl backdrop-blur">
       <div className="space-y-3">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg md:text-xl font-semibold text-white font-display">{title}</h2>
           {headerAction}
         </div>
         {description && (
-          <div className="text-sm text-gray-400 leading-relaxed">
+          <div className="text-sm text-gray-300 leading-relaxed">
             {typeof descriptionContent === 'string' ? descriptionContent : descriptionContent}
           </div>
         )}
@@ -124,7 +133,7 @@ const ChartCard = ({
         {isLoading ? (
           <div className="w-full h-full rounded-2xl bg-gray-800/40 animate-pulse" />
         ) : canRenderChart ? (
-          <ReactECharts option={option} style={{ height }} notMerge lazyUpdate onEvents={onEvents} />
+          <ReactECharts option={normalizedOption} style={{ height }} notMerge lazyUpdate onEvents={onEvents} />
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-gray-500 text-center px-4">
             {emptyMessage || 'No data available yet. Scan a receipt to unlock insights.'}
@@ -141,7 +150,7 @@ const StatsCard = ({ label, value = 0, helper }) => {
   const displayValue = isNumber ? formatCurrency(animatedValue) : value;
   return (
     <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl backdrop-blur md:min-h-[140px]">
-      <span className="text-xs uppercase tracking-[0.2em] text-gray-400 font-semibold">{label}</span>
+      <span className="text-xs uppercase tracking-[0.2em] text-gray-300 font-semibold">{label}</span>
       <span className="text-2xl md:text-3xl font-bold text-white font-display">
         {displayValue}
       </span>
@@ -178,19 +187,19 @@ const TimeframeCard = ({ label, current = 0, previous = 0 }) => {
   const animatedPrevious = useAnimatedNumber(previous);
 
   return (
-    <div className="bg-black/30 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-md flex flex-col gap-2 shadow-xl">
-      <span className="text-xs uppercase tracking-[0.32em] text-gray-400 font-semibold">{label}</span>
+    <div className="bg-white/5 dark:bg-black/30 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-md flex flex-col gap-2 shadow-xl">
+      <span className="text-xs uppercase tracking-[0.32em] text-gray-300 font-semibold">{label}</span>
       <span className="text-xl md:text-2xl font-semibold text-white font-display">
         {formatCurrency(animatedCurrent)}
       </span>
       <span className={`text-xs font-medium ${deltaClass}`}>
         {deltaLabel}{' '}
-        <span className="text-gray-500">
+        <span className="text-gray-400">
           {delta === 0 ? '' : 'vs previous'}
         </span>
       </span>
       {previous > 0 && (
-        <span className="text-[11px] text-gray-500">
+        <span className="text-[11px] text-gray-400">
           Previous: {formatCurrency(animatedPrevious)}
         </span>
       )}
@@ -2274,13 +2283,13 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [overallAnalytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gray-950 text-gray-100 font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-purple-700 via-purple-900 to-purple-950 text-white font-sans">
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
             Insights & Analytics
           </h1>
-          <p className="text-sm md:text-base text-gray-400 max-w-3xl leading-relaxed">
+          <p className="text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
             Explore intelligent perspectives derived from your receipts. These interactive ECharts visuals highlight
             spending patterns, top merchants, and opportunities to optimise your budget.
           </p>
@@ -2435,7 +2444,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-white font-display">Item Price Trend</h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-white/70">
                   Track how the unit price for a frequent item is changing over time.
                 </p>
               </div>
@@ -2444,7 +2453,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
                   <select
                     value={selectedTrendItem ?? ''}
                     onChange={(event) => setSelectedTrendItem(event.target.value || null)}
-                    className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                    className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
                   >
                     {itemPriceTrendOptions.map((option) => (
                       <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
@@ -2464,7 +2473,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             <div className="flex items-center justify-between gap-3">
               <div>
                 <h3 className="text-lg font-semibold text-white font-display">Basket Composition</h3>
-                <p className="text-xs text-slate-400">
+                <p className="text-xs text-white/70">
                   See how healthy, snack, and alcohol purchases contribute to each basket over time.
                 </p>
               </div>
@@ -2492,18 +2501,18 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
             <div>
               <h2 className="text-lg md:text-xl font-semibold text-white font-display">Key takeaways</h2>
-              <p className="text-sm text-gray-400 mt-2">
+              <p className="text-sm text-white/70 mt-2">
                 A quick narrative summary distilled from your latest data points.
               </p>
             </div>
             {insightHighlights.length ? (
-              <ul className="list-disc list-inside space-y-2 text-sm md:text-base text-gray-200">
+              <ul className="list-disc list-inside space-y-2 text-sm md:text-base text-white">
                 {insightHighlights.map((highlight, index) => (
                   <li key={index}>{highlight}</li>
                 ))}
               </ul>
             ) : (
-              <div className="text-sm text-gray-500">
+              <div className="text-sm text-white/70">
                 Add more receipts to unlock personalised insights and recommendations.
               </div>
             )}
@@ -2512,7 +2521,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       </AnimatedSection>
 
       <AnimatedSection delay={0.24}>
-        <div className="mt-10 space-y-4 bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md">
+        <div className="mt-10 space-y-4 bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 className="text-lg font-semibold text-white font-display">All Receipts</h3>
             <TimeframeControls {...sharedTimeframeControlProps} />

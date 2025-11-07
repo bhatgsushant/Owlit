@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon, LogOut, Sparkles } from 'lucide-react';
+import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
 import { useAuth } from '@/hooks/useAuth';
 
@@ -12,18 +12,29 @@ function BrandMark() {
       <motion.div
         whileHover={{ scale: 1.08, rotate: 5 }}
         transition={{ type: 'spring', stiffness: 280, damping: 18 }}
-        className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 via-emerald-400 to-emerald-600 shadow-lg shadow-emerald-500/25"
+        className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white shadow-lg shadow-black/30"
       >
-        <Sparkles className="h-5 w-5 text-white" />
+        <svg
+          viewBox="0 0 128 128"
+          className="h-6 w-6"
+          aria-hidden="true"
+        >
+          <defs>
+            <linearGradient id="brandmark-white-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="white" stopOpacity="1" />
+              <stop offset="100%" stopColor="white" stopOpacity="0.65" />
+            </linearGradient>
+          </defs>
+          <path
+            fill="url(#brandmark-white-grad)"
+            d="M40 60 c-10 -20 10 -40 36 -36 c18 3 32 22 28 36 c8 4 14 12 14 20 c0 14 -14 24 -32 24 H46 c-18 0 -32 -10 -32 -24 c0 -9 6 -16 14 -20 z"
+          />
+          <rect x="58" y="84" width="12" height="26" rx="4" fill="url(#brandmark-white-grad)" />
+        </svg>
       </motion.div>
-      <div className="flex flex-col leading-none">
-        <span className="bg-gradient-to-r from-emerald-500 via-emerald-400 to-sky-500 bg-clip-text text-base font-semibold tracking-tight text-transparent">
-          ReceiptWise
-        </span>
-        <span className="text-[11px] uppercase tracking-[0.35em] text-slate-500 dark:text-slate-400">
-          track · save · thrive
-        </span>
-      </div>
+        <span className="text-xl font-bold text-black dark:text-white">
+  ReceitAI
+</span>
     </div>
   );
 }

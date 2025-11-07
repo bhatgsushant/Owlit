@@ -16,6 +16,9 @@ module.exports = {
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+        fontSize: {
+          base: '0.875rem', // globally shrink default text size
+        },
   		colors: {
         'vibrant-blue': '#3B82F6',
   			background: 'hsl(var(--background))',

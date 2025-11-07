@@ -28,57 +28,73 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-tr from-purple-100 via-pink-100 to-blue-100 dark:from-black dark:via-gray-900 dark:to-black flex items-center justify-center p-4 relative overflow-hidden">
-      <div className="pointer-events-none absolute -inset-16 bg-gradient-to-br from-emerald-400/10 via-purple-500/20 to-blue-500/10 blur-[180px]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0b1120] px-4 py-10">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_50%),_radial-gradient(circle_at_bottom,_rgba(96,165,250,0.35),_transparent_45%)] blur-[220px]" />
 
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8, y: -20 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: 'easeOut' }}
-        className="relative w-full max-w-md p-8 rounded-3xl bg-white/15 dark:bg-white/[0.08] backdrop-blur-[45px] border border-white/25 dark:border-gray-700/40 shadow-[0_35px_90px_rgba(15,23,42,0.35)] before:absolute before:inset-0 before:rounded-3xl before:border before:border-white/40 before:opacity-50 before:pointer-events-none after:absolute after:-inset-1 after:bg-gradient-to-br after:from-white/[0.08] after:via-white/[0.02] after:to-transparent after:rounded-[26px] after:blur-[12px] after:opacity-70 after:pointer-events-none"
-      >
-        {/* Header */}
-        <div className="text-center mb-10">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-green-400 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
-              <Sparkles className="w-8 h-8 text-white" />
+      <div className="relative grid w-full max-w-4xl grid-cols-1 gap-6 rounded-[36px] border border-white/15 bg-white/8 p-8 backdrop-blur-[55px] shadow-[0_45px_140px_rgba(7,10,24,0.7)] md:grid-cols-[0.9fr_1.1fr]">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.94, y: -20 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="relative rounded-[30px] border border-white/15 bg-white/10 p-8 text-center text-white shadow-[0_35px_110px_rgba(8,12,30,0.55)] backdrop-blur-3xl md:p-7 lg:p-8"
+        >
+          <div className="inline-flex items-center gap-3 mb-6">
+            <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-lg">
+              <svg viewBox="0 0 128 128" className="w-7 h-7" aria-hidden="true">
+                <defs>
+                  <linearGradient id="login-white-grad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="white" stopOpacity="1" />
+                    <stop offset="100%" stopColor="white" stopOpacity="0.65" />
+                  </linearGradient>
+                </defs>
+                <path
+                  fill="url(#login-white-grad)"
+                  d="M40 60 c-10 -20 10 -40 36 -36 c18 3 32 22 28 36 c8 4 14 12 14 20 c0 14 -14 24 -32 24 H46 c-18 0 -32 -10 -32 -24 c0 -9 6 -16 14 -20 z"
+                />
+                <rect x="58" y="84" width="12" height="26" rx="4" fill="url(#login-white-grad)" />
+              </svg>
             </div>
-            <span className="text-3xl font-extrabold bg-gradient-to-r from-green-500 to-emerald-500 bg-clip-text text-transparent">
-              ReceiptWise
+            <span className="text-3xl font-extrabold text-white">
+              ReceitAI
             </span>
           </div>
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-white">Welcome Back</h1>
-          <p className="text-gray-600 dark:text-gray-300 mt-2">Sign in to access your intelligent memory hub.</p>
-        </div>
+          <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
+          <p className="text-slate-300 mt-2">Sign in to access your intelligent ReceitAI.</p>
 
-        <div className="mb-10 flex justify-center">
-          <div className="w-56 h-56 rounded-2xl border border-white/30 dark:border-gray-700/40 bg-white/20 dark:bg-white/5 shadow-inner flex items-center justify-center overflow-hidden">
+          <div className="flex flex-col gap-4 mt-10">
+            <Button
+              onClick={() => handleLogin('google')}
+              className="flex items-center justify-center w-full h-14 rounded-xl bg-gradient-to-r from-red-400 to-red-600 text-white font-semibold shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
+            >
+              <FcGoogle className="mr-3 h-6 w-6" />
+              Sign in with Google
+            </Button>
+          </div>
+
+          <div className="mt-10 text-center">
+            <p className="text-xs text-slate-400">
+              By signing in, you agree to our Terms of Service and Privacy Policy.
+            </p>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: 60 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.6, ease: 'easeOut' }}
+          className="relative hidden md:flex items-center justify-center"
+        >
+          <div className="relative w-full h-full min-h-[420px] rounded-[32px] border border-white/10 bg-white/5 px-8 py-6 shadow-[0_35px_140px_rgba(0,0,0,0.6)] backdrop-blur-3xl overflow-hidden">
             {animationData ? (
-              <Lottie animationData={animationData} loop className="w-full h-full object-contain" />
+              <Lottie animationData={animationData} loop className="absolute inset-0 h-full w-full object-contain scale-105 px-4" />
             ) : (
-              <div className="text-sm text-gray-500 dark:text-gray-400">Loading animation…</div>
+              <div className="flex h-full w-full items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                Loading animation…
+              </div>
             )}
           </div>
-        </div>
-
-        {/* Buttons */}
-        <div className="flex flex-col gap-4">
-          <Button
-            onClick={() => handleLogin('google')}
-            className="flex items-center justify-center w-full h-14 rounded-xl bg-gradient-to-r from-red-400 to-red-600 text-white font-semibold shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
-          >
-            <FcGoogle className="mr-3 h-6 w-6" />
-            Sign in with Google
-          </Button>
-        </div>
-
-        {/* Footer */}
-        <div className="mt-10 text-center">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            By signing in, you agree to our Terms of Service and Privacy Policy.
-          </p>
-        </div>
-      </motion.div>
+        </motion.div>
+      </div>
     </div>
   );
 };

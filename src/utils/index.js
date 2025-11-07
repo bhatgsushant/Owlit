@@ -9,6 +9,7 @@ export function createPageUrl(name) {
     case "insights": return "/insights";
     case "investment": return "/investment";
     case "qna": return "/qna";
+    case "askai": return "/ask-ai";
     default: return "/";
   }
 }

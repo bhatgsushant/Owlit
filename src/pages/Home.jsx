@@ -115,10 +115,27 @@ export default function Home() {
   whileHover={{ scale: 1.1, rotate: 5 }}
   className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg"
 >
-  <Sparkles className="w-6 h-6 text-white" />
+ <motion.div
+  whileHover={{ scale: 1.1, rotate: 5 }}
+  className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg"
+>
+  <svg viewBox="0 0 128 128" className="w-6 h-6" aria-hidden="true">
+    <defs>
+      <linearGradient id="white-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stopColor="white" stopOpacity="1" />
+        <stop offset="100%" stopColor="white" stopOpacity="0.65" />
+      </linearGradient>
+    </defs>
+    <path
+      fill="url(#white-grad)"
+      d="M40 60 c-10 -20 10 -40 36 -36 c18 3 32 22 28 36 c8 4 14 12 14 20 c0 14 -14 24 -32 24 H46 c-18 0 -32 -10 -32 -24 c0 -9 6 -16 14 -20 z"
+    />
+    <rect x="58" y="84" width="12" height="26" rx="4" fill="url(#white-grad)" />
+  </svg>
+</motion.div>
 </motion.div>
             <span className="text-xl font-bold text-black">
-  ReceiptWise
+  ReceitAI
 </span>
           </Link>
           
@@ -211,7 +228,7 @@ export default function Home() {
                 </Button>
               </motion.div>
             </Link>
-            <Link to={createPageUrl("QnA")}>
+            <Link to={createPageUrl("AskAI")}>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
                 <Button variant="outline" className="px-12 py-6 text-base rounded-[25px] border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 transition-all duration-300">
                   <MessageCircle className="w-5 h-5 mr-2" />

@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { motion } from 'framer-motion';
+import Lottie from 'lottie-react';
+
 import {
   Upload,
   Camera,
   FileText,
   X,
-  Loader,
   CheckCircle,
   Save,
   Mic,
@@ -15,7 +15,6 @@ import {
   Store,
   Calendar,
   Tag,
-  Circle,
   Apple,
   Sprout,
   Drumstick,
@@ -45,7 +44,6 @@ import {
   Gift,
   UtensilsCrossed,
   CircleEllipsis,
-  AlertTriangle,
 } from 'lucide-react';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
@@ -150,92 +148,6 @@ const getSubcategoryIconComponent = (subCategory) => {
   return Tag;
 };
 
-const PROCESS_STEP_DEFINITIONS = [
-  { id: 'upload', label: 'Uploading receipt' },
-  { id: 'reading', label: 'Reading receipt' },
-  { id: 'processed', label: 'Receipt processed' },
-];
-
-const createProcessStatuses = (activeId = null) =>
-  PROCESS_STEP_DEFINITIONS.map((step) => ({
-    ...step,
-    status: activeId === step.id ? 'active' : 'pending',
-  }));
-
-const stepVariants = {
-  pending: { opacity: 0.6, scale: 1, transition: { duration: 0.25 } },
-  active: { opacity: 1, scale: 1.03, transition: { duration: 0.25 } },
-  done: { opacity: 1, scale: 1, transition: { duration: 0.2 } },
-  error: { opacity: 1, scale: 1, transition: { duration: 0.2 } },
-};
-
-const statusAccentClasses = {
-  pending: 'bg-gray-500/40 border border-white/10',
-  active: 'bg-emerald-500/80 border border-emerald-300/50',
-  done: 'bg-emerald-500 border border-emerald-200/60',
-  error: 'bg-rose-500 border border-rose-200/60',
-};
-
-const delay = (ms = 240) => new Promise((resolve) => setTimeout(resolve, ms));
-
-function ProcessingStatusTimeline({ steps }) {
-  return (
-    <div className="mt-4 rounded-2xl border border-white/10 bg-white/10 dark:bg-gray-900/50 p-3">
-      <h4 className="text-xs font-semibold uppercase tracking-[0.35em] text-gray-200/80 mb-3">
-        Processing Status
-      </h4>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch sm:gap-4">
-        {steps.map((step, index) => {
-          const icon = (() => {
-            if (step.status === 'done') {
-              return <CheckCircle className="h-4 w-4 text-emerald-400" />;
-            }
-            if (step.status === 'active') {
-              return <Loader className="h-4 w-4 text-emerald-300 animate-spin" />;
-            }
-            if (step.status === 'error') {
-              return <AlertTriangle className="h-4 w-4 text-rose-400" />;
-            }
-            return <Circle className="h-4 w-4 text-gray-400" />;
-          })();
-
-          return (
-            <motion.div
-              key={step.id}
-              variants={stepVariants}
-              animate={step.status}
-              className={cn(
-                'flex flex-1 min-w-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-3 py-2 shadow-sm shadow-black/20 transition-colors',
-                step.status === 'active' && 'border-emerald-300/40 bg-emerald-500/10',
-                step.status === 'done' && 'border-emerald-200/50 bg-emerald-500/10',
-                step.status === 'error' && 'border-rose-300/50 bg-rose-500/10'
-              )}
-            >
-              <div className="flex items-center gap-3">
-                <div className={cn('h-8 w-8 rounded-full flex items-center justify-center shadow-lg shadow-black/30', statusAccentClasses[step.status])}>
-                  {icon}
-                </div>
-                <div>
-                  <p className="text-[12px] sm:text-[13px] font-semibold text-slate-100">{step.label}</p>
-                  <p className="text-[11px] text-slate-300/90">
-                    {step.status === 'pending' && 'Queued'}
-                    {step.status === 'active' && 'In progress'}
-                    {step.status === 'done' && 'Completed'}
-                    {step.status === 'error' && 'Something went wrong'}
-                  </p>
-                </div>
-              </div>
-              {index < steps.length - 1 && (
-                <div className="hidden sm:block sm:w-px sm:self-stretch sm:bg-white/10" />
-              )}
-            </motion.div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
 function ScanModeToggle({ mode, setMode }) {
     return (
         <div className="flex justify-center mb-4">
@@ -267,8 +179,8 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     return (
         <div className="font-sans bg-[#111827] rounded-[14px] p-6 w-full text-left shadow-2xl border border-gray-800">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="font-bold text-[22px] text-white leading-[1.3]">Extracted Document</h2>
-                <span className="bg-[#1F2937] text-white font-semibold text-[13px] leading-[1.4] px-2.5 py-1 rounded-full">Preview</span>
+                <h2 className="font-bold text-xl text-white leading-[1.3]">Extracted Document</h2>
+                <span className="bg-[#1F2937] text-white font-semibold text-xs leading-[1.4] px-2.5 py-1 rounded-full">Preview</span>
             </div>
             <div className="space-y-4 text-base font-normal text-[#D1D5DB] leading-[1.6] max-h-96 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4B5563 #1F2937' }}>
                 {markdown.split('\n').map((p, i) => <p key={i}>{p}</p>)}
@@ -280,9 +192,6 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
         </div>
     );
 }
-
-
-
 
 function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides }) {
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
@@ -565,14 +474,14 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     }) => (
         <label className="w-full">
             <span className="sr-only">{placeholder}</span>
-            <div className="flex items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
+            <div className="flex flex-wrap items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
                 <IconComponent className={cn('h-4 w-4', iconClassName)} />
                 <input
                     type={type}
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
-                    className={cn('flex-1 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
+                    className={cn('flex-1 min-w-0 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
                     {...rest}
                 />
             </div>
@@ -656,7 +565,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                     </div>
                     <div className="flex flex-col">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 mb-2">Total</span>
-                        <div className="flex items-center gap-2 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent text-xs md:text-sm font-semibold">
+                        <div className="flex flex-wrap items-center gap-2 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent text-xs md:text-sm font-semibold">
                             <span className="text-emerald-500">£</span>
                             <span>{(data.total_amount ?? 0).toFixed(2)}</span>
                         </div>
@@ -797,18 +706,12 @@ export default function ScanReceipt() {
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const savedPreferencesRef = useRef(new Set());
   const { userStoreOverrides } = useAuth();
-  const [processStatuses, setProcessStatuses] = useState(() => createProcessStatuses());
-  const [showProcessStatus, setShowProcessStatus] = useState(false);
+  const [loadingAnimation, setLoadingAnimation] = useState(null);
 
-  const resetProcessingTimeline = useCallback(() => {
-    setProcessStatuses(createProcessStatuses());
-    setShowProcessStatus(false);
-  }, []);
-
-  const setStepStatus = useCallback((id, nextStatus) => {
-    setProcessStatuses((prev) =>
-      prev.map((step) => (step.id === id ? { ...step, status: nextStatus } : step))
-    );
+  useEffect(() => {
+    fetch('/images/AI CPU circuit board loading animation.json')
+      .then((response) => response.json())
+      .then((data) => setLoadingAnimation(data));
   }, []);
 
   const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
@@ -861,6 +764,40 @@ export default function ScanReceipt() {
     fetchReceipts();
   }, [fetchReceipts]);
 
+  const processFile = async (fileToProcess) => {
+    if (!fileToProcess) return;
+    setIsProcessing(true);
+    const formData = new FormData();
+    formData.append('file', fileToProcess);
+    formData.append('scanMode', scanMode);
+    let pendingExtractedData = null;
+    let pendingMarkdown = null;
+    try {
+      const resp = await fetch('/api/scan', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!resp.ok) throw new Error('Server error');
+      if (scanMode === 'receipt') {
+        pendingExtractedData = await resp.json();
+      } else {
+        pendingMarkdown = await resp.text();
+      }
+      if (pendingExtractedData) {
+        setExtractedData(pendingExtractedData);
+      }
+      if (pendingMarkdown) {
+        setMarkdownPreview(pendingMarkdown);
+      }
+    } catch (error) {
+      console.error(error);
+      alert(`Failed to process file: ${error.message}`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     if (selectedFile) {
@@ -868,7 +805,7 @@ export default function ScanReceipt() {
       setExtractedData(null);
       setMarkdownPreview(null);
       setMode('upload');
-      resetProcessingTimeline();
+      processFile(selectedFile);
     }
   };
 
@@ -882,70 +819,11 @@ export default function ScanReceipt() {
       setExtractedData(null);
       setMarkdownPreview(null);
       setMode('upload');
-      resetProcessingTimeline();
+      processFile(droppedFile);
     }
   };
 
-  const handleProcess = async () => {
-    if (!file) return;
-    setProcessStatuses(createProcessStatuses('upload'));
-    setShowProcessStatus(true);
-    setIsProcessing(true);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('scanMode', scanMode);
-    let currentStep = 'upload';
-    let pendingExtractedData = null;
-    let pendingMarkdown = null;
-    try {
-      const resp = await fetch('/api/scan', {
-  method: 'POST',
-  body: formData,
-  credentials: 'include',   // ✅ send login session cookie
-});
-      if (!resp.ok) throw new Error('Server error');
-      setStepStatus('upload', 'done');
-      await delay();
-      currentStep = 'reading';
-      setStepStatus('reading', 'active');
-      if (scanMode === 'receipt') {
-        pendingExtractedData = await resp.json();
-        await delay();
-        setStepStatus('reading', 'done');
-        await delay();
-        currentStep = 'processed';
-        setStepStatus('processed', 'active');
-        await delay();
-        setStepStatus('processed', 'done');
-        await delay();
-      } else {
-        pendingMarkdown = await resp.text();
-        await delay();
-        setStepStatus('reading', 'done');
-        await delay();
-        currentStep = 'processed';
-        setStepStatus('processed', 'active');
-        await delay();
-        setStepStatus('processed', 'done');
-        await delay();
-      }
-      if (pendingExtractedData) {
-        setExtractedData(pendingExtractedData);
-      }
-      if (pendingMarkdown) {
-        setMarkdownPreview(pendingMarkdown);
-      }
-    } catch (error) {
-      setStepStatus(currentStep, 'error');
-      console.error(error);
-      alert(`Failed to process file: ${error.message}`);
-    } finally {
-      setIsProcessing(false);
-    }
-  };
-  
   const handleUploadClick = () => {
-    resetProcessingTimeline();
     setMode('upload');
     fileInputRef.current.click();
   }
@@ -954,7 +832,6 @@ export default function ScanReceipt() {
     setMode(newMode);
     if (newMode !== 'upload') {
         setFile(null);
-        resetProcessingTimeline();
     }
     if (newMode === 'camera') {
         setIsCameraOpen(true);
@@ -971,9 +848,11 @@ export default function ScanReceipt() {
 
   const handleCapture = (capturedFile) => {
     setFile(capturedFile);
+    setExtractedData(null);
+    setMarkdownPreview(null);
     setIsCameraOpen(false);
     setMode('upload');
-    resetProcessingTimeline();
+    processFile(capturedFile);
   };
 
   const handleReset = () => {
@@ -981,12 +860,11 @@ export default function ScanReceipt() {
     setExtractedData(null);
     setMarkdownPreview(null);
     setMode('upload');
-    resetProcessingTimeline();
     setDuplicatePrompt(null);
     setSaveSuccessPrompt(false);
   };
   
-    const handleSave = async (options = {}) => {
+  const handleSave = async (options = {}) => {
     if (!extractedData || !Array.isArray(extractedData.line_items)) {
       alert('No receipt data to save.');
       return;
@@ -1179,7 +1057,16 @@ export default function ScanReceipt() {
                         <div className="bg-white/20 p-6 rounded-2xl w-full text-left">
                             <div className="flex justify-between items-center mb-4">
                                 <h3 className="text-lg font-semibold text-white">Uploaded File</h3>
-                                <button onClick={() => { setFile(null); resetProcessingTimeline(); }} className="text-gray-300 hover:text-white"><X size={20} /></button>
+                                <button
+                                  onClick={() => {
+                                    setFile(null);
+                                    setExtractedData(null);
+                                    setMarkdownPreview(null);
+                                  }}
+                                  className="text-gray-300 hover:text-white"
+                                >
+                                  <X size={20} />
+                                </button>
                             </div>
                             <div className="flex items-center p-4 bg-black/20 rounded-lg">
                                 <FileText size={24} className="text-green-400 mr-4" />
@@ -1188,11 +1075,12 @@ export default function ScanReceipt() {
                                     <p className="text-sm text-gray-300">{(file.size / 1024).toFixed(2)} KB</p>
                                 </div>
                             </div>
-                            <button onClick={handleProcess} disabled={isProcessing} className="mt-6 w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors disabled:bg-gray-400 flex items-center justify-center">
-                                {isProcessing ? <><Loader size={20} className="animate-spin mr-2"/> Processing...</> : `Process ${pageTitle}`}
-                            </button>
-                            {showProcessStatus && (
-                              <ProcessingStatusTimeline steps={processStatuses} />
+
+                            {isProcessing && (
+                                <div className="flex flex-col items-center justify-center mt-6">
+                                    {loadingAnimation && <Lottie animationData={loadingAnimation} loop={true} style={{ width: 150, height: 150 }} />}
+                                    <p className="text-white mt-4">Processing your receipt...</p>
+                                </div>
                             )}
                         </div>
                     ) : (
