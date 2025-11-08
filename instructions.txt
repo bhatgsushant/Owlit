@@ -1,7 +1,9 @@
-I have updated the 'push_to_new_repo.sh' script to push the correct branch.
+My apologies, it seems I forgot to make the script executable.
 
-Please run the following command in your terminal:
+Please run the following command to give the script execute permissions:
 
-./push_to_new_repo.sh
+chmod +x push_to_new_repo.sh
 
-This should now push your code to the new repository.
+After running this command, you should be able to run the script to save your changes:
+
+./push_to_new_repo.sh "Your commit message here"

@@ -1,4 +1,4 @@
 #!/bin/bash
 git add .
-git commit -m "Initial commit"
-git push -u origin goodtogo-v2
+git commit -m "$1"
+git push
