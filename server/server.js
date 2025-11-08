@@ -243,6 +243,11 @@ console.log("🟢 Starting server...");
 const app = express();
 const port = process.env.PORT || 3001;
 const SESSION_SECRET = ensureEnvVar('SESSION_SECRET');
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (isProduction) {
+  app.set('trust proxy', 1);
+}
 
 // --- OpenAI Setup ---
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -371,14 +376,25 @@ app.use(session({
     saveUninitialized: false,
     cookie: {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
+        secure: process.env.SESSION_COOKIE_SECURE ? process.env.SESSION_COOKIE_SECURE === 'true' : isProduction,
+        sameSite: isProduction ? 'strict' : 'lax',
         maxAge: 24 * 60 * 60 * 1000 // 24 hours
     }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
 
-const upload = multer({ storage: multer.memoryStorage() });
+const MAX_UPLOAD_SIZE_BYTES = Number(process.env.MAX_UPLOAD_SIZE_BYTES || 10 * 1024 * 1024);
+const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+    fileFilter: (req, file, cb) => {
+        if (isSupportedUpload(file.mimetype)) {
+            return cb(null, true);
+        }
+        cb(new ValidationError('Unsupported file type. Please upload a PDF or image.'));
+    },
+});
 
 // --- Helper Functions ---
 async function preprocessImage(imageBuffer) {
@@ -667,7 +683,7 @@ const makeQueryKey = (intent) => JSON.stringify(intent || {});
 
 async function fetchFacts(intent, userId) {
     if (!userId) {
-        throw new ValidationError('userId is required for fetching facts.');
+        throw new ValidationError('User session is required to fetch facts.');
     }
 
     const { from, to } = getDateRangeForIntent(intent.time_range || 'all_time');
@@ -955,7 +971,7 @@ if (userOverride) {
 }
 
 // --- API Routes ---
-app.post('/api/scan', upload.single('file'), async (req, res) => {
+app.post('/api/scan', isAuthenticated, upload.single('file'), async (req, res) => {
     try {
         console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
         if (!req.file) {
@@ -1070,9 +1086,7 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
               store_type,
             };
 
-            console.log(`\n📤 === FINAL DATA SENT TO FRONTEND ===`);
-            console.log(JSON.stringify(transformedData, null, 2));
-            console.log("🟢 DATA SENT TO FRONTEND:", transformedData);
+            console.log(`🟢 Processed single receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
             return res.json(transformedData);
 
         } catch (error) {
@@ -1083,7 +1097,7 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
     }
 });
 
-app.post('/api/scan-multi', upload.array('files', 10), async (req, res) => {
+app.post('/api/scan-multi', isAuthenticated, upload.array('files', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length < 2) {
             throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
@@ -1246,15 +1260,14 @@ app.post('/api/scan-multi', upload.array('files', 10), async (req, res) => {
           receipt_url,
         };
 
-        console.log(`\n📤 === FINAL MULTI-PAGE DATA SENT TO FRONTEND ===`);
-        console.log(JSON.stringify(transformedData, null, 2));
+        console.log(`🟢 Processed multi-page receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
         return res.json(transformedData);
     } catch (error) {
         return handleApiError(res, error, 'Failed to process multi-page receipt.');
     }
 });
 
-app.post('/api/process-document', async (req, res) => {
+app.post('/api/process-document', isAuthenticated, async (req, res) => {
     console.log('📥 Received markdown for processing');
     try {
         const { markdown } = req.body || {};
@@ -1275,7 +1288,7 @@ app.post('/api/process-document', async (req, res) => {
     }
 });
 
-app.post('/api/summarize-markdown', async (req, res) => {
+app.post('/api/summarize-markdown', isAuthenticated, async (req, res) => {
     console.log('📥 Received markdown for summarization');
     try {
         const { markdown } = req.body || {};
@@ -1322,13 +1335,17 @@ app.post('/api/summarize-markdown', async (req, res) => {
     }
 });
 
-app.post('/api/ask', async (req, res) => {
+app.post('/api/ask', isAuthenticated, async (req, res) => {
     try {
-        const { question, userId } = req.body || {};
-        validateFields({ question, userId }, {
-            question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' },
-            userId: { type: 'string', required: true, trim: true, maxLength: 255, message: 'userId is required.' }
+        const { question } = req.body || {};
+        const userId = req.user?.id;
+        validateFields({ question }, {
+            question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' }
         });
+
+        if (!userId) {
+            throw new ValidationError('User session is required.');
+        }
 
         const intent = await extractIntent(question);
         const key = makeQueryKey(intent);

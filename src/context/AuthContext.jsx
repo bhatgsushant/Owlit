@@ -1,6 +1,12 @@
 // src/context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
+const API_BASE = (
+  import.meta.env?.VITE_API_BASE_URL ||
+  (import.meta.env?.DEV ? 'http://localhost:3001' : '')
+).replace(/\/$/, '');
+const withApiBase = (path) => `${API_BASE}${path}`;
+
 export const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
@@ -25,7 +31,7 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const fetchUser = async () => {
       try {
-        const res = await fetch('http://localhost:3001/api/user', {
+        const res = await fetch(withApiBase('/api/user'), {
           credentials: 'include',
         });
         if (!res.ok) throw new Error('Failed to fetch user');
@@ -47,7 +53,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await fetch('http://localhost:3001/auth/logout', {
+      await fetch(withApiBase('/auth/logout'), {
         method: 'POST',
         credentials: 'include',
       });

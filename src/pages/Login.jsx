@@ -5,6 +5,11 @@ import { FcGoogle } from 'react-icons/fc';
 import { Button } from '@/components/ui/button';
 import Lottie from 'lottie-react';
 
+const API_BASE = (
+  import.meta.env?.VITE_API_BASE_URL ||
+  (import.meta.env?.DEV ? 'http://localhost:3001' : '')
+).replace(/\/$/, '');
+
 const LoginPage = () => {
   const [animationData, setAnimationData] = useState(null);
 
@@ -24,7 +29,8 @@ const LoginPage = () => {
   }, []);
 
   const handleLogin = (provider) => {
-    window.location.href = `http://localhost:3001/auth/${provider}`;
+    const authBase = API_BASE || window.location.origin;
+    window.location.href = `${authBase}/auth/${provider}`;
   };
 
   return (

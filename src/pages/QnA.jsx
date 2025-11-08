@@ -13,7 +13,6 @@ const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
 
 export default function QnA() {
   const { user } = useAuth();
-  const resolvedUserId = user?.id || user?._id || user?.user_id || user?.userId || null;
 
   const [messages, setMessages] = useState([initialAssistantMessage]);
   const [input, setInput] = useState('');
@@ -55,7 +54,7 @@ export default function QnA() {
     const trimmed = input.trim();
     if (!trimmed || isBusy) return;
 
-    if (!resolvedUserId) {
+    if (!user) {
       setError('Please log in first.');
       return;
     }
@@ -79,7 +78,7 @@ export default function QnA() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ question: trimmed, userId: resolvedUserId }),
+        body: JSON.stringify({ question: trimmed }),
       });
 
       const data = await res.json();
