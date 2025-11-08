@@ -1,11 +1,7 @@
-My apologies for not being clear.
-
-I am trying to diagnose why the push to your new repository 'Owlit' failed.
-To do this, I need to see the full error message.
+I have updated the 'push_to_new_repo.sh' script to push the correct branch.
 
 Please run the following command in your terminal:
 
 ./push_to_new_repo.sh
 
-After running the command, please copy the entire output from your terminal and paste it here.
-This will help me understand the problem and provide a solution.
+This should now push your code to the new repository.
