@@ -21,6 +21,9 @@ module.exports = {
         },
   		colors: {
         'vibrant-blue': '#3B82F6',
+        carbon: '#0a0a0a',
+        ebony: '#111111',
+        obsidian: '#151515',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {

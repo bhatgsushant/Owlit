@@ -14,26 +14,20 @@ function BrandMark() {
         transition={{ type: 'spring', stiffness: 280, damping: 18 }}
         className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white shadow-lg shadow-black/30"
       >
-        <svg
-          viewBox="0 0 128 128"
-          className="h-6 w-6"
-          aria-hidden="true"
-        >
-          <defs>
-            <linearGradient id="brandmark-white-grad" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="white" stopOpacity="1" />
-              <stop offset="100%" stopColor="white" stopOpacity="0.65" />
-            </linearGradient>
-          </defs>
-          <path
-            fill="url(#brandmark-white-grad)"
-            d="M40 60 c-10 -20 10 -40 36 -36 c18 3 32 22 28 36 c8 4 14 12 14 20 c0 14 -14 24 -32 24 H46 c-18 0 -32 -10 -32 -24 c0 -9 6 -16 14 -20 z"
-          />
-          <rect x="58" y="84" width="12" height="26" rx="4" fill="url(#brandmark-white-grad)" />
-        </svg>
+       <svg viewBox="0 0 128 128" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+  <path fill="white" d="
+    M28 34 64 16 100 34 100 92
+    C100 108 84 116 64 116
+    C44 116 28 108 28 92
+    Z"/>
+  <circle cx="48" cy="60" r="9" fill="black"/>
+  <circle cx="80" cy="60" r="9" fill="black"/>
+  <polygon points="64,72 56,86 72,86" fill="black"/>
+</svg>
+
       </motion.div>
         <span className="text-xl font-bold text-black dark:text-white">
-  ReceitAI
+  Owlit
 </span>
     </div>
   );
@@ -57,7 +51,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   // Menu items configuration
   const menuItems = [
     { name: 'Home', href: createPageUrl('Home') },
-    { name: 'Dashboard', href: createPageUrl('Dashboard') },
+    //{ name: 'Dashboard', href: createPageUrl('Dashboard') },
     { name: 'Insights', href: createPageUrl('Insights') },
     { name: 'Scan', href: createPageUrl('ScanReceipt') },
   ];

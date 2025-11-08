@@ -4,6 +4,7 @@ import Layout from "@/components/layout/Layout";
 import Home from "@/pages/Home";
 import Dashboard from "@/pages/Dashboard";
 import ScanReceipt from "@/pages/ScanReceipt";
+import ScanReceiptMulti from "@/pages/ScanReceiptMulti";
 import Documents from "@/pages/Documents";
 import Insights from "@/pages/Insights";
 import Investment from "@/pages/Investment";
@@ -36,6 +37,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Layout currentPageName="Scan Receipt"><ScanReceipt /></Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/scan-multi"
+          element={
+            <ProtectedRoute>
+              <Layout currentPageName="Multi-Page Scan"><ScanReceiptMulti /></Layout>
             </ProtectedRoute>
           }
         />

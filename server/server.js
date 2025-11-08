@@ -1083,6 +1083,177 @@ app.post('/api/scan', upload.single('file'), async (req, res) => {
     }
 });
 
+app.post('/api/scan-multi', upload.array('files', 10), async (req, res) => {
+    try {
+        if (!req.files || req.files.length < 2) {
+            throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
+        }
+
+        const files = req.files.slice(0, 10);
+        console.log(`🗂️ Processing ${files.length} pages for multi-page receipt`);
+
+        const combinedTexts = [];
+        const combinedHints = [];
+
+        for (const file of files) {
+            const preprocessedImageBuffer = await preprocessImage(file.buffer);
+            const tesseractText = await runTesseract(preprocessedImageBuffer);
+            if (tesseractText) {
+                combinedHints.push(tesseractText);
+            }
+            const docText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+            if (docText) {
+                combinedTexts.push(docText);
+            }
+        }
+
+        if (!combinedTexts.length) {
+            throw new Error('Failed to extract text from uploaded images.');
+        }
+
+        const mergedText = combinedTexts.join('\n\n---- PAGE BREAK ----\n\n');
+        const mergedHints = combinedHints.join('\n');
+
+        const processedData = await structureTextWithOpenAI(mergedText, mergedHints);
+        const lineItems = processedData.items || processedData.Items || [];
+        const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
+
+        const rawMerchant = processedData.merchant || processedData.MerchantName || '';
+        const merchant_name = rawMerchant
+          .toLowerCase()
+          .replace(/[^a-z0-9 ]/gi, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .replace(/\b\w/g, c => c.toUpperCase());
+
+        let store_type = 'Other';
+        let main_category = 'Other';
+        const userId = req.user?.id || null;
+
+        if (userId) {
+            const { data: override } = await supabase
+                .from('user_store_type_overrides')
+                .select('store_type')
+                .eq('user_id', userId)
+                .eq('merchant_name', merchant_name)
+                .single();
+
+            if (override) {
+                store_type = override.store_type;
+                console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
+            }
+        }
+
+        if (store_type === 'Other') {
+            const { data: storeInfo, error: storeInfoError } = await supabase
+                .from('store_info')
+                .select('main_category, store_type')
+                .eq('merchant_name', merchant_name)
+                .maybeSingle();
+
+            if (storeInfoError) {
+                console.error('Error fetching store info:', storeInfoError);
+            }
+
+            if (storeInfo) {
+                main_category = storeInfo.main_category;
+                store_type = storeInfo.store_type;
+            } else {
+                main_category = processedData.main_category || 'Other';
+                store_type = processedData.store_type || 'Other';
+                if (store_type !== 'Other') {
+                    const { error: insertError } = await supabase
+                        .from('store_info')
+                        .insert({
+                            merchant_name,
+                            main_category,
+                            store_type,
+                        });
+                    if (insertError) {
+                        console.error('Error inserting new store type:', insertError);
+                    }
+                }
+            }
+        }
+
+        let receipt_url = null;
+        const firstFile = files[0];
+        if (firstFile) {
+            const receiptId = require('crypto').randomUUID();
+            const extension = path.extname(firstFile.originalname) || '.jpg';
+            const now = new Date();
+            const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+            const fileName = `${merchant_name || 'receipt'}-${now.toISOString().split('T')[0]}-${time}-${receiptId}${extension}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('receipts')
+                .upload(fileName, firstFile.buffer, {
+                    contentType: firstFile.mimetype,
+                });
+
+            if (!uploadError) {
+                const { data: publicUrlData } = supabase.storage
+                    .from('receipts')
+                    .getPublicUrl(fileName);
+                receipt_url = publicUrlData?.publicUrl || null;
+            } else {
+                console.error('Error uploading multi-page preview:', uploadError);
+            }
+        }
+
+        const transaction_date = formatDate(processedData.transaction_date || processedData.Date);
+        const total_amount = parseFloat(processedData.total_amount || processedData.TotalAmount) || 0;
+
+        const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
+
+        const normalizedTransactionDate = transaction_date;
+        const normalizedTotalAmount = total_amount;
+        const dedupeHash = buildReceiptHash(req.user?.id || 'multi', {
+            merchant_name,
+            transaction_date: normalizedTransactionDate,
+            total_amount: normalizedTotalAmount,
+            line_items: categorizedLineItems,
+        });
+        const receiptHashToStore = `${dedupeHash}:${crypto.randomUUID()}`;
+
+        if (req.user?.id) {
+            const { error: saveError } = await supabase
+              .from('receipts')
+              .insert({
+                  user_id: req.user.id,
+                  merchant_name,
+                  merchant_alias: merchantAlias,
+                  canonical_merchant_id: canonicalMerchantId,
+                  transaction_date: normalizedTransactionDate,
+                  total_amount: normalizedTotalAmount,
+                  line_items: categorizedLineItems,
+                  receipt_url,
+                  receipt_hash: receiptHashToStore,
+              });
+
+            if (saveError) {
+                console.error('Error saving multi-page receipt:', saveError);
+            }
+        }
+
+        const transformedData = {
+          merchant_name,
+          transaction_date: normalizedTransactionDate,
+          line_items: categorizedLineItems,
+          total_amount: normalizedTotalAmount,
+          main_category,
+          store_type,
+          receipt_url,
+        };
+
+        console.log(`\n📤 === FINAL MULTI-PAGE DATA SENT TO FRONTEND ===`);
+        console.log(JSON.stringify(transformedData, null, 2));
+        return res.json(transformedData);
+    } catch (error) {
+        return handleApiError(res, error, 'Failed to process multi-page receipt.');
+    }
+});
+
 app.post('/api/process-document', async (req, res) => {
     console.log('📥 Received markdown for processing');
     try {

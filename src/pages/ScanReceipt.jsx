@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Lottie from 'lottie-react';
+import { useNavigate } from 'react-router-dom';
 
 import {
   Upload,
@@ -54,6 +55,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { cn } from '@/lib/utils';
+import { createPageUrl } from '@/utils';
 
 const RECENT_DOCUMENT_PLACEHOLDERS = [
   { id: 'doc-1', name: 'Lease Agreement.pdf', date: '15 Jun 2024' },
@@ -707,11 +709,33 @@ export default function ScanReceipt() {
   const savedPreferencesRef = useRef(new Set());
   const { userStoreOverrides } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
+  const [isMultiPage, setIsMultiPage] = useState(false);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch('/images/AI CPU circuit board loading animation.json')
       .then((response) => response.json())
       .then((data) => setLoadingAnimation(data));
+  }, []);
+
+  useEffect(() => {
+    const prefilled = sessionStorage.getItem('multi-scan-result');
+    if (prefilled) {
+      try {
+        const parsed = JSON.parse(prefilled);
+        if (parsed) {
+          setExtractedData(parsed);
+          setMarkdownPreview(null);
+          setFile(null);
+          setMode('upload');
+          setScanMode('receipt');
+        }
+      } catch (err) {
+        console.error('Failed to load multi scan result', err);
+      } finally {
+        sessionStorage.removeItem('multi-scan-result');
+      }
+    }
   }, []);
 
   const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
@@ -820,6 +844,14 @@ export default function ScanReceipt() {
       setMarkdownPreview(null);
       setMode('upload');
       processFile(droppedFile);
+    }
+  };
+
+  const handleMultiPageToggle = (event) => {
+    const checked = event.target.checked;
+    setIsMultiPage(checked);
+    if (checked) {
+      navigate(createPageUrl('ScanReceiptMulti'));
     }
   };
 
@@ -1090,6 +1122,19 @@ export default function ScanReceipt() {
                             <p className="text-lg font-semibold text-white">Drag & Drop or Click to Upload</p>
                         </div>
                     )}
+
+                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-white">
+                      <input
+                        id="multi-page-toggle"
+                        type="checkbox"
+                        checked={isMultiPage}
+                        onChange={handleMultiPageToggle}
+                        className="h-4 w-4 rounded border-white/60 bg-transparent"
+                      />
+                      <label htmlFor="multi-page-toggle" className="cursor-pointer select-none">
+                        Multiple pages?
+                      </label>
+                    </div>
 
                     {!file && (
                         <div className={`mt-8 grid grid-cols-1 sm:grid-cols-2 ${scanMode === 'receipt' ? 'md:grid-cols-4' : 'sm:grid-cols-2'} gap-4`}>

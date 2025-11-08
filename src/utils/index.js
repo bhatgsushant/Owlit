@@ -5,6 +5,8 @@ export function createPageUrl(name) {
     case "dashboard": return "/dashboard";
     case "scanreceipt": return "/scan";
     case "scan": return "/scan";
+    case "scanreceiptmulti": return "/scan-multi";
+    case "scanmulti": return "/scan-multi";
     case "documents": return "/documents";
     case "insights": return "/insights";
     case "investment": return "/investment";

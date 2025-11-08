@@ -1,0 +1,5 @@
+I have created a script named push_to_new_repo.sh that will push your code to the new repository.
+Please run the following commands in your terminal to execute the script:
+
+chmod +x push_to_new_repo.sh
+./push_to_new_repo.sh
