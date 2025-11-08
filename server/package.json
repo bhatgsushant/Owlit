@@ -8,18 +8,28 @@
     "start": "node server.js",
     "mock": "node mock-server.js",
     "llm": "node llm-server.js",
-    "dev": "nodemon server.js"
+    "dev": "nodemon server.js",
+    "populate-db": "node populate_store_info.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/documentai": "^9.5.0",
-    "axios": "^1.12.2",
+    "@google-cloud/documentai": "^9.0.0",
+    "@supabase/supabase-js": "^2.78.0",
+    "date-fns": "^4.1.0",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
+    "dotenv": "^16.6.1",
     "express": "^5.1.0",
-    "multer": "^2.0.2"
+    "express-session": "^1.18.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
+    "openai": "^4.20.0",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0",
+    "sharp": "^0.33.3",
+    "tesseract.js": "^5.0.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.10"

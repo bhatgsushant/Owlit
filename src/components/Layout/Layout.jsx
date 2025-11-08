@@ -24,6 +24,12 @@ export default function Layout({ children, currentPageName }) {
 
   const applyTheme = (dark) => {
     const root = document.documentElement;
+    const body = document.body;
+    root.classList.toggle('dark', dark);
+    if (body) {
+      body.classList.toggle('dark', dark);
+    }
+    root.style.colorScheme = dark ? 'dark' : 'light';
     
     if (dark) {
       // Dark theme colors

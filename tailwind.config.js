@@ -6,14 +6,24 @@ module.exports = {
     "./src/**/*.{js,jsx,ts,tsx}", // <-- include all JS/JSX/TS/TSX files in src
   ],
   theme: {
-  	extend: {
-  		borderRadius: {
+  	    extend: {
+  	      fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            display: ['Work Sans', 'sans-serif'],
+  	        'fk-grotesk': ['FK Grotesk Neue Trial Light', 'sans-serif'],
+  	      },  		borderRadius: {
   			lg: 'var(--radius)',
   			md: 'calc(var(--radius) - 2px)',
   			sm: 'calc(var(--radius) - 4px)'
   		},
+        fontSize: {
+          base: '0.875rem', // globally shrink default text size
+        },
   		colors: {
         'vibrant-blue': '#3B82F6',
+        carbon: '#0a0a0a',
+        ebony: '#111111',
+        obsidian: '#151515',
   			background: 'hsl(var(--background))',
   			foreground: 'hsl(var(--foreground))',
   			card: {
@@ -57,5 +67,5 @@ module.exports = {
   		}
   	}
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [require("tailwindcss-animate"), require("@tailwindcss/typography")],
 };

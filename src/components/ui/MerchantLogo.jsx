@@ -1,18 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { getStoreInfo } from '@/utils/logo';
 import { Store } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const MerchantLogo = ({ merchantName }) => {
   const [imgError, setImgError] = useState(false);
   const [logoUrl, setLogoUrl] = useState(null);
+  const { userStoreOverrides } = useAuth();
 
   useEffect(() => {
-    const storeInfo = getStoreInfo(merchantName);
+    const storeInfo = getStoreInfo(merchantName, userStoreOverrides);
     if (storeInfo && storeInfo.domain) {
       setLogoUrl(`https://logo.clearbit.com/${storeInfo.domain}`);
     }
     setImgError(false);
-  }, [merchantName]);
+  }, [merchantName, userStoreOverrides]);
 
   if (imgError || !logoUrl) {
     return (

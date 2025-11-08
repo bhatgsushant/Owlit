@@ -1,0 +1,7 @@
+I have updated the 'push_to_new_repo.sh' script to push the correct branch.
+
+Please run the following command in your terminal:
+
+./push_to_new_repo.sh
+
+This should now push your code to the new repository.

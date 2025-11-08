@@ -1,17 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon } from 'lucide-react';
+import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
+import { useAuth } from '@/hooks/useAuth';
 
-// A simple SVG logo component
-function Logo() {
+// Shared brand mark to mirror the home page styling
+function BrandMark() {
   return (
-    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M9 3h6l2 4-2 4H9Z" fill="white" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-      <path d="M15 21h4a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2h-4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
+    <div className="flex items-center gap-3">
+      <motion.div
+        whileHover={{ scale: 1.08, rotate: 5 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 18 }}
+        className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white shadow-lg shadow-black/30"
+      >
+       <svg viewBox="0 0 128 128" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+  <path fill="white" d="
+    M28 34 64 16 100 34 100 92
+    C100 108 84 116 64 116
+    C44 116 28 108 28 92
+    Z"/>
+  <circle cx="48" cy="60" r="9" fill="black"/>
+  <circle cx="80" cy="60" r="9" fill="black"/>
+  <polygon points="64,72 56,86 72,86" fill="black"/>
+</svg>
+
+      </motion.div>
+        <span className="text-xl font-bold text-black dark:text-white">
+  Owlit
+</span>
+    </div>
   );
 }
 
@@ -19,13 +37,22 @@ function Logo() {
 // Main component for the modern navigation bar
 export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [hasScrolled, setHasScrolled] = useState(false);
   const location = useLocation();
   const navRef = useRef(null);
+  const { user, logout } = useAuth();
+  const { scrollYProgress } = useScroll();
+  const scrollIndicator = useSpring(scrollYProgress, {
+    stiffness: 120,
+    damping: 28,
+    restDelta: 0.001,
+  });
 
   // Menu items configuration
   const menuItems = [
     { name: 'Home', href: createPageUrl('Home') },
-    { name: 'Dashboard', href: createPageUrl('Dashboard') },
+    //{ name: 'Dashboard', href: createPageUrl('Dashboard') },
+    { name: 'Insights', href: createPageUrl('Insights') },
     { name: 'Scan', href: createPageUrl('ScanReceipt') },
   ];
 
@@ -52,61 +79,129 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
     };
   }, [isOpen]);
 
+  useEffect(() => {
+    const handleScroll = () => setHasScrolled(window.scrollY > 12);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const desktopLinkVariants = {
+    initial: { opacity: 0.7, y: 4 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.35 } },
+    whileHover: { opacity: 1, y: -2, transition: { duration: 0.2 } },
+  };
+
+  const navVariants = {
+    hidden: { y: -16, opacity: 0 },
+    visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  };
+
   return (
-    <nav ref={navRef} className="fixed top-0 left-0 right-0 z-50">
-      {/* Top bar */}
-      <div className="flex items-center justify-between h-20 px-6 backdrop-blur-xl bg-white/70 dark:bg-black/70 border-b border-gray-200/50 dark:border-white/10">
-        {/* Logo */}
-        <Link to={createPageUrl('Home')} className="flex items-center gap-2 theme-text-primary">
-          <Logo />
-          <span className="text-xl font-bold">ReceiptWise</span>
+    <motion.nav
+      ref={navRef}
+      variants={navVariants}
+      initial="hidden"
+      animate="visible"
+      className="fixed top-0 left-0 right-0 z-50 px-4 pt-3"
+    >
+      <motion.div
+        className="mx-auto flex h-16 max-w-6xl items-center justify-between rounded-full border border-white/10 bg-white/60 px-5 shadow-lg shadow-black/10 backdrop-blur-xl transition-all dark:border-white/10 dark:bg-slate-900/70"
+        animate={{
+          backgroundColor: hasScrolled
+            ? (isDarkMode ? 'rgba(15,23,42,0.88)' : 'rgba(255,255,255,0.92)')
+            : (isDarkMode ? 'rgba(15,23,42,0.75)' : 'rgba(255,255,255,0.65)'),
+          borderColor: hasScrolled
+            ? (isDarkMode ? 'rgba(148,163,184,0.35)' : 'rgba(148,163,184,0.25)')
+            : 'rgba(255,255,255,0.12)',
+        }}
+        transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+      >
+        <Link to={createPageUrl('Home')} className="text-slate-900 dark:text-white">
+          <BrandMark />
         </Link>
 
-        {/* Desktop Menu (hidden on mobile) */}
-        <div className="hidden md:flex items-center gap-8">
-          {menuItems.map((item) => (
-            <Link
-              key={item.name}
-              to={item.href}
-              onClick={() => setIsOpen(false)}
-              className={`relative text-sm font-medium transition-colors hover:theme-text-primary ${
-                location.pathname === item.href ? 'theme-text-primary' : 'theme-text-secondary'
-              }`}
-            >
-              {item.name}
-              {location.pathname === item.href && (
-                <motion.div
-                  layoutId="underline"
-                  className="absolute -bottom-1 left-0 w-full h-0.5 bg-current"
-                />
-              )}
-            </Link>
-          ))}
-        </div>
+        <motion.div className="hidden items-center gap-5 md:flex">
+          {menuItems.map((item, index) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <motion.div
+                key={item.name}
+                variants={desktopLinkVariants}
+                initial="initial"
+                animate="animate"
+                whileHover="whileHover"
+                transition={{ delay: index * 0.05 }}
+              >
+                <Link
+                  to={item.href}
+                  onClick={() => setIsOpen(false)}
+                  className={`
+                    relative flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors
+                    ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}
+                  `}
+                >
+                  <span>{item.name}</span>
+                  {isActive && (
+                    <motion.span
+                      layoutId="nav-active-pill"
+                      className="absolute inset-0 -z-10 rounded-full bg-emerald-500/15 dark:bg-emerald-400/15"
+                    />
+                  )}
+                </Link>
+              </motion.div>
+            );
+          })}
+        </motion.div>
 
-        {/* Action Buttons & Theme Toggle (hidden on mobile) */}
-        <div className="hidden md:flex items-center gap-4">
-          <button onClick={toggleTheme} className="theme-text-secondary hover:theme-text-primary">
-            {isDarkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
-          <Link to="/login" className="text-sm font-medium theme-text-secondary hover:theme-text-primary">
-            Login
-          </Link>
-          <Link
-            to="/signup"
-            className="px-4 py-2 text-sm font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors"
+        <div className="hidden items-center gap-3 md:flex">
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            className="rounded-full border border-slate-300/60 bg-white/40 p-2 text-slate-600 shadow-sm hover:border-emerald-400 hover:text-emerald-500 dark:border-slate-500/60 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:text-emerald-300"
+            onClick={toggleTheme}
           >
-            Sign Up
-          </Link>
+            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
+          </motion.button>
+          {user ? (
+            <motion.div className="relative group" whileHover={{ scale: 1.02 }}>
+              <button className="flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-3 py-1 shadow-sm dark:bg-slate-800/80">
+                <img src={user.avatar} alt={user.displayName} className="h-8 w-8 rounded-full object-cover" />
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{user.displayName}</span>
+              </button>
+              <div className="pointer-events-none absolute right-0 mt-3 w-48 rounded-2xl border border-white/10 bg-white/90 py-2 opacity-0 shadow-xl shadow-black/10 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 dark:bg-slate-900/90">
+                <button
+                  onClick={logout}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 transition-colors hover:text-emerald-500 dark:text-slate-200 dark:hover:text-emerald-300"
+                >
+                  <LogOut size={16} />
+                  Logout
+                </button>
+              </div>
+            </motion.div>
+          ) : (
+            <Link
+              to="/login"
+              className="rounded-full border border-transparent bg-emerald-500/90 px-4 py-1.5 text-sm font-semibold text-white shadow hover:bg-emerald-500"
+            >
+              Login
+            </Link>
+          )}
         </div>
 
-        {/* Mobile Menu Toggle */}
         <div className="md:hidden">
-          <button onClick={() => setIsOpen(!isOpen)} className="theme-text-primary">
-            {isOpen ? <X size={24} /> : <MenuIcon size={24} />}
-          </button>
+          <motion.button
+            whileTap={{ scale: 0.92 }}
+            onClick={() => setIsOpen(!isOpen)}
+            className="rounded-full border border-white/30 bg-white/60 p-2 text-slate-700 shadow-sm dark:bg-slate-800/70 dark:text-slate-200"
+          >
+            {isOpen ? <X size={22} /> : <MenuIcon size={22} />}
+          </motion.button>
         </div>
-      </div>
+      </motion.div>
+      <motion.div
+        className="pointer-events-none mx-auto mt-2 hidden h-1 w-[90%] max-w-5xl rounded-full bg-gradient-to-r from-transparent via-emerald-500 to-transparent md:block"
+        style={{ scaleX: scrollIndicator }}
+      />
 
       {/* Full-screen Overlay Menu */}
       <AnimatePresence>
@@ -116,8 +211,11 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
             animate={{ opacity: 1, y: '0%' }}
             exit={{ opacity: 0, y: '-100%' }}
             transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 bg-black bg-opacity-90 backdrop-blur-lg h-screen w-screen flex flex-col items-center justify-center md:hidden"
+            className="fixed inset-0 flex h-screen w-screen flex-col items-center justify-center bg-black bg-opacity-90 backdrop-blur-lg md:hidden"
           >
+            <div className="mb-10">
+              <BrandMark />
+            </div>
             <div className="flex flex-col items-center gap-8">
               {menuItems.map((item) => (
                 <Link
@@ -134,20 +232,21 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
                   <span className="text-xl font-medium">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
                 </button>
-                <Link to="/login" className="text-xl font-medium text-gray-400 hover:text-white">
-                  Login
-                </Link>
-                <Link
-                  to="/signup"
-                  className="px-6 py-3 text-lg font-semibold text-black bg-white rounded-full hover:bg-gray-200 transition-colors"
-                >
-                  Sign Up
-                </Link>
+                {user ? (
+                  <button onClick={logout} className="text-xl font-medium text-gray-400 hover:text-white flex items-center">
+                    <LogOut size={20} className="mr-2" />
+                    Logout
+                  </button>
+                ) : (
+                  <Link to="/login" className="text-xl font-medium text-gray-400 hover:text-white">
+                    Login
+                  </Link>
+                )}
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
-    </nav>
+    </motion.nav>
   );
 }

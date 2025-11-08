@@ -10,8 +10,13 @@ export const STORE_DATA = {
   'iceland': { domain: 'iceland.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'marksandspencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
   'm&s': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'marks & spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'marks and spencer': { domain: 'marksandspencer.com', StoreName_category: 'Groceries - Supermarket' },
+  'cooperative': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'costco': { domain: 'costco.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'woolworths': { domain: 'woolworths.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'costcutter': { domain: 'costcutter.co.uk', StoreName_category: 'Groceries - Supermarket' },
-  'coop': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
+  'co-op': { domain: 'coop.co.uk', StoreName_category: 'Groceries - Supermarket' },
   'spar': { domain: 'spar.co.uk', StoreName_category: 'Groceries - Supermarket' },
 
   // 🍔 Food & Restaurants
@@ -35,6 +40,11 @@ export const STORE_DATA = {
   'next': { domain: 'next.co.uk', StoreName_category: 'Fashion & Clothing' },
   'zara': { domain: 'zara.com', StoreName_category: 'Fashion & Clothing' },
   'hm': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'h&m': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'h&m hennes & mauritz uk': { domain: 'hm.com', StoreName_category: 'Fashion & Clothing' },
+  'topshop': { domain: 'topshop.com', StoreName_category: 'Fashion & Clothing' },
+  'gap': { domain: 'gap.co.uk', StoreName_category: 'Fashion & Clothing' },
+  'river island': { domain: 'riverisland.com', StoreName_category: 'Fashion & Clothing' },  
   'riverisland': { domain: 'riverisland.com', StoreName_category: 'Fashion & Clothing' },
   'newlook': { domain: 'newlook.com', StoreName_category: 'Fashion & Clothing' },
   'uniqlo': { domain: 'uniqlo.com', StoreName_category: 'Fashion & Clothing' },
@@ -56,12 +66,13 @@ export const STORE_DATA = {
   'game': { domain: 'game.co.uk', StoreName_category: 'Gaming & Entertainment' },
 
   // 🏠 Home & DIY
-  'bandq': { domain: 'diy.com', StoreName_category: 'Home & DIY' },
+  'b&q': { domain: 'diy.com', StoreName_category: 'Home & DIY' },
   'homebase': { domain: 'homebase.co.uk', StoreName_category: 'Home & DIY' },
   'ikea': { domain: 'ikea.com', StoreName_category: 'Home & DIY' },
   'wilko': { domain: 'wilko.com', StoreName_category: 'Home & DIY' },
   'dunelm': { domain: 'dunelm.com', StoreName_category: 'Home & DIY' },
   'theworks': { domain: 'theworks.co.uk', StoreName_category: 'Books & Stationery' },
+  'the works': { domain: 'theworks.co.uk', StoreName_category: 'Books & Stationery' },
   'robertdyas': { domain: 'robertdyas.co.uk', StoreName_category: 'Home & DIY' },
 
   // 💄 Health & Beauty
@@ -81,6 +92,7 @@ export const STORE_DATA = {
   'zalando': { domain: 'zalando.co.uk', StoreName_category: 'Online Fashion' },
   'made': { domain: 'made.com', StoreName_category: 'Online Retail' },
   'wayfair': { domain: 'wayfair.co.uk', StoreName_category: 'Home & DIY' },
+  
 
   // 🚗 Fuel & Transport
   'shell': { domain: 'shell.co.uk', StoreName_category: 'Fuel & Transport' },
@@ -157,17 +169,27 @@ export const STORE_DATA = {
   'ryman': { domain: 'ryman.co.uk', StoreName_category: 'Books & Stationery' }
 };
 
-export function getStoreInfo(merchantName) {
+export function getStoreInfo(merchantName, userStoreOverrides = null) {
   if (!merchantName) return null;
 
   const normalized = merchantName.toLowerCase().trim();
-  
-  for (const key in STORE_DATA) {
-    if (normalized.includes(key)) {
-      return STORE_DATA[key];
-    }
+
+  if (userStoreOverrides && userStoreOverrides[normalized]) {
+    const overriddenCategory = userStoreOverrides[normalized];
+    // Find the original store data to keep the domain if it exists
+    const originalStoreData = STORE_DATA[normalized] || 
+                              Object.values(STORE_DATA).find(d => d.domain === `${normalized.replace(/[^a-z0-9]/g, '')}.com`);
+
+    return { 
+      ...originalStoreData,
+      StoreName_category: overriddenCategory 
+    };
   }
-  
+
+  if (STORE_DATA[normalized]) {
+    return STORE_DATA[normalized];
+  }
+
   const simpleName = normalized.replace(/[^a-z0-9]/g, '');
   return {
       domain: `${simpleName}.com`,

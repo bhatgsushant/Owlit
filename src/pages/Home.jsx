@@ -111,20 +111,35 @@ export default function Home() {
       >
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <Link to={createPageUrl("Home")} className="flex items-center gap-3">
-            <motion.div 
-              whileHover={{ scale: 1.1, rotate: 5 }}
-              className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg"
-            >
-              <Sparkles className="w-6 h-6 text-white" />
-            </motion.div>
-            <span className="text-xl font-bold bg-gradient-to-r from-green-600 to-emerald-600 bg-clip-text text-transparent">
-              ReceiptWise
-            </span>
+           <motion.div
+  whileHover={{ scale: 1.1, rotate: 5 }}
+  className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg"
+>
+ <motion.div
+  whileHover={{ scale: 1.1, rotate: 5 }}
+  className="w-10 h-10 bg-black rounded-xl flex items-center justify-center shadow-lg"
+>
+  <svg viewBox="0 0 128 128" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+  <path fill="white" d="
+    M28 34 64 16 100 34 100 92
+    C100 108 84 116 64 116
+    C44 116 28 108 28 92
+    Z"/>
+  <circle cx="48" cy="60" r="9" fill="black"/>
+  <circle cx="80" cy="60" r="9" fill="black"/>
+  <polygon points="64,72 56,86 72,86" fill="black"/>
+</svg>
+
+</motion.div>
+</motion.div>
+            <span className="text-xl font-bold text-black">
+  Owlit
+</span>
           </Link>
           
           <div className="flex items-center gap-4">
-            <Link to={createPageUrl("Dashboard")}>
-              <Button variant="ghost" className="text-sm">Dashboard</Button>
+            <Link to={createPageUrl("Insights")}>
+              <Button variant="ghost" className="text-sm">Insights</Button>
             </Link>
             <Link to={createPageUrl("ScanReceipt")}>
               <Button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl transition-all duration-300 text-sm">
@@ -182,7 +197,7 @@ export default function Home() {
             Your Intelligent
             <br />
             <span className="bg-gradient-to-r from-green-600 via-emerald-600 to-blue-600 bg-clip-text text-transparent">
-              Memory Hub
+              Spending Analyst
             </span>
           </motion.h1>
 
@@ -192,8 +207,7 @@ export default function Home() {
             transition={{ duration: 1, delay: 0.6, ease: [0.25, 0.4, 0.25, 1] }}
             className="text-lg max-w-2xl mx-auto text-gray-600 dark:text-gray-400 leading-relaxed mb-10"
           >
-            Scan documents, track expenses, and let AI help you remember everything that matters. 
-            From receipts to medical reports, we've got you covered.
+           Turn Receipts into Insights. Smart insights, spending patterns, and full expense history — instantly.
           </motion.p>
 
           <motion.div 
@@ -211,11 +225,11 @@ export default function Home() {
                 </Button>
               </motion.div>
             </Link>
-            <Link to={createPageUrl("QnA")}>
+            <Link to={createPageUrl("Insights")}>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" className="px-12 py-6 text-base rounded-[25px] border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 transition-all duration-300">
+                <Button variant="outline" className="px-11 py-4    text-base rounded-[25px] border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 transition-all duration-300">
                   <MessageCircle className="w-5 h-5 mr-2" />
-                  Ask AI
+                  AI Insights
                 </Button>
               </motion.div>
             </Link>
@@ -320,9 +334,9 @@ export default function Home() {
               {
                 icon: MessageCircle,
                 title: "AI Assistant",
-                description: "Ask anything about your documents and get instant answers",
+                description: "Ask anything about your receipts and get instant answers",
                 gradient: "from-purple-500 to-pink-500",
-                link: "QnA"
+                link: null  // <— disable
               },
               {
                 icon: FolderOpen,
@@ -343,14 +357,14 @@ export default function Home() {
                 title: "Investment Tracking",
                 description: "See what your spending could have earned if invested",
                 gradient: "from-indigo-500 to-purple-500",
-                link: "Investment"
+                link: null  // <— disable
               },
               {
                 icon: Shield,
                 title: "Secure & Private",
                 description: "Bank-level encryption keeps your data safe",
                 gradient: "from-teal-500 to-green-500",
-                link: "Dashboard"
+                link: null  // <— disable
               }
             ].map((feature, index) => (
               <AnimatedSection key={index} delay={index * 0.1}>
