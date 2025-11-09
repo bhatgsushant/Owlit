@@ -312,13 +312,52 @@ async function interpretSpendingQuestion(question) {
 //const docAIClient = new DocumentProcessorServiceClient();
 const { GoogleAuth } = require('google-auth-library');
 
-const auth = new GoogleAuth({
-  clientId: process.env.GOOGLE_CLIENT_ID,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-});
+if (process.env.GOOGLE_APPLICATION_CREDENTIALS === 'none') {
+  console.log('⚠️  GOOGLE_APPLICATION_CREDENTIALS set to "none"; ignoring this value.');
+  delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
+}
 
-const docAIClient = new DocumentProcessorServiceClient({ auth });
+const createGoogleAuth = () => {
+  const scopes = ['https://www.googleapis.com/auth/cloud-platform'];
+  const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  if (keyPath && keyPath !== 'none') {
+    console.log('🔐 Using Google credentials from file path defined in GOOGLE_APPLICATION_CREDENTIALS');
+    return new GoogleAuth({ keyFilename: keyPath, scopes });
+  }
+
+  const inlineJson = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  if (inlineJson) {
+    try {
+      const credentials = JSON.parse(inlineJson);
+      console.log('🔐 Using inline Google credentials from GOOGLE_APPLICATION_CREDENTIALS_JSON');
+      return new GoogleAuth({ credentials, scopes });
+    } catch (error) {
+      console.warn('⚠️  Failed to parse GOOGLE_APPLICATION_CREDENTIALS_JSON. Falling back to other auth methods.');
+    }
+  }
+
+  const base64Creds = process.env.GOOGLE_APPLICATION_CREDENTIALS_BASE64;
+  if (base64Creds) {
+    try {
+      const decoded = Buffer.from(base64Creds, 'base64').toString('utf8');
+      const credentials = JSON.parse(decoded);
+      console.log('🔐 Using inline Google credentials from GOOGLE_APPLICATION_CREDENTIALS_BASE64');
+      return new GoogleAuth({ credentials, scopes });
+    } catch (error) {
+      console.warn('⚠️  Failed to decode GOOGLE_APPLICATION_CREDENTIALS_BASE64. Falling back to other auth methods.');
+    }
+  }
+
+  console.log('🆔 Using Application Default Credentials for Google Auth');
+  return new GoogleAuth({
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    scopes,
+  });
+};
+
+const docAIClient = new DocumentProcessorServiceClient({ auth: createGoogleAuth() });
 
 console.log('🧠 Initialized Google Document AI Client');
 
