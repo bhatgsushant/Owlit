@@ -407,7 +407,7 @@ async function saveMasterItem(itemName, main_category, sub_category) {
 
 
 // --- Middleware ---
-const CLIENT_URL = process.env.CLIENT_URL || "https://owlit.netlify.app";
+const CLIENT_URL = process.env.CLIENT_URL || "https://owlit.vercel.app";
 
 const allowedOrigins = [
   process.env.CLIENT_URL,           // Vercel frontend
