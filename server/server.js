@@ -407,21 +407,25 @@ async function saveMasterItem(itemName, main_category, sub_category) {
 
 
 // --- Middleware ---
+app.set("trust proxy", 1);
 const CLIENT_URL = process.env.CLIENT_URL || "https://owlit.vercel.app";
 
 const allowedOrigins = [
   process.env.CLIENT_URL,           // Vercel frontend
   'http://localhost:5173',          // local dev
 ];
+const vercelPreview = /^https:\/\/owlit(-git-[a-z0-9-]+)?-bhatgsushants-projects\.vercel\.app$/i;
 
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (allowedOrigins.includes(origin) || vercelPreview.test(origin)) {return callback(null, true);}
 
     if (/\.vercel\.app$/.test(origin)) return callback(null, true); // ✅ Allow all Vercel previews
 
+     console.log("❌ Blocked by CORS:", origin);
     return callback(new Error(`Not allowed by CORS: ${origin}`));
+
   },
   credentials: true
 }));
@@ -430,7 +434,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 // Required for proper secure cookies on Render
-app.set("trust proxy", 1);
+//app.set("trust proxy", 1);
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
@@ -444,6 +448,25 @@ app.use(session({
 }));
 app.use(passport.initialize());
 app.use(passport.session());
+
+// --- Debug route to check cookies + session ---
+app.get('/api/debug-session', (req, res) => {
+  res.cookie('rw_test', '1', { 
+    httpOnly: true, 
+    secure: true, 
+    sameSite: 'none' 
+  });
+
+  res.json({
+    origin: req.get('origin'),
+    cookieSeenByServer: Boolean(req.headers.cookie),
+    hasSessionObject: Boolean(req.session),
+    sessionID: req.sessionID,
+    isAuthenticated: req.isAuthenticated?.() || false,
+    user: req.user || null,
+  });
+});
+
 
 const MAX_UPLOAD_SIZE_BYTES = Number(process.env.MAX_UPLOAD_SIZE_BYTES || 10 * 1024 * 1024);
 const upload = multer({
