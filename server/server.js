@@ -311,7 +311,6 @@ async function interpretSpendingQuestion(question) {
 }
 //const docAIClient = new DocumentProcessorServiceClient();
 const { GoogleAuth } = require('google-auth-library');
-const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
 
 const auth = new GoogleAuth({
   clientId: process.env.GOOGLE_CLIENT_ID,
