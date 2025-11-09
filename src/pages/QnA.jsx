@@ -74,12 +74,12 @@ export default function QnA() {
     });
 
     try {
-      const res = await fetch('/api/ask', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ question: trimmed }),
-      });
+      const res = await fetch(withApiBase('/api/ask'), {
+  method: 'POST',
+  body: JSON.stringify({ query }),
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+});
 
       const data = await res.json();
       const answer = data?.answer || 'Hmm… iska jawab nahi mila.';

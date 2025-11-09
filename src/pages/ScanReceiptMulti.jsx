@@ -70,7 +70,7 @@ export default function ScanReceiptMulti() {
       formData.append('files', file, file.name);
     });
     try {
-      const resp = await fetch('/api/scan-multi', {
+      const resp = await fetch(withApiBase('/api/scan-multi'), {
         method: 'POST',
         body: formData,
         credentials: 'include',

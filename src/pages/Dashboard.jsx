@@ -231,7 +231,7 @@ export default function Dashboard() {
     const fetchReceipts = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch('/api/receipts', { credentials: 'include' });
+        const response = await fetch(withApiBase('/api/receipts'), { credentials: 'include' });
         if (!response.ok) {
           throw new Error('Failed to fetch receipts');
         }

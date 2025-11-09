@@ -71,12 +71,12 @@ export default function AskAI() {
     setIsLoading(true);
 
     try {
-      const response = await fetch('/api/ask-ai', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({ question: payload }),
-      });
+    const response = await fetch(withApiBase('/api/ask-ai'), {
+  method: 'POST',
+  body: JSON.stringify({ text }),
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+});
 
       if (!response.ok) {
         throw new Error('The Ask AI service is temporarily unavailable.');

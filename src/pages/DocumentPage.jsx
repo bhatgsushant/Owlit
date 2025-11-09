@@ -43,7 +43,7 @@ INSTRUCTIONS
     setOriginalMarkdown(sampleMarkdown);
 
     try {
-      const response = await fetch('/api/summarize-markdown', {
+      const response = await fetch(withApiBase('/api/summarize-markdown'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -68,7 +68,7 @@ INSTRUCTIONS
     if (!processedMarkdown) return alert('No document to approve.');
 
     // Fire the save request to the backend but do not wait for it.
-    fetch('/api/process-document', {
+    fetch(withApiBase('/api/process-document'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
