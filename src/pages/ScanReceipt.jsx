@@ -258,7 +258,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         let isMounted = true;
         async function loadStores() {
             try {
-                const resp = await fetch('/api/store-info', { credentials: 'include' });
+                const resp = await fetch(withApiBase('/api/store-info'), { credentials: 'include' });
                 if (!resp.ok) return;
                 const json = await resp.json();
                 if (isMounted) {
@@ -391,7 +391,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
         // Call the new endpoint to save the override
         try {
-            await fetch('/api/user-store-type-overrides', {
+            await fetch(withApiBase('/api/user-store-type-overrides'), {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -749,7 +749,7 @@ export default function ScanReceipt() {
     if (savedPreferencesRef.current.has(cacheKey)) return;
 
     try {
-        const response = await fetch('/api/update-user-category', {
+        const response = await fetch(withApiBase('/api/update-user-category'), {
             method: 'POST',
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
@@ -907,7 +907,7 @@ export default function ScanReceipt() {
       const alias = normalizeMerchantName(aliasSource);
       if (alias) {
         try {
-          const response = await fetch('/api/merchant-aliases', {
+          const response = await fetch(withApiBase('/api/merchant-aliases'), {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -940,7 +940,7 @@ export default function ScanReceipt() {
     }
 
     try {
-      const response = await fetch('/api/receipts', {
+      const response = await fetch(withApiBase('/api/receipts'), {
         method: 'POST',
         body: formData,
         credentials: 'include',
