@@ -16,7 +16,7 @@ export const AuthProvider = ({ children }) => {
 
   const fetchUserStoreOverrides = async () => {
     try {
-      const response = await fetch('/api/user-store-type-overrides', { credentials: 'include' });
+      const response = await fetch(withApiBase('/api/user-store-type-overrides'), { credentials: 'include' });
       if (response.ok) {
         const overrides = await response.json();
         setUserStoreOverrides(overrides);
