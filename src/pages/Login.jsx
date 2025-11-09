@@ -29,7 +29,7 @@ const LoginPage = () => {
   }, []);
 
   const handleLogin = (provider) => {
-    const authBase = API_BASE || window.location.origin;
+    const authBase = import.meta.env.VITE_SERVER_URL;
     window.location.href = `${authBase}/auth/${provider}`;
   };
 
