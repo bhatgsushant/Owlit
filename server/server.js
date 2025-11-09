@@ -6,7 +6,7 @@ const cors = require('cors');
 const multer = require('multer');
 const sharp = require('sharp');
 const { OpenAI } = require('openai');
-//const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
+const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
 const { createWorker } = require('tesseract.js');
 const fs = require('fs').promises;
 const path = require('path');
@@ -319,7 +319,7 @@ const auth = new GoogleAuth({
   scopes: ['https://www.googleapis.com/auth/cloud-platform'],
 });
 
-const client = new DocumentProcessorServiceClient({ auth });
+const docAIClient = new DocumentProcessorServiceClient({ auth });
 
 console.log('🧠 Initialized Google Document AI Client');
 
