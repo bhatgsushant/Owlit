@@ -15,7 +15,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    fetch('/images/Login%20lottie%20yellow.json')
+    fetch('/images/login-lottie-yellow.json')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load animation'))))
       .then((data) => {
         if (isMounted) setAnimationData(data);
