@@ -779,7 +779,7 @@ export default function ScanReceipt() {
   const fetchReceipts = useCallback(async () => {
     setIsReceiptsLoading(true);
     try {
-      const response = await fetch('/api/receipts', { credentials: 'include' });
+      const response = await fetch(withApiBase('/api/receipts'), { credentials: 'include' });
       if (!response.ok) {
         throw new Error('Failed to fetch receipts');
       }
