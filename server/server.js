@@ -312,11 +312,6 @@ async function interpretSpendingQuestion(question) {
 //const docAIClient = new DocumentProcessorServiceClient();
 const { GoogleAuth } = require('google-auth-library');
 
-if (process.env.GOOGLE_APPLICATION_CREDENTIALS === 'none') {
-  console.log('⚠️  GOOGLE_APPLICATION_CREDENTIALS set to "none"; ignoring this value.');
-  delete process.env.GOOGLE_APPLICATION_CREDENTIALS;
-}
-
 const createGoogleAuth = () => {
   const scopes = ['https://www.googleapis.com/auth/cloud-platform'];
   const keyPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
@@ -414,10 +409,20 @@ async function saveMasterItem(itemName, main_category, sub_category) {
 // --- Middleware ---
 const CLIENT_URL = process.env.CLIENT_URL || "https://owlit.netlify.app";
 
+const allowedOrigins = [
+  process.env.CLIENT_URL,           // Vercel frontend
+  'http://localhost:5173',          // local dev
+];
+
 app.use(cors({
-  origin: CLIENT_URL,
-  credentials: true
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
 }));
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
