@@ -6,7 +6,7 @@ const cors = require('cors');
 const multer = require('multer');
 const sharp = require('sharp');
 const { OpenAI } = require('openai');
-const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
+//const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
 const { createWorker } = require('tesseract.js');
 const fs = require('fs').promises;
 const path = require('path');
@@ -309,7 +309,18 @@ async function interpretSpendingQuestion(question) {
     throw new Error('I had trouble understanding that question. Please try rephrasing it.');
   }
 }
-const docAIClient = new DocumentProcessorServiceClient();
+//const docAIClient = new DocumentProcessorServiceClient();
+const { GoogleAuth } = require('google-auth-library');
+const { DocumentProcessorServiceClient } = require('@google-cloud/documentai').v1;
+
+const auth = new GoogleAuth({
+  clientId: process.env.GOOGLE_CLIENT_ID,
+  clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+  scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+});
+
+const client = new DocumentProcessorServiceClient({ auth });
+
 console.log('🧠 Initialized Google Document AI Client');
 
 // --- Master Items ---
