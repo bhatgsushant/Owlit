@@ -62,6 +62,14 @@ const RECENT_DOCUMENT_PLACEHOLDERS = [
   { id: 'doc-2', name: 'Insurance Policy Renewal.pdf', date: '02 Jun 2024' },
   { id: 'doc-3', name: 'Employment Contract.pdf', date: '27 May 2024' },
 ];
+// ✅ API Base URL helper (required for production!)
+const API_BASE = (
+  import.meta.env?.VITE_API_BASE_URL ||
+  (import.meta.env?.DEV ? 'http://localhost:3001' : 'https://owlit.onrender.com')
+).replace(/\/$/, '');
+
+const withApiBase = (path) => `${API_BASE}${path}`;
+
 
 const normalizeMerchantName = (name = '') =>
   name
