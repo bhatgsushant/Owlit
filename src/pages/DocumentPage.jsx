@@ -46,6 +46,7 @@ INSTRUCTIONS
       const response = await fetch('/api/summarize-markdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ markdown: sampleMarkdown }),
       });
 
@@ -70,6 +71,7 @@ INSTRUCTIONS
     fetch('/api/process-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ markdown: processedMarkdown, originalMarkdown: originalMarkdown })
     })
     .then(response => response.json())

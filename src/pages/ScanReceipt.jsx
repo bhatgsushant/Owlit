@@ -713,7 +713,7 @@ export default function ScanReceipt() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/images/AI CPU circuit board loading animation.json')
+    fetch('/ai-cpu-loading-animation.json')
       .then((response) => response.json())
       .then((data) => setLoadingAnimation(data));
   }, []);
@@ -797,11 +797,11 @@ export default function ScanReceipt() {
     let pendingExtractedData = null;
     let pendingMarkdown = null;
     try {
-      const resp = await fetch('/api/scan', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
-      });
+      const resp = await fetch(withApiBase('/api/scan'), {
+  method: 'POST',
+  credentials: 'include',
+  body: formData
+});
       if (!resp.ok) throw new Error('Server error');
       if (scanMode === 'receipt') {
         pendingExtractedData = await resp.json();
