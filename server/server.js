@@ -374,23 +374,27 @@ async function saveMasterItem(itemName, main_category, sub_category) {
 
 
 // --- Middleware ---
+const CLIENT_URL = process.env.CLIENT_URL || "https://owlit.netlify.app";
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
-    credentials: true
+  origin: CLIENT_URL,
+  credentials: true
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+// Required for proper secure cookies on Render
+app.set("trust proxy", 1);
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: {
-        httpOnly: true,
-        secure: process.env.SESSION_COOKIE_SECURE ? process.env.SESSION_COOKIE_SECURE === 'true' : isProduction,
-        sameSite: isProduction ? 'strict' : 'lax',
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
-    }
+  cookie: {
+    httpOnly: true,
+    secure: true,           // Always true in production HTTPS
+    sameSite: "none",       // MUST be none for cross-domain cookies
+    maxAge: 24 * 60 * 60 * 1000 // 24 hours
+  }
 }));
 app.use(passport.initialize());
 app.use(passport.session());
