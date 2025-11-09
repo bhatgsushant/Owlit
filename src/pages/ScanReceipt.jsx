@@ -721,7 +721,7 @@ export default function ScanReceipt() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    fetch('/images/ai-cpu-loading.json')
+    fetch('/ai-cpu-loading.json')
       .then((response) => response.json())
       .then((data) => setLoadingAnimation(data));
   }, []);

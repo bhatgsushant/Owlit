@@ -15,7 +15,7 @@ const LoginPage = () => {
 
   useEffect(() => {
     let isMounted = true;
-    fetch('/images/login-lottie-yellow.json')
+    fetch('/login-lottie-yellow.json')
       .then((response) => (response.ok ? response.json() : Promise.reject(new Error('Failed to load animation'))))
       .then((data) => {
         if (isMounted) setAnimationData(data);
@@ -65,7 +65,7 @@ const LoginPage = () => {
             </span>
           </div>
           <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
-          <p className="text-slate-300 mt-2">Sign in to access your intelligent ReceitAI.</p>
+          <p className="text-slate-300 mt-2">Sign in to access your intelligent Owlit.</p>
 
           <div className="flex flex-col gap-4 mt-10">
             <Button
