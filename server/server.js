@@ -418,9 +418,12 @@ app.use(cors({
   origin: function(origin, callback) {
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    return callback(new Error('Not allowed by CORS'));
+
+    if (/\.vercel\.app$/.test(origin)) return callback(null, true); // ✅ Allow all Vercel previews
+
+    return callback(new Error(`Not allowed by CORS: ${origin}`));
   },
-  credentials: true,
+  credentials: true
 }));
 
 app.use(express.json());
