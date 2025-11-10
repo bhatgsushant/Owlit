@@ -2036,6 +2036,9 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
     const reversedLabels = displayLabels.slice().reverse();
     const reversedSeries = dataSeries.slice().reverse();
+    const gridLeft = isMobile ? '24%' : '32%';
+    const barWidth = isMobile ? 20 : 30;
+    const axisFont = isMobile ? 11 : 12;
 
     return {
       backgroundColor: 'transparent',
