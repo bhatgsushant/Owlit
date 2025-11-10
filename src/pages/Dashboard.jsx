@@ -15,8 +15,8 @@ const aiColorMuted = "#6D28D9"; // A darker violet
 
 // A modern, reusable chart wrapper with new styling
 const ChartWrapper = ({ title, children, isLoading }) => (
-  <div className="bg-white/5 dark:bg-gray-800/30 rounded-2xl shadow-2xl backdrop-blur-lg p-4 md:p-6 h-[400px] flex flex-col border border-white/10">
-    <h2 className="font-display font-semibold text-base md:text-lg mb-4 text-gray-200">{title}</h2>
+  <div className="bg-white/5 dark:bg-gray-900/60 rounded-3xl shadow-2xl backdrop-blur p-5 md:p-6 lg:p-8 h-[400px] flex flex-col border border-white/15 min-w-0 w-full">
+    <h2 className="font-display font-semibold text-base md:text-lg mb-4 text-gray-100">{title}</h2>
     <div className="flex-grow">
       {isLoading ? (
         <div className="h-full w-full bg-gray-700/50 animate-pulse rounded-lg"></div>
@@ -64,20 +64,31 @@ const SpendingTrendChart = ({ data, isLoading }) => (
 
 // 2. Top Merchants Horizontal Bar Chart
 const TopMerchantsChart = ({ data, isLoading }) => (
-    <ChartWrapper title="Top Merchants" isLoading={isLoading}>
-        <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data} layout="vertical" margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                <XAxis type="number" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(value) => `£${value}`} />
-                <YAxis type="category" dataKey="name" width={80} tick={{ fill: '#D1D5DB', fontSize: 11, fontFamily: 'Inter' }} tickLine={false} axisLine={false}/>
-                <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
-                <Bar dataKey="total" name="Total Spent" radius={[0, 4, 4, 0]}>
-                    {data.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index % 2 === 0 ? aiColor : aiColorMuted} />
-                    ))}
-                </Bar>
-            </BarChart>
-        </ResponsiveContainer>
-    </ChartWrapper>
+  <ChartWrapper title="Top Merchants" isLoading={isLoading}>
+    <ResponsiveContainer width="100%" height="100%">
+      <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 80, bottom: 10 }}>
+        <XAxis
+          type="number"
+          tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }}
+          tickFormatter={(value) => `£${value}`}
+        />
+        <YAxis
+          type="category"
+          dataKey="name"
+          width={140}
+          tick={{ fill: '#D1D5DB', fontSize: 11, fontFamily: 'Inter' }}
+          tickLine={false}
+          axisLine={false}
+        />
+        <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
+        <Bar dataKey="total" name="Total Spent" radius={[0, 4, 4, 0]} barSize={20}>
+          {data.map((entry, index) => (
+            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? aiColor : aiColorMuted} />
+          ))}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  </ChartWrapper>
 );
 
 // 3. Hierarchical Category Chart (Restyled)
@@ -256,11 +267,27 @@ export default function Dashboard() {
       <AnimatedSection>
         <div className="flex flex-wrap items-center justify-between gap-4 mb-6 md:mb-8">
             <h1 className="font-display text-2xl md:text-3xl font-bold tracking-tight text-white">Analytics Dashboard</h1>
-            <div className="flex items-center gap-2 md:gap-4 bg-gray-800/50 p-2 rounded-lg border border-gray-700">
-                <label className="text-sm font-medium text-gray-400">From:</label>
-                <input type="date" name="start" value={format(dateRange.start, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-violet-500"/>
-                <label className="text-sm font-medium text-gray-400">To:</label>
-                <input type="date" name="end" value={format(dateRange.end, 'yyyy-MM-dd')} onChange={handleDateChange} className="bg-gray-700 text-gray-200 rounded-md p-1.5 text-sm border-transparent focus:ring-2 focus:ring-violet-500"/>
+            <div className="flex flex-wrap items-center gap-3 bg-gray-800/50 p-3 rounded-2xl border border-gray-700 w-full sm:w-auto">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full sm:w-auto">
+                  <label className="text-xs font-semibold tracking-widest text-gray-400 uppercase">From</label>
+                  <input
+                    type="date"
+                    name="start"
+                    value={format(dateRange.start, 'yyyy-MM-dd')}
+                    onChange={handleDateChange}
+                    className="bg-gray-700 text-gray-100 rounded-md px-2 py-1 text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500 w-full sm:w-auto min-w-[150px]"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 w-full sm:w-auto">
+                  <label className="text-xs font-semibold tracking-widest text-gray-400 uppercase">To</label>
+                  <input
+                    type="date"
+                    name="end"
+                    value={format(dateRange.end, 'yyyy-MM-dd')}
+                    onChange={handleDateChange}
+                    className="bg-gray-700 text-gray-100 rounded-md px-2 py-1 text-sm border border-gray-600 focus:outline-none focus:ring-2 focus:ring-violet-500 w-full sm:w-auto min-w-[150px]"
+                  />
+                </div>
             </div>
         </div>
       </AnimatedSection>

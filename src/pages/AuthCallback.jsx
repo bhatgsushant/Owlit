@@ -9,7 +9,7 @@ const AuthCallback = () => {
 
   useEffect(() => {
     const token = searchParams.get('token');
-    const redirectPath = searchParams.get('redirect') || '/dashboard';
+    const redirectPath = searchParams.get('redirect') || '/scan';
 
     if (token) {
       completeLogin(token);

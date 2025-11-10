@@ -53,15 +53,9 @@ import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
 import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
-import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import { cn } from '@/lib/utils';
 import { createPageUrl } from '@/utils';
 
-const RECENT_DOCUMENT_PLACEHOLDERS = [
-  { id: 'doc-1', name: 'Lease Agreement.pdf', date: '15 Jun 2024' },
-  { id: 'doc-2', name: 'Insurance Policy Renewal.pdf', date: '02 Jun 2024' },
-  { id: 'doc-3', name: 'Employment Contract.pdf', date: '27 May 2024' },
-];
 const normalizeMerchantName = (name = '') =>
   name
     .toLowerCase()
@@ -703,8 +697,6 @@ export default function ScanReceipt() {
   const [duplicatePrompt, setDuplicatePrompt] = useState(null);
   const [saveSuccessPrompt, setSaveSuccessPrompt] = useState(false);
   const fileInputRef = useRef(null);
-  const [recentReceipts, setRecentReceipts] = useState([]);
-  const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const savedPreferencesRef = useRef(new Set());
   const { userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
@@ -766,25 +758,6 @@ export default function ScanReceipt() {
     }
 }, [fetchWithAuth]);
 
-  const fetchReceipts = useCallback(async () => {
-    setIsReceiptsLoading(true);
-    try {
-      const response = await fetchWithAuth('/api/receipts');
-      if (!response.ok) {
-        throw new Error('Failed to fetch receipts');
-      }
-      const data = await response.json();
-      setRecentReceipts(Array.isArray(data) ? data : []);
-    } catch (error) {
-      console.error('Error loading receipts:', error);
-    } finally {
-      setIsReceiptsLoading(false);
-    }
-  }, [fetchWithAuth]);
-
-  useEffect(() => {
-    fetchReceipts();
-  }, [fetchReceipts]);
 
   const processFile = async (fileToProcess) => {
     if (!fileToProcess) return;
@@ -969,7 +942,6 @@ export default function ScanReceipt() {
         throw new Error(message);
       }
 
-      fetchReceipts();
       handleReset();
       setSaveSuccessPrompt(true);
     } catch (error) { 
@@ -1053,7 +1025,7 @@ export default function ScanReceipt() {
           @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
       `}</style>
 
-      <div className="gradient-bg pt-16 min-h-screen">
+      <div className="gradient-bg pt-8 md:pt-12 pb-12 min-h-screen">
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
 
         {extractedData ? (
@@ -1074,7 +1046,7 @@ export default function ScanReceipt() {
                 </div>
             </div>
         ) : (
-            <div className="p-6 md:p-10 flex flex-col items-center justify-center text-center min-h-[calc(100vh-5rem)]">
+            <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start">
                 <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl">
                     <ScanModeToggle mode={scanMode} setMode={setScanMode} />
                     <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">{pageTitle}</h1>
@@ -1143,39 +1115,6 @@ export default function ScanReceipt() {
                             )}
                         </div>
                     )}
-
-                    <div className="mt-12 text-left">
-                      {scanMode === 'receipt' ? (
-                        <div className="bg-black/30 border border-white/10 rounded-2xl p-6 backdrop-blur-md">
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                            <div>
-                              <h2 className="text-xl font-semibold text-white">Recent Receipts</h2>
-                              <p className="text-sm text-gray-300">Review everything you have already captured without leaving this flow.</p>
-                            </div>
-                          </div>
-                          <div className="mt-4">
-                            <ReceiptsAnalyticsTable receipts={recentReceipts} isLoading={isReceiptsLoading} />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-black/30 border border-white/10 rounded-2xl p-6 backdrop-blur-md">
-                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-                            <div>
-                              <h2 className="text-xl font-semibold text-white">Recent Documents</h2>
-                              <p className="text-sm text-gray-300">Documents you process will appear here for quick reference.</p>
-                            </div>
-                          </div>
-                          <div className="mt-4 space-y-3">
-                            {RECENT_DOCUMENT_PLACEHOLDERS.map((doc) => (
-                              <div key={doc.id} className="flex items-center justify-between bg-white/5 border border-white/10 rounded-xl px-4 py-3">
-                                <span className="text-sm font-medium text-white">{doc.name}</span>
-                                <span className="text-xs text-gray-300 uppercase tracking-widest">{doc.date}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
                 </div>
             </div>
         )}
