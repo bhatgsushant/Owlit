@@ -121,6 +121,7 @@ const ChartCard = ({
   headerAction,
 }) => {
   const canRenderChart = Boolean(option) && hasData;
+  const shellClasses = 'w-full h-full rounded-2xl border border-white/10 bg-white/5 p-4';
   const normalizedOption = option
     ? {
         ...option,
@@ -147,9 +148,17 @@ const ChartCard = ({
       </div>
       <div className="flex-1 min-h-[200px]">
         {isLoading ? (
-          <div className="w-full h-full rounded-2xl bg-gray-800/40 animate-pulse" />
+          <div className={`${shellClasses} animate-pulse`} style={{ height }} />
         ) : canRenderChart ? (
-          <ReactECharts option={normalizedOption} style={{ height }} notMerge lazyUpdate onEvents={onEvents} />
+          <div className={shellClasses} style={{ height }}>
+            <ReactECharts
+              option={normalizedOption}
+              style={{ height: '100%', width: '100%' }}
+              notMerge
+              lazyUpdate
+              onEvents={onEvents}
+            />
+          </div>
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-gray-500 text-center px-4">
             {emptyMessage || 'No data available yet. Scan a receipt to unlock insights.'}
@@ -2326,7 +2335,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [overallAnalytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-[#CAD2C5] via-[#84A98C] to-[#2F3E46] text-white font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-[#fff0f6] via-[#f7c6dc] to-[#e59ac0] text-white font-sans">
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
