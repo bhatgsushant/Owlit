@@ -53,6 +53,22 @@ const formatCategoryLabel = (value) => {
 
 const periodGranularities = ['day', 'week', 'month', 'quarter', 'year'];
 
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < breakpoint;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined;
+    const handleResize = () => setIsMobile(window.innerWidth < breakpoint);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [breakpoint]);
+
+  return isMobile;
+};
+
 
 const useAnimatedNumber = (target, duration = 900) => {
   const [displayValue, setDisplayValue] = useState(Number(target) || 0);
@@ -218,7 +234,7 @@ const granularityLabels = {
 };
 
 const TimeGranularityToggle = ({ value, onChange }) => (
-  <div className="inline-flex items-center rounded-full border border-white/12 bg-white/5 p-1 text-xs font-semibold text-slate-300 shadow-inner shadow-black/10">
+  <div className="inline-flex flex-wrap items-center justify-center rounded-full border border-white/12 bg-white/5 p-1 text-[0.65rem] sm:text-xs font-semibold text-slate-200 shadow-inner shadow-black/10 gap-1 w-full sm:w-auto">
     {granularityOrder.map((key) => {
       const active = key === value;
       return (
@@ -226,7 +242,7 @@ const TimeGranularityToggle = ({ value, onChange }) => (
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`relative rounded-full px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
+          className={`relative rounded-full px-2.5 sm:px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
             active
               ? 'bg-emerald-500/25 text-emerald-200 shadow-md shadow-emerald-500/20'
               : 'hover:bg-white/10 hover:text-slate-100'
@@ -252,41 +268,55 @@ const TimeframeControls = ({
   onMonthChange,
   children,
   className = '',
-}) => (
-  <div className={`flex items-center gap-2 ${className}`}>
-    <TimeGranularityToggle value={timeGranularity} onChange={onGranularityChange} />
-    {supportsYearSelection && yearOptions.length > 0 && (
-      <select
-        value={selectedYear ?? ''}
-        onChange={(event) => onYearChange?.(event.target.value === '' ? null : Number(event.target.value))}
-        className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-      >
-        {yearOptions.map((option) => (
-          <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-            {option.label}
-          </option>
-        ))}
-      </select>
-    )}
-    {requiresMonthSelection && monthOptions.length > 0 && (
-      <select
-        value={selectedMonth ?? ''}
-        onChange={(event) => onMonthChange?.(event.target.value === '' ? null : Number(event.target.value))}
-        className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-slate-200 shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-      >
-        {monthOptions.map((option) => (
-          <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
-            {option.label}
-          </option>
-        ))}
-      </select>
-    )}
-    {children}
-  </div>
-);
+}) => {
+  const isNarrow = useIsMobile(640);
+  const containerClasses = [
+    'flex flex-wrap items-center gap-2 text-[0.65rem] sm:text-xs justify-end',
+  ];
+  if (className) containerClasses.push(className);
+
+  const selectBaseClasses =
+    'rounded-full border border-white/15 bg-white/10 px-3 py-1 font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40 w-full sm:w-auto min-w-[140px]';
+
+  return (
+    <div className={containerClasses.join(' ')}>
+      <div className={`flex flex-wrap gap-2 ${isNarrow ? 'w-full' : ''}`}>
+        <TimeGranularityToggle value={timeGranularity} onChange={onGranularityChange} />
+      </div>
+      {supportsYearSelection && yearOptions.length > 0 && (
+        <select
+          value={selectedYear ?? ''}
+          onChange={(event) => onYearChange?.(event.target.value === '' ? null : Number(event.target.value))}
+          className={selectBaseClasses}
+        >
+          {yearOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {requiresMonthSelection && monthOptions.length > 0 && (
+        <select
+          value={selectedMonth ?? ''}
+          onChange={(event) => onMonthChange?.(event.target.value === '' ? null : Number(event.target.value))}
+          className={selectBaseClasses}
+        >
+          {monthOptions.map((option) => (
+            <option key={option.value} value={option.value} className="bg-slate-900 text-slate-100">
+              {option.label}
+            </option>
+          ))}
+        </select>
+      )}
+      {children}
+    </div>
+  );
+};
 
 export default function Insights() {
   const { user, loading: authLoading } = useAuth();
+  const isMobile = useIsMobile();
   const [receipts, setReceipts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -1523,6 +1553,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
     if (!filteredData.length) return null;
 
+    const gridLeft = isMobile ? '22%' : '32%';
+    const barWidth = isMobile ? 20 : 30;
+    const axisFont = isMobile ? 11 : 12;
+
     return {
       backgroundColor: 'transparent',
       tooltip: {
@@ -1674,23 +1708,23 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const categories = [...analytics.merchantSeries].reverse();
     const dataEntries = categories.map((item, index) => {
       const logoUrl = getMerchantLogoUrl(item.name);
-      const truncatedName = truncateLabel(item.name, 30);
+      const truncatedName = truncateLabel(item.name, isMobile ? 20 : 30);
       const rich = {
         value: {
           color: '#F8FAFC',
-          fontSize: 12,
+          fontSize: isMobile ? 11 : 12,
           fontWeight: 600,
           padding: [0, 8, 0, 0],
         },
       };
       if (logoUrl) {
         rich.logo = {
-          width: 24,
-          height: 24,
+          width: isMobile ? 18 : 24,
+          height: isMobile ? 18 : 24,
           backgroundColor: {
             image: logoUrl,
           },
-          borderRadius: 12,
+          borderRadius: isMobile ? 9 : 12,
           padding: [0, 0, 0, 12],
         };
       }
@@ -1717,6 +1751,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       };
     });
 
+    const leftPadding = isMobile ? 140 : 220;
+    const rightPadding = isMobile ? '6%' : '12%';
+    const barWidth = isMobile ? 22 : 30;
+    const yAxisFont = isMobile ? 11 : 13;
+
     return {
       backgroundColor: 'transparent',
       tooltip: {
@@ -1724,7 +1763,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         axisPointer: { type: 'shadow' },
         valueFormatter: (value) => formatCurrency(value),
       },
-      grid: { left: 220, right: '12%', top: 40, bottom: 16 },
+      grid: { left: leftPadding, right: rightPadding, top: 40, bottom: 16 },
       xAxis: {
         type: 'value',
         axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
@@ -1737,7 +1776,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         axisLine: { show: false },
         axisLabel: {
           color: '#F8FAFC',
-          fontSize: 13,
+          fontSize: yAxisFont,
         },
       },
       series: [
@@ -1745,7 +1784,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           name: 'Total spend',
           type: 'bar',
           data: dataEntries,
-          barWidth: 30,
+          barWidth,
           barCategoryGap: '45%',
           itemStyle: {
             borderRadius: [0, 14, 14, 0],
@@ -1757,7 +1796,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         },
       ],
     };
-  }, [analytics.merchantSeries]);
+  }, [analytics.merchantSeries, isMobile]);
 
   const subcategoryNightingaleOption = useMemo(() => {
     const categoryDetails = analytics.categoryDetails;
@@ -2023,7 +2062,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           return lines.join('<br/>');
         },
       },
-      grid: { left: '32%', right: '8%', top: 40, bottom: 16 },
+      grid: { left: gridLeft, right: '8%', top: 40, bottom: 16 },
       xAxis: {
         type: 'value',
         axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
@@ -2034,13 +2073,13 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         data: reversedLabels,
         axisTick: { show: false },
         axisLine: { show: false },
-        axisLabel: { color: '#F8FAFC', fontSize: 12 },
+        axisLabel: { color: '#F8FAFC', fontSize: axisFont },
       },
       series: [
         {
           type: 'bar',
           data: reversedSeries,
-          barWidth: 30,
+          barWidth,
           barCategoryGap: '40%',
           label: {
             show: true,
@@ -2058,6 +2097,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     selectedCategoryDetails,
     selectedSubcategoryDetails,
     selectedSubCategory,
+    isMobile,
   ]);
 
   const handleDrillClick = (params) => {
@@ -2283,7 +2323,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [overallAnalytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-purple-700 via-purple-900 to-purple-950 text-white font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-[#CAD2C5] via-[#84A98C] to-[#2F3E46] text-white font-sans">
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
