@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
 import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
@@ -49,12 +49,16 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   });
 
   // Menu items configuration
-  const menuItems = [
-    { name: 'Home', href: createPageUrl('Home') },
-    //{ name: 'Dashboard', href: createPageUrl('Dashboard') },
-    { name: 'Insights', href: createPageUrl('Insights') },
-    { name: 'Scan', href: createPageUrl('ScanReceipt') },
-  ];
+  const menuItems = useMemo(() => {
+    const items = [
+      { name: 'Home', href: createPageUrl('Home') },
+      { name: 'Scan', href: createPageUrl('ScanReceipt') },
+    ];
+    if (user) {
+      items.splice(1, 0, { name: 'Insights', href: createPageUrl('Insights') });
+    }
+    return items;
+  }, [user]);
 
   // Close menu when clicking outside of it
   useEffect(() => {

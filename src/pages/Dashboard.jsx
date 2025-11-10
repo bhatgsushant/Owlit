@@ -66,7 +66,12 @@ const SpendingTrendChart = ({ data, isLoading }) => (
 const TopMerchantsChart = ({ data, isLoading }) => (
   <ChartWrapper title="Top Merchants" isLoading={isLoading}>
     <ResponsiveContainer width="100%" height="100%">
-      <BarChart data={data} layout="vertical" margin={{ top: 10, right: 24, left: 80, bottom: 10 }}>
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 10, right: 24, left: 80, bottom: 10 }}
+        barCategoryGap={18}
+      >
         <XAxis
           type="number"
           tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }}
@@ -81,7 +86,15 @@ const TopMerchantsChart = ({ data, isLoading }) => (
           axisLine={false}
         />
         <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(139, 92, 246, 0.1)' }} />
-        <Bar dataKey="total" name="Total Spent" radius={[0, 4, 4, 0]} barSize={20}>
+        <Bar
+          dataKey="total"
+          name="Total Spent"
+          radius={[0, 4, 4, 0]}
+          barSize={22}
+          stroke="rgba(15,23,42,0.9)"
+          strokeWidth={1}
+          background={{ fill: 'rgba(15,23,42,0.25)', radius: [0, 4, 4, 0] }}
+        >
           {data.map((entry, index) => (
             <Cell key={`cell-${index}`} fill={index % 2 === 0 ? aiColor : aiColorMuted} />
           ))}
