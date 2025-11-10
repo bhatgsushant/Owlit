@@ -16,6 +16,7 @@ const cookieParser = require('cookie-parser');
 const passport = require('./auth.js');
 const supabase = require('./supabaseClient.js');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const ITEM_SYNONYMS = {
   coffee: ["coffee", "latte", "flat white", "espresso", "americano", "mocha", "cappuccino", "macchiato"],
   tea: ["tea", "chai", "green tea", "matcha"],
@@ -224,12 +225,38 @@ async function resolveMerchant(rawMerchantName, supabaseClient) {
   return { merchant_id: null, alias };
 }
 
-// --- Auth Middleware ---
-const isAuthenticated = (req, res, next) => {
-  if (req.isAuthenticated()) {
-    return next();
+// --- Auth Helpers & Middleware ---
+const buildUserPayload = (user = {}) => ({
+  id: user.id,
+  email: user.email,
+  displayName: user.displayName,
+  avatar: user.avatar,
+  provider: user.provider,
+});
+
+const issueJwtForUser = (user) => {
+  if (!user?.id) {
+    throw new ValidationError('Unable to issue token for missing user profile.');
   }
-  res.status(401).json({ error: 'User not authenticated' });
+  return jwt.sign(buildUserPayload(user), JWT_SECRET, { expiresIn: JWT_EXPIRY });
+};
+
+const authenticateRequest = (req, res, next) => {
+  const authHeader = req.headers.authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ error: 'Missing authentication token' });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    return next();
+  } catch (err) {
+    console.error('JWT verification failed:', err);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
 };
 
 
@@ -243,6 +270,8 @@ console.log("🟢 Starting server...");
 const app = express();
 const port = process.env.PORT || 3001;
 const SESSION_SECRET = ensureEnvVar('SESSION_SECRET');
+const JWT_SECRET = ensureEnvVar('JWT_SECRET');
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '24h';
 const isProduction = process.env.NODE_ENV === 'production';
 
 if (isProduction) {
@@ -447,7 +476,6 @@ app.use(session({
   }
 }));
 app.use(passport.initialize());
-app.use(passport.session());
 
 // --- Debug route to check cookies + session ---
 app.get('/api/debug-session', (req, res) => {
@@ -462,7 +490,7 @@ app.get('/api/debug-session', (req, res) => {
     cookieSeenByServer: Boolean(req.headers.cookie),
     hasSessionObject: Boolean(req.session),
     sessionID: req.sessionID,
-    isAuthenticated: req.isAuthenticated?.() || false,
+    isAuthenticated: Boolean(req.user),
     user: req.user || null,
   });
 });
@@ -1055,7 +1083,7 @@ if (userOverride) {
 }
 
 // --- API Routes ---
-app.post('/api/scan', isAuthenticated, upload.single('file'), async (req, res) => {
+app.post('/api/scan', authenticateRequest, upload.single('file'), async (req, res) => {
     try {
         console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
         if (!req.file) {
@@ -1181,7 +1209,7 @@ app.post('/api/scan', isAuthenticated, upload.single('file'), async (req, res) =
     }
 });
 
-app.post('/api/scan-multi', isAuthenticated, upload.array('files', 10), async (req, res) => {
+app.post('/api/scan-multi', authenticateRequest, upload.array('files', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length < 2) {
             throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
@@ -1351,7 +1379,7 @@ app.post('/api/scan-multi', isAuthenticated, upload.array('files', 10), async (r
     }
 });
 
-app.post('/api/process-document', isAuthenticated, async (req, res) => {
+app.post('/api/process-document', authenticateRequest, async (req, res) => {
     console.log('📥 Received markdown for processing');
     try {
         const { markdown } = req.body || {};
@@ -1372,7 +1400,7 @@ app.post('/api/process-document', isAuthenticated, async (req, res) => {
     }
 });
 
-app.post('/api/summarize-markdown', isAuthenticated, async (req, res) => {
+app.post('/api/summarize-markdown', authenticateRequest, async (req, res) => {
     console.log('📥 Received markdown for summarization');
     try {
         const { markdown } = req.body || {};
@@ -1419,7 +1447,7 @@ app.post('/api/summarize-markdown', isAuthenticated, async (req, res) => {
     }
 });
 
-app.post('/api/ask', isAuthenticated, async (req, res) => {
+app.post('/api/ask', authenticateRequest, async (req, res) => {
     try {
         const { question } = req.body || {};
         const userId = req.user?.id;
@@ -1472,25 +1500,29 @@ app.post('/api/ask', isAuthenticated, async (req, res) => {
 app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login' }),
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
-    res.redirect(process.env.CLIENT_URL || 'http://localhost:5173');
+    try {
+      const token = issueJwtForUser(req.user);
+      const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
+      redirectUrl.searchParams.set('token', token);
+      res.redirect(redirectUrl.toString());
+    } catch (error) {
+      console.error('Failed to issue JWT after Google OAuth:', error);
+      res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
+    }
   }
 );
 
-app.get('/api/user', (req, res) => {
+app.get('/api/user', authenticateRequest, (req, res) => {
     res.json(req.user || null);
 });
 
 app.post('/auth/logout', (req, res) => {
-    req.logout(err => {
-        if (err) return res.status(500).json({ message: 'Error logging out' });
-        req.session.destroy(err => {
-            if (err) return res.status(500).json({ message: 'Error destroying session' });
-            res.clearCookie('connect.sid');
-            res.json({ message: 'Logged out successfully' });
-        });
-    });
+    if (req.session) {
+        req.session.destroy(() => {});
+    }
+    res.json({ message: 'Logged out successfully' });
 });
 
 // --- Health Check ---
@@ -1498,7 +1530,7 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'ReceiptWise server running' });
 });
 
-app.get('/api/store-info', isAuthenticated, async (req, res) => {
+app.get('/api/store-info', authenticateRequest, async (req, res) => {
   const { data, error } = await supabase
     .from('store_info')
     .select('id, merchant_name, store_type')
@@ -1512,7 +1544,7 @@ app.get('/api/store-info', isAuthenticated, async (req, res) => {
 });
 
 // --- Receipt API Routes ---
-app.get('/api/receipts', isAuthenticated, async (req, res) => {
+app.get('/api/receipts', authenticateRequest, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('receipts')
@@ -1528,7 +1560,7 @@ app.get('/api/receipts', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async (req, res) => {
+app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), async (req, res) => {
   try {
     const payload = req.body?.receiptData;
     if (!payload) {
@@ -1680,7 +1712,7 @@ app.post('/api/receipts', isAuthenticated, upload.single('receiptImage'), async 
   }
 });
 
-app.post('/api/ask-ai', isAuthenticated, async (req, res) => {
+app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
   try {
     const question = (req.body?.question || '').trim();
     if (!question) {
@@ -1740,7 +1772,7 @@ app.post('/api/ask-ai', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/merchant-aliases', isAuthenticated, async (req, res) => {
+app.post('/api/merchant-aliases', authenticateRequest, async (req, res) => {
   try {
     const { alias, merchant_id } = req.body || {};
     validateFields({ alias, merchant_id }, {
@@ -1763,7 +1795,7 @@ app.post('/api/merchant-aliases', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
+app.post('/api/update-user-category', authenticateRequest, async (req, res) => {
   try {
     const { item_name, main_category, sub_category } = req.body || {};
     validateFields({ item_name, main_category, sub_category }, {
@@ -1791,7 +1823,7 @@ app.post('/api/update-user-category', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
+app.post('/api/reset-user-category', authenticateRequest, async (req, res) => {
   try {
     const { item_name } = req.body || {};
     validateFields({ item_name }, {
@@ -1812,7 +1844,7 @@ app.post('/api/reset-user-category', isAuthenticated, async (req, res) => {
   }
 });
 
-app.post('/api/user-store-type-overrides', isAuthenticated, async (req, res) => {
+app.post('/api/user-store-type-overrides', authenticateRequest, async (req, res) => {
   const userId = req.user.id;
 
   try {
@@ -1840,7 +1872,7 @@ app.post('/api/user-store-type-overrides', isAuthenticated, async (req, res) => 
   }
 });
 
-app.get('/api/user-store-type-overrides', isAuthenticated, async (req, res) => {
+app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) => {
   const userId = req.user.id;
 
   try {

@@ -12,7 +12,7 @@ const initialAssistantMessage = {
 const createId = () => `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
 export default function QnA() {
-  const { user } = useAuth();
+  const { user, fetchWithAuth } = useAuth();
 
   const [messages, setMessages] = useState([initialAssistantMessage]);
   const [input, setInput] = useState('');
@@ -74,13 +74,11 @@ export default function QnA() {
     });
 
     try {
-      const res = await fetch(withApiBase('/api/ask'), {
-  method: 'POST',
-  body: JSON.stringify({ query }),
-  headers: { 'Content-Type': 'application/json' },
-  credentials: 'include',
-});
-
+      const res = await fetchWithAuth('/api/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmed }),
+      });
       const data = await res.json();
       const answer = data?.answer || 'Hmm… iska jawab nahi mila.';
 

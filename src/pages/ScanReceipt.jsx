@@ -62,15 +62,6 @@ const RECENT_DOCUMENT_PLACEHOLDERS = [
   { id: 'doc-2', name: 'Insurance Policy Renewal.pdf', date: '02 Jun 2024' },
   { id: 'doc-3', name: 'Employment Contract.pdf', date: '27 May 2024' },
 ];
-// ✅ API Base URL helper (required for production!)
-const API_BASE = (
-  import.meta.env?.VITE_API_BASE_URL ||
-  (import.meta.env?.DEV ? 'http://localhost:3001' : 'https://owlit.onrender.com')
-).replace(/\/$/, '');
-
-const withApiBase = (path) => `${API_BASE}${path}`;
-
-
 const normalizeMerchantName = (name = '') =>
   name
     .toLowerCase()
@@ -266,7 +257,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         let isMounted = true;
         async function loadStores() {
             try {
-                const resp = await fetch(withApiBase('/api/store-info'), { credentials: 'include' });
+                const resp = await fetchWithAuth('/api/store-info');
                 if (!resp.ok) return;
                 const json = await resp.json();
                 if (isMounted) {
@@ -280,7 +271,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         return () => {
             isMounted = false;
         };
-    }, []);
+    }, [fetchWithAuth]);
 
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
@@ -399,7 +390,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
         // Call the new endpoint to save the override
         try {
-            await fetch(withApiBase('/api/user-store-type-overrides'), {
+            await fetchWithAuth('/api/user-store-type-overrides', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -408,7 +399,6 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                     merchant_name: data.merchant_name,
                     store_type: trimmed,
                 }),
-                credentials: 'include',
             });
         } catch (error) {
             console.error('Failed to save store type override:', error);
@@ -715,7 +705,7 @@ export default function ScanReceipt() {
   const [recentReceipts, setRecentReceipts] = useState([]);
   const [isReceiptsLoading, setIsReceiptsLoading] = useState(false);
   const savedPreferencesRef = useRef(new Set());
-  const { userStoreOverrides } = useAuth();
+  const { userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [isMultiPage, setIsMultiPage] = useState(false);
   const navigate = useNavigate();
@@ -757,9 +747,8 @@ export default function ScanReceipt() {
     if (savedPreferencesRef.current.has(cacheKey)) return;
 
     try {
-        const response = await fetch(withApiBase('/api/update-user-category'), {
+        const response = await fetchWithAuth('/api/update-user-category', {
             method: 'POST',
-            credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 item_name: trimmedName,
@@ -774,12 +763,12 @@ export default function ScanReceipt() {
     } catch (err) {
         console.error('Failed to save user category preference', err);
     }
-}, []);
+}, [fetchWithAuth]);
 
   const fetchReceipts = useCallback(async () => {
     setIsReceiptsLoading(true);
     try {
-      const response = await fetch(withApiBase('/api/receipts'), { credentials: 'include' });
+      const response = await fetchWithAuth('/api/receipts');
       if (!response.ok) {
         throw new Error('Failed to fetch receipts');
       }
@@ -790,7 +779,7 @@ export default function ScanReceipt() {
     } finally {
       setIsReceiptsLoading(false);
     }
-  }, []);
+  }, [fetchWithAuth]);
 
   useEffect(() => {
     fetchReceipts();
@@ -805,11 +794,10 @@ export default function ScanReceipt() {
     let pendingExtractedData = null;
     let pendingMarkdown = null;
     try {
-      const resp = await fetch(withApiBase('/api/scan'), {
-  method: 'POST',
-  credentials: 'include',
-  body: formData
-});
+      const resp = await fetchWithAuth('/api/scan', {
+        method: 'POST',
+        body: formData,
+      });
       if (!resp.ok) throw new Error('Server error');
       if (scanMode === 'receipt') {
         pendingExtractedData = await resp.json();
@@ -915,12 +903,11 @@ export default function ScanReceipt() {
       const alias = normalizeMerchantName(aliasSource);
       if (alias) {
         try {
-          const response = await fetch(withApiBase('/api/merchant-aliases'), {
+          const response = await fetchWithAuth('/api/merchant-aliases', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
-            credentials: 'include',
             body: JSON.stringify({
               alias,
               merchant_id: extractedData.selectedMerchantId,
@@ -948,10 +935,9 @@ export default function ScanReceipt() {
     }
 
     try {
-      const response = await fetch(withApiBase('/api/receipts'), {
+      const response = await fetchWithAuth('/api/receipts', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
 
       if (!response.ok) {

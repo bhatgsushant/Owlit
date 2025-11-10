@@ -7,6 +7,7 @@ import StatsGrid from '../components/StatsGrid';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import { subDays, format, eachDayOfInterval } from 'date-fns';
 import { ArrowLeft } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 // AI-themed color palette
 const aiColor = "#8B5CF6"; // A nice violet
@@ -123,6 +124,7 @@ export default function Dashboard() {
   const [receipts, setReceipts] = useState([]);
   const [stats, setStats] = useState({ totalReceipts: 0, totalSpent: 0, thisMonthSpent: 0, thisMonthCount: 0 });
   const [isLoading, setIsLoading] = useState(true);
+  const { fetchWithAuth } = useAuth();
   
   const [dateRange, setDateRange] = useState({
     start: subDays(new Date(), 30),
@@ -231,7 +233,7 @@ export default function Dashboard() {
     const fetchReceipts = async () => {
       setIsLoading(true);
       try {
-        const response = await fetch(withApiBase('/api/receipts'), { credentials: 'include' });
+        const response = await fetchWithAuth('/api/receipts');
         if (!response.ok) {
           throw new Error('Failed to fetch receipts');
         }
@@ -245,7 +247,7 @@ export default function Dashboard() {
     };
 
     fetchReceipts();
-  }, []);
+  }, [fetchWithAuth]);
 
   
 

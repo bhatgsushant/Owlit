@@ -4,12 +4,14 @@ import MarkdownFeedback from '@/components/ui/MarkdownFeedback';
 import Layout from '@/components/Layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Loader2 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
 
 const DocumentPage = () => {
   const [originalMarkdown, setOriginalMarkdown] = useState('');
   const [processedMarkdown, setProcessedMarkdown] = useState('');
   const [isSummarizing, setIsSummarizing] = useState(false);
   const navigate = useNavigate();
+  const { fetchWithAuth } = useAuth();
 
   const sampleMarkdown = `
 PATIENT INFORMATION
@@ -43,10 +45,9 @@ INSTRUCTIONS
     setOriginalMarkdown(sampleMarkdown);
 
     try {
-      const response = await fetch(withApiBase('/api/summarize-markdown'), {
+      const response = await fetchWithAuth('/api/summarize-markdown', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ markdown: sampleMarkdown }),
       });
 
@@ -68,10 +69,9 @@ INSTRUCTIONS
     if (!processedMarkdown) return alert('No document to approve.');
 
     // Fire the save request to the backend but do not wait for it.
-    fetch(withApiBase('/api/process-document'), {
+    fetchWithAuth('/api/process-document', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify({ markdown: processedMarkdown, originalMarkdown: originalMarkdown })
     })
     .then(response => response.json())

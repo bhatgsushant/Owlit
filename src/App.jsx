@@ -12,6 +12,7 @@ import QnA from "@/pages/QnA";
 import AskAI from "@/pages/AskAI";
 import DocumentPage from "@/pages/DocumentPage";
 import Login from "@/pages/Login";
+import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { AuthProvider } from "@/context/AuthContext"; // ✅ wrap app in AuthProvider
 
@@ -22,6 +23,7 @@ export default function App() {
         <Route path="/" element={<Layout currentPageName="Home"><Home /></Layout>} />
         <Route path="/home" element={<Layout currentPageName="Home"><Home /></Layout>} />
         <Route path="/login" element={<Login />} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Protected routes */}
         <Route

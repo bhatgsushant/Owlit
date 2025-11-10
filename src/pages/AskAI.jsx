@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { ArrowUpCircle, Loader2, Database, MessageCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 
 const INITIAL_ASSISTANT_MESSAGE =
   "Hi! I'm your expense analyst. Ask me things like “What’s my grocery spend this month?” or “Show receipts with coffee last week.”";
@@ -57,6 +58,7 @@ export default function AskAI() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef(null);
+  const { fetchWithAuth } = useAuth();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -71,12 +73,11 @@ export default function AskAI() {
     setIsLoading(true);
 
     try {
-    const response = await fetch(withApiBase('/api/ask-ai'), {
-  method: 'POST',
-  body: JSON.stringify({ text }),
-  headers: { 'Content-Type': 'application/json' },
-  credentials: 'include',
-});
+      const response = await fetchWithAuth('/api/ask-ai', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: payload }),
+      });
 
       if (!response.ok) {
         throw new Error('The Ask AI service is temporarily unavailable.');

@@ -4,11 +4,7 @@ import { Sparkles } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { Button } from '@/components/ui/button';
 import Lottie from 'lottie-react';
-
-const API_BASE = (
-  import.meta.env?.VITE_API_BASE_URL ||
-  (import.meta.env?.DEV ? 'http://localhost:3001' : '')
-).replace(/\/$/, '');
+import { API_BASE } from '@/utils/apiClient';
 
 const LoginPage = () => {
   const [animationData, setAnimationData] = useState(null);
@@ -29,8 +25,7 @@ const LoginPage = () => {
   }, []);
 
   const handleLogin = (provider) => {
-    const authBase = import.meta.env.VITE_SERVER_URL;
-    window.location.href = `${authBase}/auth/${provider}`;
+    window.location.href = `${API_BASE}/auth/${provider}`;
   };
 
   return (

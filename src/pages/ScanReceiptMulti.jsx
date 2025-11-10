@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Trash2, Upload, Camera } from 'lucide-react';
 import { createPageUrl } from '@/utils';
 import CameraView from '@/components/CameraView';
+import { useAuth } from '@/hooks/useAuth';
 
 const MIN_FILES = 2;
 const MAX_FILES = 10;
@@ -20,6 +21,7 @@ export default function ScanReceiptMulti() {
   const fileInputRef = useRef(null);
   const dragIndexRef = useRef(null);
   const navigate = useNavigate();
+  const { fetchWithAuth } = useAuth();
 
   const handleFileSelect = (event) => {
     const selected = Array.from(event.target.files || []);
@@ -70,10 +72,9 @@ export default function ScanReceiptMulti() {
       formData.append('files', file, file.name);
     });
     try {
-      const resp = await fetch(withApiBase('/api/scan-multi'), {
+      const resp = await fetchWithAuth('/api/scan-multi', {
         method: 'POST',
         body: formData,
-        credentials: 'include',
       });
       if (!resp.ok) {
         const text = await resp.text();
