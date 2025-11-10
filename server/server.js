@@ -1117,6 +1117,7 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
         }
 
         const scanMode = (req.body?.scanMode || 'receipt').toLowerCase();
+        const highAccuracy = String(req.body?.highAccuracy || 'false').toLowerCase() === 'true';
         validateFields({ scanMode }, {
             scanMode: {
                 type: 'string',
@@ -1138,17 +1139,25 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
             }
         }
 
-        console.log('🚀 === STARTING RECEIPT PROCESSING ===');
-        try {
-            console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
+            console.log('🚀 === STARTING RECEIPT PROCESSING ===');
+            console.log(`🎯 High accuracy mode: ${highAccuracy ? 'ENABLED' : 'disabled'}`);
+            try {
+                console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
 
-            const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
+                const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
 
-            const tesseractText = await runTesseract(preprocessedImageBuffer);
+                let tesseractText = '';
+                if (highAccuracy) {
+                    console.log('🏃 Running Tesseract.js OCR prepass (high accuracy enabled)...');
+                    tesseractText = await runTesseract(preprocessedImageBuffer);
+                    console.log('✅ Tesseract prepass complete.');
+                } else {
+                    console.log('⏭️ Skipping Tesseract prepass (high accuracy disabled).');
+                }
 
-            const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-            
-            const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
+                const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+
+                const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
             
             const lineItems = processedData.items || processedData.Items || [];
             const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);

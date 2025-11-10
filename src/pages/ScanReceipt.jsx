@@ -704,6 +704,7 @@ export default function ScanReceipt() {
   const { user, userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [isMultiPage, setIsMultiPage] = useState(false);
+  const [isHighAccuracy, setIsHighAccuracy] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -823,6 +824,7 @@ export default function ScanReceipt() {
     const formData = new FormData();
     formData.append('file', fileToProcess);
     formData.append('scanMode', scanMode);
+    formData.append('highAccuracy', String(isHighAccuracy));
     let pendingExtractedData = null;
     let pendingMarkdown = null;
     try {
@@ -1189,17 +1191,39 @@ export default function ScanReceipt() {
                         </div>
                     )}
 
-                    <div className="mt-4 flex items-center justify-center gap-2 text-sm text-white">
-                      <input
-                        id="multi-page-toggle"
-                        type="checkbox"
-                        checked={isMultiPage}
-                        onChange={handleMultiPageToggle}
-                        className="h-4 w-4 rounded border-white/60 bg-transparent"
-                      />
-                      <label htmlFor="multi-page-toggle" className="cursor-pointer select-none">
+                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-white">
+                      <label htmlFor="multi-page-toggle" className="flex items-center gap-2 cursor-pointer select-none">
+                        <input
+                          id="multi-page-toggle"
+                          type="checkbox"
+                          checked={isMultiPage}
+                          onChange={handleMultiPageToggle}
+                          className="h-4 w-4 rounded border-white/60 bg-transparent"
+                        />
                         Multiple pages?
                       </label>
+                    </div>
+                    <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-white/80">
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setIsHighAccuracy((prev) => !prev)}
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                            isHighAccuracy ? 'bg-sky-500' : 'bg-white/20'
+                          }`}
+                          aria-pressed={isHighAccuracy}
+                        >
+                          <span
+                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition ${
+                              isHighAccuracy ? 'translate-x-5' : 'translate-x-1'
+                            }`}
+                          />
+                        </button>
+                        <span className="text-white text-sm font-medium">High accuracy OCR</span>
+                      </div>
+                      <span className="text-xs text-white/60">
+                        {isHighAccuracy ? 'Best detail, slightly slower' : 'Faster processing'}
+                      </span>
                     </div>
 
                     {!file && (
