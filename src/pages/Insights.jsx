@@ -2335,7 +2335,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [overallAnalytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-gradient-to-br from-[#fff0f6] via-[#f7c6dc] to-[#e59ac0] text-white font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-[#050507] text-white font-sans">
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
