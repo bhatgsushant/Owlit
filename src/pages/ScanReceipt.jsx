@@ -195,6 +195,7 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
 }
 
 function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides }) {
+    const { fetchWithAuth } = useAuth();
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
     const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
         Object.entries(SUB_CATEGORIES).reduce((acc, [key, values]) => {
