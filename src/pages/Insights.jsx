@@ -2216,8 +2216,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       },
       tooltip: {
         trigger: 'item',
-        formatter: ({ name, value, percent }) =>
-          `${name}<br/>${formatCurrency(value)} • ${Number(percent || 0).toFixed(1)}%`,
+        formatter: ({ name, percent }) => `${name}<br/>${Number(percent || 0).toFixed(1)}%`,
       },
       legend: { show: false },
       series: [
@@ -2233,8 +2232,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           },
           label: {
             color: '#E2E8F0',
-            formatter: ({ name, value, percent }) =>
-              `${truncateLabel(name, 20)}\n${formatCurrency(value)} • ${Number(percent || 0).toFixed(1)}%`,
+            formatter: ({ name, percent }) =>
+              `${truncateLabel(name, 20)}\n${Number(percent || 0).toFixed(1)}%`,
             rich: {
               b: { fontSize: 13, fontWeight: 600, color: '#F8FAFC' },
             },

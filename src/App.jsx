@@ -37,9 +37,7 @@ export default function App() {
         <Route
           path="/scan"
           element={
-            <ProtectedRoute>
-              <Layout currentPageName="Scan Receipt"><ScanReceipt /></Layout>
-            </ProtectedRoute>
+            <Layout currentPageName="Scan Receipt"><ScanReceipt /></Layout>
           }
         />
         <Route

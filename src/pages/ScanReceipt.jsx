@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import Lottie from 'lottie-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 import {
   Upload,
@@ -55,6 +55,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
 import { cn } from '@/lib/utils';
 import { createPageUrl } from '@/utils';
+
+const PENDING_PREVIEW_STORAGE_KEY = 'pending-receipt-preview';
+const RESUME_QUERY_PARAM = 'resume';
 
 const normalizeMerchantName = (name = '') =>
   name
@@ -698,10 +701,33 @@ export default function ScanReceipt() {
   const [saveSuccessPrompt, setSaveSuccessPrompt] = useState(false);
   const fileInputRef = useRef(null);
   const savedPreferencesRef = useRef(new Set());
-  const { userStoreOverrides, fetchWithAuth } = useAuth();
+  const { user, userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [isMultiPage, setIsMultiPage] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const persistPendingPreview = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (!extractedData && !markdownPreview) return;
+    try {
+      const payload = {
+        type: markdownPreview ? 'document' : 'receipt',
+        extractedData: markdownPreview ? null : extractedData,
+        markdown: markdownPreview || null,
+        timestamp: Date.now(),
+      };
+      sessionStorage.setItem(PENDING_PREVIEW_STORAGE_KEY, JSON.stringify(payload));
+    } catch (err) {
+      console.error('Failed to persist pending preview', err);
+    }
+  }, [extractedData, markdownPreview]);
+
+  const clearPendingPreview = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    sessionStorage.removeItem(PENDING_PREVIEW_STORAGE_KEY);
+  }, []);
 
   useEffect(() => {
     fetch('/images/ai-cpu-loading.json')
@@ -728,6 +754,38 @@ export default function ScanReceipt() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(location.search);
+    const shouldResume = params.get(RESUME_QUERY_PARAM);
+    if (!shouldResume) return;
+
+    try {
+      const snapshot = sessionStorage.getItem(PENDING_PREVIEW_STORAGE_KEY);
+      if (snapshot) {
+        const payload = JSON.parse(snapshot);
+        if (payload?.type === 'receipt' && payload.extractedData) {
+          setExtractedData(payload.extractedData);
+          setMarkdownPreview(null);
+          setScanMode('receipt');
+          setMode('upload');
+        } else if (payload?.type === 'document' && payload.markdown) {
+          setMarkdownPreview(payload.markdown);
+          setExtractedData(null);
+          setScanMode('document');
+          setMode('upload');
+        }
+      }
+    } catch (err) {
+      console.error('Failed to restore pending preview', err);
+    } finally {
+      clearPendingPreview();
+      params.delete(RESUME_QUERY_PARAM);
+      navigate(`${location.pathname}${params.toString() ? `?${params.toString()}` : ''}`, { replace: true });
+      setShowLoginPrompt(false);
+    }
+  }, [location.pathname, location.search, navigate, clearPendingPreview]);
 
   const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
     const trimmedName = (itemName || '').trim();
@@ -857,6 +915,16 @@ export default function ScanReceipt() {
     processFile(capturedFile);
   };
 
+  const handleLoginRedirect = useCallback(() => {
+    persistPendingPreview();
+    setShowLoginPrompt(false);
+    navigate(`/login?redirect=${encodeURIComponent('/scan?resume=1')}`);
+  }, [navigate, persistPendingPreview]);
+
+  const closeLoginPrompt = useCallback(() => {
+    setShowLoginPrompt(false);
+  }, []);
+
   const handleReset = () => {
     setFile(null);
     setExtractedData(null);
@@ -864,11 +932,17 @@ export default function ScanReceipt() {
     setMode('upload');
     setDuplicatePrompt(null);
     setSaveSuccessPrompt(false);
+    clearPendingPreview();
   };
   
   const handleSave = async (options = {}) => {
     if (!extractedData || !Array.isArray(extractedData.line_items)) {
       alert('No receipt data to save.');
+      return;
+    }
+
+    if (!user) {
+      setShowLoginPrompt(true);
       return;
     }
 
@@ -1010,6 +1084,31 @@ export default function ScanReceipt() {
                 className="w-full rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition-colors"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showLoginPrompt && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 text-white shadow-2xl">
+            <h2 className="text-2xl font-semibold mb-2">Login required</h2>
+            <p className="text-sm text-slate-300">
+              Sign in to save this receipt to your account. We&apos;ll keep your current scan ready so you can pick up
+              right where you left off.
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row gap-3">
+              <button
+                onClick={closeLoginPrompt}
+                className="w-full rounded-xl border border-white/20 px-4 py-2 font-semibold text-white hover:bg-white/10 transition-colors"
+              >
+                Not now
+              </button>
+              <button
+                onClick={handleLoginRedirect}
+                className="w-full rounded-xl bg-emerald-500 px-4 py-2 font-semibold text-white hover:bg-emerald-600 transition-colors"
+              >
+                Login to save
               </button>
             </div>
           </div>

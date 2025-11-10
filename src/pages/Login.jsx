@@ -4,10 +4,13 @@ import { Sparkles } from 'lucide-react';
 import { FcGoogle } from 'react-icons/fc';
 import { Button } from '@/components/ui/button';
 import Lottie from 'lottie-react';
+import { useSearchParams } from 'react-router-dom';
 import { API_BASE } from '@/utils/apiClient';
 
 const LoginPage = () => {
   const [animationData, setAnimationData] = useState(null);
+  const [searchParams] = useSearchParams();
+  const redirectPath = searchParams.get('redirect') || '/scan';
 
   useEffect(() => {
     let isMounted = true;
@@ -25,7 +28,8 @@ const LoginPage = () => {
   }, []);
 
   const handleLogin = (provider) => {
-    window.location.href = `${API_BASE}/auth/${provider}`;
+    const url = `${API_BASE}/auth/${provider}?redirect=${encodeURIComponent(redirectPath)}`;
+    window.location.href = url;
   };
 
   return (

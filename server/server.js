@@ -241,9 +241,16 @@ const issueJwtForUser = (user) => {
   return jwt.sign(buildUserPayload(user), JWT_SECRET, { expiresIn: JWT_EXPIRY });
 };
 
-const authenticateRequest = (req, res, next) => {
+const extractTokenFromHeader = (req) => {
   const authHeader = req.headers.authorization || '';
-  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : null;
+  if (!authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+  return authHeader.slice(7);
+};
+
+const authenticateRequest = (req, res, next) => {
+  const token = extractTokenFromHeader(req);
 
   if (!token) {
     return res.status(401).json({ error: 'Missing authentication token' });
@@ -255,6 +262,21 @@ const authenticateRequest = (req, res, next) => {
     return next();
   } catch (err) {
     console.error('JWT verification failed:', err);
+    return res.status(401).json({ error: 'Invalid or expired token' });
+  }
+};
+
+const optionalAuthenticate = (req, res, next) => {
+  const token = extractTokenFromHeader(req);
+  if (!token) {
+    return next();
+  }
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET);
+    req.user = decoded;
+    return next();
+  } catch (err) {
+    console.error('JWT verification failed (optional):', err);
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
@@ -1083,7 +1105,7 @@ if (userOverride) {
 }
 
 // --- API Routes ---
-app.post('/api/scan', authenticateRequest, upload.single('file'), async (req, res) => {
+app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, res) => {
     try {
         console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
         if (!req.file) {
@@ -1209,7 +1231,7 @@ app.post('/api/scan', authenticateRequest, upload.single('file'), async (req, re
     }
 });
 
-app.post('/api/scan-multi', authenticateRequest, upload.array('files', 10), async (req, res) => {
+app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), async (req, res) => {
     try {
         if (!req.files || req.files.length < 2) {
             throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
@@ -1497,7 +1519,18 @@ app.post('/api/ask', authenticateRequest, async (req, res) => {
 });
 
 // --- Auth Routes ---
-app.get('/auth/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+const sanitizeRedirectPath = (value) => {
+  if (typeof value !== 'string' || !value.trim()) return '/scan';
+  if (!value.startsWith('/')) return '/scan';
+  return value;
+};
+
+app.get('/auth/google', (req, res, next) => {
+  if (req.session) {
+    req.session.postAuthRedirect = sanitizeRedirectPath(req.query.redirect);
+  }
+  return passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+});
 
 app.get('/auth/google/callback',
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
@@ -1505,7 +1538,12 @@ app.get('/auth/google/callback',
     try {
       const token = issueJwtForUser(req.user);
       const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
+      const redirectPath = sanitizeRedirectPath(req.session?.postAuthRedirect) || '/scan';
+      if (req.session) {
+        delete req.session.postAuthRedirect;
+      }
       redirectUrl.searchParams.set('token', token);
+      redirectUrl.searchParams.set('redirect', redirectPath);
       res.redirect(redirectUrl.toString());
     } catch (error) {
       console.error('Failed to issue JWT after Google OAuth:', error);
@@ -1530,7 +1568,7 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', message: 'ReceiptWise server running' });
 });
 
-app.get('/api/store-info', authenticateRequest, async (req, res) => {
+app.get('/api/store-info', optionalAuthenticate, async (req, res) => {
   const { data, error } = await supabase
     .from('store_info')
     .select('id, merchant_name, store_type')
