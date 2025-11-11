@@ -16,6 +16,7 @@ import {
   YAxis as ReYAxis,
   Tooltip as ReTooltip,
   Cell as ReCell,
+  LabelList as ReLabelList,
 } from 'recharts';
 import {
   format,
@@ -423,6 +424,7 @@ export default function Insights() {
   const [drillLevel, setDrillLevel] = useState('main');
   const [merchantDrillState, setMerchantDrillState] = useState({ level: 'merchant', merchant: null, category: null });
   const [merchantViewMode, setMerchantViewMode] = useState('value');
+  const [categoryDrillViewMode, setCategoryDrillViewMode] = useState('value');
   const [timeGranularity, setTimeGranularity] = useState('day');
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(null);
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
@@ -2102,14 +2104,21 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       return base;
     });
 
-    const dataSeries = filteredEntries.map((entry, index) => ({
-      value: entry.value,
-      name: displayLabels[index],
-      raw: entry,
-      itemStyle: {
-        color: palette[index % palette.length],
-      },
-    }));
+    const totalValue = filteredEntries.reduce((sum, entry) => sum + entry.value, 0);
+    const dataSeries = filteredEntries.map((entry, index) => {
+      const percent = totalValue ? (entry.value / totalValue) * 100 : 0;
+      const valueForChart = categoryDrillViewMode === 'percent' ? percent : entry.value;
+      return {
+        value: roundToTwo(valueForChart),
+        name: displayLabels[index],
+        raw: entry,
+        rawValue: entry.value,
+        percent,
+        itemStyle: {
+          color: palette[index % palette.length],
+        },
+      };
+    });
 
     const reversedLabels = displayLabels.slice().reverse();
     const reversedSeries = dataSeries.slice().reverse();
@@ -2127,7 +2136,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           const [first] = params;
           const rawEntry = first.data?.raw;
           const label = rawEntry?.label || first.name;
-          const lines = [`${label}: ${formatCurrency(first.value)}`];
+          const valueLine =
+            categoryDrillViewMode === 'percent'
+              ? `${Number(first.value || 0).toFixed(1)}%`
+              : formatCurrency(first.value);
+          const lines = [`${label}: ${valueLine}`];
           if (drillLevel === 'item' && rawEntry) {
             if (rawEntry.merchant) {
               lines.push(`Merchant: ${rawEntry.merchant}`);
@@ -2145,7 +2158,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       grid: { left: gridLeft, right: '8%', top: 40, bottom: 16 },
       xAxis: {
         type: 'value',
-        axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
+        axisLabel: {
+          color: '#E2E8F0',
+          formatter: (value) =>
+            categoryDrillViewMode === 'percent' ? `${Number(value).toFixed(0)}%` : `£${value}`,
+        },
         splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
       },
       yAxis: {
@@ -2165,7 +2182,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             show: true,
             position: 'right',
             color: '#E2E8F0',
-            formatter: ({ value }) => formatCurrency(value),
+            formatter: ({ value }) =>
+              categoryDrillViewMode === 'percent'
+                ? `${Number(value || 0).toFixed(1)}%`
+                : formatCurrency(value),
           },
         },
       ],
@@ -2178,6 +2198,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     selectedSubcategoryDetails,
     selectedSubCategory,
     isMobile,
+    categoryDrillViewMode,
   ]);
 
   const handleDrillClick = (params) => {
@@ -2274,7 +2295,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   );
 
   const categoryDrillActions = (
-    <TimeframeControls {...sharedTimeframeControlProps} className="ml-auto" />
+    <div className="flex flex-wrap items-center gap-2 ml-auto">
+      <ViewToggle mode={categoryDrillViewMode} onChange={setCategoryDrillViewMode} />
+      <TimeframeControls {...sharedTimeframeControlProps} />
+    </div>
   );
 
   const merchantDescription = useMemo(() => {
@@ -2350,9 +2374,14 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       : null;
 
   const merchantActions =
-    merchantDrilldownData && merchantDrilldownData.data.length
-      ? <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
-      : null;
+    merchantDrilldownData && merchantDrilldownData.data.length ? (
+      <div className="flex flex-wrap items-center gap-2">
+        <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
+        <TimeframeControls {...sharedTimeframeControlProps} />
+      </div>
+    ) : (
+      <TimeframeControls {...sharedTimeframeControlProps} />
+    );
 
   const merchantMetricKey = merchantViewMode === 'percent' ? 'percent' : 'value';
   const merchantXAxisFormatter = (value) =>
@@ -2394,6 +2423,16 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
                 strokeWidth={1}
               />
             ))}
+            <ReLabelList
+              dataKey={merchantMetricKey}
+              position="right"
+              formatter={(value, entry) =>
+                merchantViewMode === 'percent'
+                  ? `${Number(value || entry?.payload?.percent || 0).toFixed(1)}%`
+                  : formatCurrency(value)
+              }
+              className="text-xs fill-white"
+            />
           </ReBar>
         </ReBarChart>
       </ReResponsiveContainer>
@@ -2776,16 +2815,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
       <AnimatedSection delay={0.22}>
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
-          <ChartCard
-            title="Category Mix"
-            description={categoryPieDescription}
-            option={categoryPieOption}
+          <ReceiptsAnalyticsTable
+            receipts={receipts}
             isLoading={isLoading}
-            hasData={Boolean(categoryPieOption)}
-            emptyMessage="Add receipts with categorised line items to populate this chart."
-            height={340}
-            actions={categoryPieActions}
-            onEvents={categoryPieOption ? categoryPieEvents : undefined}
+            showInsightsLink={false}
           />
 
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">

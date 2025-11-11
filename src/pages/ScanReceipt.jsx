@@ -499,8 +499,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     }) => {
         const displayValue = value === null || value === undefined ? '' : value;
         return (
-        <label className="w-full">
-            <span className="sr-only">{placeholder}</span>
+        <div className="w-full">
             <div className="flex flex-wrap items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
                 <IconComponent className={cn('h-4 w-4', iconClassName)} />
                 <input
@@ -508,11 +507,12 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                     value={displayValue}
                     onChange={onChange}
                     placeholder={placeholder}
+                    aria-label={placeholder}
                     className={cn('flex-1 min-w-0 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
                     {...rest}
                 />
             </div>
-        </label>
+        </div>
     );
     };
 

@@ -7,6 +7,13 @@ export default function Layout({ children, currentPageName }) {
   const isLandingPage = currentPageName === 'Home';
 
   useEffect(() => {
+    if (isLandingPage) {
+      document.documentElement.classList.remove('dark');
+      document.body?.classList.remove('dark');
+      document.documentElement.setAttribute('data-theme', 'light');
+      return;
+    }
+
     // Add Inter font (modern, clean font)
     const fontLink = document.createElement('link');
     fontLink.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap';
@@ -20,7 +27,7 @@ export default function Layout({ children, currentPageName }) {
     const shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
     setIsDarkMode(shouldUseDark);
     applyTheme(shouldUseDark);
-  }, []);
+  }, [isLandingPage]);
 
   const applyTheme = (dark) => {
     const root = document.documentElement;
