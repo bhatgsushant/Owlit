@@ -1198,7 +1198,7 @@ export default function ScanReceipt() {
           @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
       `}</style>
 
-      <div className="gradient-bg pt-8 md:pt-12 pb-12 min-h-screen">
+      <div className="gradient-bg pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto">
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
 
         {extractedData ? (
