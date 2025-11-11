@@ -629,7 +629,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                                 icon={PoundSterling}
                                 value={item.price}
                                 onChange={(e) => handleLineItemChange(index, 'price', e.target.value)}
-                                type="text"
+                                type="number"
                                 placeholder="Price"
                                 iconClassName="text-emerald-500"
                                 inputClassName="text-sm"
