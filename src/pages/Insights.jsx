@@ -2189,18 +2189,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const source = categoryPieCategory ? categoryPieData.subCategories : categoryPieData.categories;
     if (!source.length) return null;
 
-    const palette = [
-      '#34d399',
-      '#38bdf8',
-      '#f472b6',
-      '#f97316',
-      '#a855f7',
-      '#22d3ee',
-      '#facc15',
-      '#2dd4bf',
-      '#fca5a5',
-      '#c084fc',
-    ];
+    const total = source.reduce((sum, entry) => sum + entry.value, 0);
+    const chartData = source.map((entry) => ({
+      ...entry,
+      percent: total ? (entry.value / total) * 100 : 0,
+    }));
 
     return {
       backgroundColor: 'transparent',
@@ -2210,45 +2203,74 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         top: 10,
         textStyle: { color: '#E2E8F0', fontSize: 14, fontWeight: 600 },
         subtext: categoryPieCategory
-          ? 'Click “All categories” to go up a level'
-          : 'Click a slice to drill into its sub-categories',
+          ? 'Compare value and share before heading back'
+          : 'Bars show spend, line shows share %',
         subtextStyle: { color: 'rgba(226,232,240,0.65)', fontSize: 11, fontWeight: 400 },
       },
       tooltip: {
-        trigger: 'item',
-        formatter: ({ name, percent }) => `${name}<br/>${Number(percent || 0).toFixed(1)}%`,
+        trigger: 'axis',
+        axisPointer: { type: 'shadow' },
+        formatter: (params = []) => {
+          if (!params.length) return '';
+          const barPoint = params.find((p) => p.seriesType === 'bar');
+          const linePoint = params.find((p) => p.seriesType === 'line');
+          const parts = [];
+          if (barPoint) {
+            parts.push(`${barPoint.name}: ${formatCurrency(barPoint.value)}`);
+          }
+          if (linePoint) {
+            parts.push(`Share: ${Number(linePoint.value || 0).toFixed(1)}%`);
+          }
+          return parts.join('<br/>');
+        },
       },
-      legend: { show: false },
+      legend: {
+        top: 10,
+        textStyle: { color: '#E2E8F0', fontSize: 11 },
+        data: ['Spend', 'Share %'],
+      },
+      grid: { left: '6%', right: '8%', bottom: 40, top: 80, containLabel: true },
+      xAxis: {
+        type: 'category',
+        data: chartData.map((entry) => truncateLabel(entry.name, 24)),
+        axisTick: { alignWithLabel: true },
+        axisLabel: { color: '#E2E8F0', fontSize: 11, interval: 0 },
+      },
+      yAxis: [
+        {
+          type: 'value',
+          name: 'Spend (£)',
+          axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
+          splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
+        },
+        {
+          type: 'value',
+          name: 'Share %',
+          axisLabel: { color: '#E2E8F0', formatter: (value) => `${value}%` },
+          splitLine: { show: false },
+        },
+      ],
       series: [
         {
-          name: categoryPieCategory ? `${categoryPieCategory} sub-categories` : 'Categories',
-          type: 'pie',
-          radius: ['32%', '72%'],
-          center: ['50%', '58%'],
+          name: 'Spend',
+          type: 'bar',
+          barWidth: 26,
           itemStyle: {
-            borderRadius: 12,
-            borderColor: 'rgba(15,23,42,0.85)',
-            borderWidth: 2,
+            borderRadius: [8, 8, 0, 0],
+            color: '#34d399',
           },
-          label: {
-            color: '#E2E8F0',
-            formatter: ({ name, percent }) =>
-              `${truncateLabel(name, 20)}\n${Number(percent || 0).toFixed(1)}%`,
-            rich: {
-              b: { fontSize: 13, fontWeight: 600, color: '#F8FAFC' },
-            },
-          },
-          labelLine: {
-            length: 16,
-            length2: 12,
-            smooth: true,
-            lineStyle: { width: 1.4, color: 'rgba(148, 163, 184, 0.45)' },
-          },
-          data: source.map((entry, index) => ({
-            name: entry.name,
-            value: entry.value,
-            itemStyle: { color: palette[index % palette.length] },
-          })),
+          data: chartData.map((entry) => entry.value),
+        },
+        {
+          name: 'Share %',
+          type: 'line',
+          yAxisIndex: 1,
+          smooth: true,
+          symbol: 'circle',
+          symbolSize: 8,
+          lineStyle: { width: 2, color: '#f97316' },
+          itemStyle: { color: '#f97316' },
+          data: chartData.map((entry) => Number(entry.percent.toFixed(1))),
         },
       ],
     };

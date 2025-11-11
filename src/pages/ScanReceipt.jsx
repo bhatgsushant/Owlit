@@ -45,6 +45,7 @@ import {
   Gift,
   UtensilsCrossed,
   CircleEllipsis,
+  Loader2,
 } from 'lucide-react';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
@@ -139,12 +140,34 @@ const getSubcategoryIconComponent = (subCategory) => {
   if (!subCategory) return Tag;
   const key = String(subCategory).toLowerCase();
   for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
-    if (matcher.test.test(key)) {
-      return matcher.icon;
+    if (matcher.test instanceof RegExp) {
+      if (matcher.test.test(key)) {
+        return matcher.icon;
+      }
+    } else if (typeof matcher.test === 'function') {
+      if (matcher.test(key)) {
+        return matcher.icon;
+      }
     }
   }
   return Tag;
 };
+
+const formatLineItemsForEditor = (lineItems = []) =>
+  lineItems.map((entry) => ({
+    ...entry,
+    price:
+      entry && entry.price !== undefined && entry.price !== null
+        ? String(entry.price)
+        : '',
+  }));
+
+const sanitizeLineItemsForSave = (lineItems = []) =>
+  lineItems.map((entry) => ({
+    ...entry,
+    price: parseFloat(entry.price) || 0,
+    quantity: Number.isFinite(Number(entry.quantity)) && Number(entry.quantity) > 0 ? Number(entry.quantity) : 1,
+  }));
 
 function ScanModeToggle({ mode, setMode }) {
     return (
@@ -191,7 +214,7 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     );
 }
 
-function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides }) {
+function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides, isSaving }) {
     const { fetchWithAuth } = useAuth();
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
     const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
@@ -272,7 +295,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     }, [fetchWithAuth]);
 
     useEffect(() => {
-        const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((item.price || 0) * (item.quantity || 1)), 0);
+        const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((parseFloat(item.price) || 0) * (Number(item.quantity) || 1)), 0);
         setData(prev => ({ ...prev, total_amount: newTotal }));
     }, [data.line_items, setData]);
 
@@ -406,7 +429,9 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     // ✅ UPDATED: Added DB save calls when main_category or sub_category changes
     const handleLineItemChange = (index, field, value) => {
         const normalizedValue =
-            typeof value === 'string' ? value.trim() : value;
+            field === 'price'
+                ? (typeof value === 'string' ? value.replace(/[^\d.,-]/g, '') : value)
+                : (typeof value === 'string' ? value.trim() : value);
 
         let pendingPreference = null;
 
@@ -416,7 +441,9 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
             const updatedItem = { ...currentItems[index], [field]: normalizedValue };
 
-            if (field === 'main_category') {
+            if (field === 'price') {
+                updatedItem.price = normalizedValue;
+            } else if (field === 'main_category') {
                 updatedItem.sub_category = ''; // reset subcategory on main category change
             }
 
@@ -469,14 +496,16 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         iconClassName = 'text-gray-500 dark:text-gray-300',
         inputClassName = 'text-sm',
         ...rest
-    }) => (
+    }) => {
+        const displayValue = value === null || value === undefined ? '' : value;
+        return (
         <label className="w-full">
             <span className="sr-only">{placeholder}</span>
             <div className="flex flex-wrap items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
                 <IconComponent className={cn('h-4 w-4', iconClassName)} />
                 <input
                     type={type}
-                    value={value}
+                    value={displayValue}
                     onChange={onChange}
                     placeholder={placeholder}
                     className={cn('flex-1 min-w-0 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
@@ -485,11 +514,12 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             </div>
         </label>
     );
+    };
 
     const addLineItem = () => {
         setData(prev => ({
             ...prev,
-            line_items: [...(prev.line_items || []), { item: '', price: 0, quantity: 1, main_category: 'other', sub_category: 'miscellaneous' }]
+            line_items: [...(prev.line_items || []), { item: '', price: '', quantity: 1, main_category: 'other', sub_category: 'miscellaneous' }]
         }));
     };
 
@@ -598,17 +628,14 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                             <InputWithIcon
                                 icon={PoundSterling}
                                 value={item.price}
-                                onChange={(e) => {
-                                    const raw = e.target.value;
-                                    const numeric = raw === '' ? 0 : parseFloat(raw);
-                                    handleLineItemChange(index, 'price', Number.isNaN(numeric) ? 0 : numeric);
-                                }}
-                                type="number"
+                                onChange={(e) => handleLineItemChange(index, 'price', e.target.value)}
+                                type="text"
                                 placeholder="Price"
                                 iconClassName="text-emerald-500"
                                 inputClassName="text-sm"
-                                step="0.01"
-                                min="0"
+                                inputMode="decimal"
+                                autoComplete="off"
+                                pattern="[0-9]*[.,]?[0-9]*"
                             />
 
                             <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
@@ -635,12 +662,11 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                                         return [...prev, trimmed];
                                     });
                                     setSubCategoryOptionsMap(prev => {
-                                        if (prev[trimmed]) {
-                                            return prev;
-                                        }
-                                        return { ...prev, [trimmed]: [] };
-                                    });
-                                    saveUserCategoryPreference(item.item, trimmed, '');
+                                    if (prev[trimmed]) {
+                                        return prev;
+                                    }
+                                    return { ...prev, [trimmed]: [] };
+                                });
                                     }}
                                 />
                             </div>
@@ -683,7 +709,25 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             </div>
             </div>
             <div className="flex gap-4 mt-6">
-                <button onClick={onSave} className="w-full bg-green-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-600 transition-colors flex items-center justify-center"><Save size={20} className="mr-2"/>Save Receipt</button>
+                <button
+                    onClick={onSave}
+                    disabled={isSaving}
+                    className={`w-full py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center ${
+                        isSaving ? 'bg-green-400/60 text-white cursor-not-allowed' : 'bg-green-500 text-white hover:bg-green-600'
+                    }`}
+                >
+                    {isSaving ? (
+                        <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Saving…
+                        </>
+                    ) : (
+                        <>
+                            <Save size={20} className="mr-2" />
+                            Save Receipt
+                        </>
+                    )}
+                </button>
             </div>
         </div>
     );
@@ -693,7 +737,18 @@ export default function ScanReceipt() {
   const [file, setFile] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [extractedData, setExtractedData] = useState(null);
+  const [extractedDataState, setExtractedDataState] = useState(null);
+  const setExtractedData = useCallback((value) => {
+    setExtractedDataState((prev) => {
+      const next = typeof value === 'function' ? value(prev) : value;
+      if (!next) return next;
+      return {
+        ...next,
+        line_items: formatLineItemsForEditor(next.line_items || []),
+      };
+    });
+  }, []);
+  const extractedData = extractedDataState;
   const [mode, setMode] = useState('upload');
   const [scanMode, setScanMode] = useState('receipt');
   const [markdownPreview, setMarkdownPreview] = useState(null);
@@ -705,6 +760,7 @@ export default function ScanReceipt() {
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [isMultiPage, setIsMultiPage] = useState(false);
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -795,7 +851,8 @@ export default function ScanReceipt() {
 
     if (!trimmedName || !trimmedMain || !trimmedSub) return;
 
-    const cacheKey = `${trimmedName.toLowerCase()}__${trimmedMain.toLowerCase()}__${trimmedSub.toLowerCase()}`;
+    const normalizedName = trimmedName.toLowerCase();
+    const cacheKey = `${normalizedName}__${trimmedMain.toLowerCase()}__${trimmedSub.toLowerCase()}`;
     if (savedPreferencesRef.current.has(cacheKey)) return;
 
     try {
@@ -803,7 +860,7 @@ export default function ScanReceipt() {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-                item_name: trimmedName,
+                item_name: normalizedName,
                 main_category: trimmedMain,
                 sub_category: trimmedSub,
             }),
@@ -953,7 +1010,7 @@ export default function ScanReceipt() {
       const alias = normalizeMerchantName(aliasSource);
       if (alias) {
         try {
-          const response = await fetchWithAuth('/api/merchant-aliases', {
+          fetchWithAuth('/api/merchant-aliases', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -962,18 +1019,22 @@ export default function ScanReceipt() {
               alias,
               merchant_id: extractedData.selectedMerchantId,
             }),
+          }).catch(async (error) => {
+            console.error('Failed to save merchant alias:', error);
           });
-          if (!response.ok) {
-            console.error('Failed to save merchant alias:', await response.text());
-          }
         } catch (error) {
           console.error('Failed to save merchant alias:', error);
         }
       }
     }
 
+    const preparedReceipt = {
+      ...extractedData,
+      line_items: sanitizeLineItemsForSave(extractedData.line_items || []),
+      transaction_date: extractedData.transaction_date || new Date().toISOString().split('T')[0],
+    };
     const formData = new FormData();
-    formData.append('receiptData', JSON.stringify(extractedData));
+    formData.append('receiptData', JSON.stringify(preparedReceipt));
     if (file) {
       formData.append('receiptImage', file);
     }
@@ -985,6 +1046,7 @@ export default function ScanReceipt() {
     }
 
     try {
+      setIsSaving(true);
       const response = await fetchWithAuth('/api/receipts', {
         method: 'POST',
         body: formData,
@@ -1023,6 +1085,8 @@ export default function ScanReceipt() {
     } catch (error) { 
       console.error(error);
       alert(`Failed to save receipt: ${error.message}`);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1091,6 +1155,14 @@ export default function ScanReceipt() {
           </div>
         </div>
       )}
+      {isSaving && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
+          <div className="flex items-center gap-3 rounded-2xl bg-slate-900/90 px-6 py-4 text-white shadow-2xl">
+            <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
+            <span className="text-sm font-medium">Saving receipt…</span>
+          </div>
+        </div>
+      )}
       {showLoginPrompt && (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/70 px-4">
           <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-6 text-white shadow-2xl">
@@ -1136,7 +1208,15 @@ export default function ScanReceipt() {
                         <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
                         <h1 className="text-3xl md:text-4xl font-bold text-white">Review & Edit</h1>
                     </div>
-                    <EditableReceipt data={extractedData} setData={setExtractedData} onSave={handleSave} saveUserCategoryPreference={saveUserCategoryPreference} file={file} userStoreOverrides={userStoreOverrides} />
+                    <EditableReceipt
+                        data={extractedData}
+                        setData={setExtractedData}
+                        onSave={handleSave}
+                        saveUserCategoryPreference={saveUserCategoryPreference}
+                        file={file}
+                        userStoreOverrides={userStoreOverrides}
+                        isSaving={isSaving}
+                    />
                     <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">Scan Another</button>
                 </div>
             </div>

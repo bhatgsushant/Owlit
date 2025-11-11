@@ -1015,21 +1015,34 @@ async function categorizeLineItems(lineItems, userId) {
     for (const item of lineItems) {
         const rawItemName = item.name || item.Name || '';
         if (!rawItemName) continue;
+        const normalizedItemName = rawItemName.trim();
+        const canonicalItemName = normalizedItemName.toLowerCase();
 
 
-// ✅ 1) Check user-specific category override *if* user is logged in
-let userOverride = null;
+        // ✅ 1) Check user-specific category override *if* user is logged in
+        let userOverride = null;
 
-if (userId) {
-  const result = await supabase
-    .from('user_categories')
-    .select('main_category, sub_category')
-    .eq('user_id', userId)
-    .eq('item_name', rawItemName)
-    .maybeSingle();
+        if (userId) {
+            const exactMatch = await supabase
+                .from('user_categories')
+                .select('main_category, sub_category')
+                .eq('user_id', userId)
+                .eq('item_name', normalizedItemName)
+                .maybeSingle();
 
-  userOverride = result.data;
-}
+            if (exactMatch.data) {
+                userOverride = exactMatch.data;
+            } else {
+                const normalizedMatch = await supabase
+                    .from('user_categories')
+                    .select('main_category, sub_category')
+                    .eq('user_id', userId)
+                    .eq('item_name', canonicalItemName)
+                    .maybeSingle();
+
+                userOverride = normalizedMatch.data;
+            }
+        }
 
 let masterListEntry;
 
@@ -1850,11 +1863,12 @@ app.post('/api/update-user-category', authenticateRequest, async (req, res) => {
       main_category: { type: 'string', required: true, trim: true, maxLength: 255 },
       sub_category: { type: 'string', required: true, trim: true, maxLength: 255 }
     });
+    const normalizedItemName = item_name.trim().toLowerCase();
 
     const { error } = await supabase
       .from('user_categories')
       .upsert(
-        { user_id: req.user.id, item_name, main_category, sub_category },
+        { user_id: req.user.id, item_name: normalizedItemName, main_category, sub_category },
         { onConflict: 'user_id,item_name' }
       );
 

@@ -53,7 +53,7 @@ const SpendingTrendChart = ({ data, isLoading }) => (
             <stop offset="95%" stopColor={aiColor} stopOpacity={0}/>
           </linearGradient>
         </defs>
-        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(str) => format(new Date(str), 'MMM d')} />
+        <XAxis dataKey="date" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(str) => format(new Date(str), 'dd/MM')} />
         <YAxis tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} tickFormatter={(value) => `£${value}`} />
         <Tooltip content={<CustomTooltip />} />
         <Area type="monotone" dataKey="total" name="Total Spent" stroke={aiColor} strokeWidth={2} fill="url(#aiGradient)" />
@@ -96,7 +96,12 @@ const TopMerchantsChart = ({ data, isLoading }) => (
           background={{ fill: 'rgba(15,23,42,0.25)', radius: [0, 4, 4, 0] }}
         >
           {data.map((entry, index) => (
-            <Cell key={`cell-${index}`} fill={index % 2 === 0 ? aiColor : aiColorMuted} />
+            <Cell
+              key={`cell-${index}`}
+              fill={index % 2 === 0 ? aiColor : aiColorMuted}
+              stroke="rgba(255,255,255,0.4)"
+              strokeWidth={1.5}
+            />
           ))}
         </Bar>
       </BarChart>
@@ -116,13 +121,17 @@ const HierarchicalCategoryChart = ({ data, isLoading, onBarClick, onBackClick, c
 
   return (
     <ChartWrapper title={getTitle()} isLoading={isLoading}>
-        <div className="flex items-center mb-2 absolute top-6 left-6 z-10">
-            {level !== 'main' && (
-                <button onClick={onBackClick} className="p-1.5 rounded-full hover:bg-gray-700 transition-colors">
-                    <ArrowLeft size={20} className="text-gray-300" />
-                </button>
-            )}
-        </div>
+        {level !== 'main' && (
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={onBackClick}
+              className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-white hover:bg-white/20 transition-colors"
+            >
+              <ArrowLeft size={14} />
+              Back
+            </button>
+          </div>
+        )}
         <ResponsiveContainer width="100%" height="100%">
             <BarChart data={data} margin={{ top: 20, right: 20, left: -10, bottom: 5 }}>
                 <XAxis dataKey="name" tick={{ fill: '#9CA3AF', fontSize: 11, fontFamily: 'Inter' }} />

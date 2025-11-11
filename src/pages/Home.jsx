@@ -4,6 +4,7 @@ import { createPageUrl } from "@/utils";
 import { Camera, MessageCircle, FolderOpen, Menu, ArrowRight, Star, Award, Sparkles, FileText, Brain, Shield, Zap, TrendingUp, Users, Clock, CheckCircle, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { motion, useScroll, useTransform, useSpring, useInView } from "framer-motion";
+import { useAuth } from "@/hooks/useAuth";
 
 // Animated Section Component with Scroll Trigger
 const AnimatedSection = ({ children, className = "", delay = 0 }) => {
@@ -75,11 +76,37 @@ const AnimatedStat = ({ value, suffix = "", duration = 2000 }) => {
 export default function Home() {
   const navigate = useNavigate();
   const containerRef = useRef(null);
+  const { user } = useAuth();
   
   const { scrollYProgress } = useScroll({
     target: containerRef,
     offset: ["start start", "end end"]
   });
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const body = document.body;
+    const wasDark = root.classList.contains('dark');
+    const previousTheme = root.getAttribute('data-theme');
+
+    if (wasDark) {
+      root.classList.remove('dark');
+      body?.classList.remove('dark');
+    }
+    root.setAttribute('data-theme', 'light');
+
+    return () => {
+      if (wasDark) {
+        root.classList.add('dark');
+        body?.classList.add('dark');
+      }
+      if (previousTheme) {
+        root.setAttribute('data-theme', previousTheme);
+      } else {
+        root.removeAttribute('data-theme');
+      }
+    };
+  }, []);
 
   // Background color transition
   const backgroundColor = useTransform(
@@ -138,9 +165,11 @@ export default function Home() {
           </Link>
           
           <div className="flex items-center gap-4">
-            <Link to={createPageUrl("Insights")}>
-              <Button variant="ghost" className="text-sm">Insights</Button>
-            </Link>
+            {user && (
+              <Link to={createPageUrl("Insights")}>
+                <Button variant="ghost" className="text-sm">Insights</Button>
+              </Link>
+            )}
             <Link to={createPageUrl("ScanReceipt")}>
               <Button className="bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:shadow-xl transition-all duration-300 text-sm">
                 Get Started
@@ -225,14 +254,16 @@ export default function Home() {
                 </Button>
               </motion.div>
             </Link>
-            <Link to={createPageUrl("Insights")}>
-              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Button variant="outline" className="px-11 py-4    text-base rounded-[25px] border-2 border-gray-200 dark:border-gray-700 hover:border-green-500 dark:hover:border-green-500 transition-all duration-300">
-                  <MessageCircle className="w-5 h-5 mr-2" />
-                  AI Insights
-                </Button>
-              </motion.div>
-            </Link>
+            {user && (
+              <Link to={createPageUrl("Insights")}>
+                <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                  <Button variant="outline" className="px-11 py-4 text-base rounded-[25px] border-2 border-gray-200 hover:border-green-500 transition-all duration-300">
+                    <MessageCircle className="w-5 h-5 mr-2" />
+                    AI Insights
+                  </Button>
+                </motion.div>
+              </Link>
+            )}
           </motion.div>
 
           <motion.div
