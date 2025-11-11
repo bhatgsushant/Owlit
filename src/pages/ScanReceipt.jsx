@@ -214,6 +214,142 @@ function DocumentPreview({ markdown, onApprove, onCancel }) {
     );
 }
 
+const InputWithIcon = ({
+    icon: IconComponent,
+    value,
+    onChange,
+    type = 'text',
+    placeholder,
+    iconClassName = 'text-gray-500 dark:text-gray-300',
+    inputClassName = 'text-sm',
+    ...rest
+}) => {
+    const displayValue = value === null || value === undefined ? '' : value;
+    return (
+    <div className="w-full">
+        <div className="flex flex-wrap items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
+            <IconComponent className={cn('h-4 w-4', iconClassName)} />
+            <input
+                type={type}
+                value={displayValue}
+                onChange={onChange}
+                placeholder={placeholder}
+                aria-label={placeholder}
+                className={cn('flex-1 min-w-0 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
+                {...rest}
+            />
+        </div>
+    </div>
+);
+};
+
+const LineItemRow = React.memo(({
+    item,
+    index,
+    mainCategoryOptions,
+    subCategoryOptionsMap,
+    handleLineItemChange,
+    removeLineItem,
+    setMainCategoryOptions,
+    setSubCategoryOptionsMap,
+    saveUserCategoryPreference
+}) => {
+    const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
+    const CategoryIconComponent = getCategoryIconComponent(item.main_category);
+    const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
+
+    const onSubCategoryCreate = (newSub) => {
+        const trimmed = newSub.trim();
+        if (!trimmed) return;
+
+        setSubCategoryOptionsMap(prev => ({
+            ...prev,
+            [item.main_category]: (() => {
+                const current = prev[item.main_category] || [];
+                if (current.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                    return current;
+                }
+                return [...current, trimmed];
+            })(),
+        }));
+
+        saveUserCategoryPreference(item.item, item.main_category, trimmed);
+    };
+
+    const onMainCategoryCreate = (newCategory) => {
+        const trimmed = newCategory.trim();
+        if (!trimmed) return;
+
+        setMainCategoryOptions(prev => {
+            if (prev.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
+                return prev;
+            }
+            return [...prev, trimmed];
+        });
+        setSubCategoryOptionsMap(prev => {
+            if (prev[trimmed]) {
+                return prev;
+            }
+            return { ...prev, [trimmed]: [] };
+        });
+    };
+
+    return (
+        <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+
+            <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
+
+            <InputWithIcon
+                icon={PoundSterling}
+                value={item.price}
+                onChange={(e) => handleLineItemChange(index, 'price', e.target.value)}
+                type="number"
+                placeholder="Price"
+                iconClassName="text-emerald-500"
+                inputClassName="text-sm"
+                inputMode="decimal"
+                autoComplete="off"
+                pattern="[0-9]*[.,]?[0-9]*"
+            />
+
+            <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
+
+            <div className="flex items-center gap-2">
+                <CategoryIconComponent className="h-4 w-4 text-emerald-500" />
+                <SearchableDropdown
+                    options={mainCategoryOptions}
+                    value={item.main_category}
+                    onChange={(value) => handleLineItemChange(index, 'main_category', value)}
+                    placeholder="Select Category"
+                    allowCreate
+                    pill
+                    labelClassName="text-xs md:text-sm"
+                    className="flex-1"
+                    onCreateOption={onMainCategoryCreate}
+                />
+            </div>
+
+            <div className="flex items-center gap-2">
+                <SubcategoryIconComponent className="h-4 w-4 text-sky-500" />
+                <SearchableDropdown
+                    options={subCategoryOptions}
+                    value={item.sub_category}
+                    onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
+                    placeholder="Select Subcategory"
+                    allowCreate
+                    pill
+                    labelClassName="text-xs md:text-sm"
+                    className="flex-1"
+                    onCreateOption={onSubCategoryCreate}
+                />
+            </div>
+
+            <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
+        </div>
+    );
+});
+LineItemRow.displayName = 'LineItemRow';
+
 function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides, isSaving }) {
     const { fetchWithAuth } = useAuth();
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
@@ -232,7 +368,6 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     });
     const [storeList, setStoreList] = useState([]);
     const storeTypeManualRef = useRef(false);
-    const savedPreferencesRef = useRef(new Set());
     const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
     const merchantOptions = useMemo(() => {
         const trimmed = (data.merchant_name || '').trim().toLowerCase();
@@ -426,14 +561,11 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         }
     };
 
-    // ✅ UPDATED: Added DB save calls when main_category or sub_category changes
-    const handleLineItemChange = (index, field, value) => {
+    const handleLineItemChange = useCallback((index, field, value) => {
         const normalizedValue =
             field === 'price'
                 ? (typeof value === 'string' ? value.replace(/[^\d.,-]/g, '') : value)
                 : (typeof value === 'string' ? value.trim() : value);
-
-        let pendingPreference = null;
 
         setData(prev => {
             const currentItems = Array.isArray(prev.line_items) ? [...prev.line_items] : [];
@@ -450,71 +582,23 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             currentItems[index] = updatedItem;
 
             if (field === 'sub_category') {
-                pendingPreference = {
+                const preference = {
                     itemName: (updatedItem.item || updatedItem.Item_Name || '').trim(),
                     mainCategory: (updatedItem.main_category || '').trim(),
                     subCategory: (updatedItem.sub_category || '').trim(),
                 };
+                if (preference.itemName && preference.mainCategory && preference.subCategory) {
+                    saveUserCategoryPreference(
+                        preference.itemName,
+                        preference.mainCategory,
+                        preference.subCategory
+                    );
+                }
             }
 
             return { ...prev, line_items: currentItems };
         });
-
-        if (pendingPreference) {
-            saveUserCategoryPreference(
-                pendingPreference.itemName,
-                pendingPreference.mainCategory,
-                pendingPreference.subCategory
-            );
-        }
-
-        if (field === 'main_category') {
-            const trimmedCategory = typeof normalizedValue === 'string' ? normalizedValue : '';
-            if (trimmedCategory) {
-                setMainCategoryOptions(prev => {
-                    if (prev.some(option => option.toLowerCase() === trimmedCategory.toLowerCase())) {
-                        return prev;
-                    }
-                    return [...prev, trimmedCategory];
-                });
-                setSubCategoryOptionsMap(prev => {
-                    if (prev[trimmedCategory]) {
-                        return prev;
-                    }
-                    return { ...prev, [trimmedCategory]: [] };
-                });
-            }
-        }
-    };
-
-    const InputWithIcon = ({
-        icon: IconComponent,
-        value,
-        onChange,
-        type = 'text',
-        placeholder,
-        iconClassName = 'text-gray-500 dark:text-gray-300',
-        inputClassName = 'text-sm',
-        ...rest
-    }) => {
-        const displayValue = value === null || value === undefined ? '' : value;
-        return (
-        <div className="w-full">
-            <div className="flex flex-wrap items-center gap-3 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent focus-within:border-green-500 focus-within:ring-2 focus-within:ring-green-500/20 transition">
-                <IconComponent className={cn('h-4 w-4', iconClassName)} />
-                <input
-                    type={type}
-                    value={displayValue}
-                    onChange={onChange}
-                    placeholder={placeholder}
-                    aria-label={placeholder}
-                    className={cn('flex-1 min-w-0 bg-transparent border-none focus:outline-none text-gray-900 dark:text-gray-100', inputClassName)}
-                    {...rest}
-                />
-            </div>
-        </div>
-    );
-    };
+    }, [saveUserCategoryPreference]);
 
     const addLineItem = () => {
         setData(prev => ({
@@ -523,12 +607,12 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         }));
     };
 
-    const removeLineItem = (index) => {
+    const removeLineItem = useCallback((index) => {
         setData(prev => ({
             ...prev,
             line_items: (prev.line_items || []).filter((_, i) => i !== index),
         }));
-    };
+    }, []);
 
     return (
         <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
@@ -615,97 +699,20 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                     <div></div>
                 </div>
                 <div className="space-y-4">
-                {(data.line_items || []).map((item, index) => {
-                    const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
-                    const CategoryIconComponent = getCategoryIconComponent(item.main_category);
-                    const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
-
-                    return (
-                        <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
-
-                            <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
-
-                            <InputWithIcon
-                                icon={PoundSterling}
-                                value={item.price}
-                                onChange={(e) => handleLineItemChange(index, 'price', e.target.value)}
-                                type="number"
-                                placeholder="Price"
-                                iconClassName="text-emerald-500"
-                                inputClassName="text-sm"
-                                inputMode="decimal"
-                                autoComplete="off"
-                                pattern="[0-9]*[.,]?[0-9]*"
-                            />
-
-                            <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
-
-                            <div className="flex items-center gap-2">
-                                <CategoryIconComponent className="h-4 w-4 text-emerald-500" />
-                                <SearchableDropdown
-                                    options={mainCategoryOptions}
-                                    value={item.main_category}
-                                    onChange={(value) => handleLineItemChange(index, 'main_category', value)}
-                                    placeholder="Select Category"
-                                    allowCreate
-                                    pill
-                                    labelClassName="text-xs md:text-sm"
-                                    className="flex-1"
-                                    onCreateOption={(newCategory) => {
-                                    const trimmed = newCategory.trim();
-                                    if (!trimmed) return;
-
-                                    setMainCategoryOptions(prev => {
-                                        if (prev.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
-                                            return prev;
-                                        }
-                                        return [...prev, trimmed];
-                                    });
-                                    setSubCategoryOptionsMap(prev => {
-                                    if (prev[trimmed]) {
-                                        return prev;
-                                    }
-                                    return { ...prev, [trimmed]: [] };
-                                });
-                                    }}
-                                />
-                            </div>
-
-                            <div className="flex items-center gap-2">
-                                <SubcategoryIconComponent className="h-4 w-4 text-sky-500" />
-                                <SearchableDropdown
-                                    options={subCategoryOptions}
-                                    value={item.sub_category}
-                                    onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
-                                    placeholder="Select Subcategory"
-                                    allowCreate
-                                    pill
-                                    labelClassName="text-xs md:text-sm"
-                                    className="flex-1"
-                                    onCreateOption={(newSub) => {
-                                    const trimmed = newSub.trim();
-                                    if (!trimmed) return;
-
-                                    setSubCategoryOptionsMap(prev => ({
-                                        ...prev,
-                                        [item.main_category]: (() => {
-                                            const current = prev[item.main_category] || [];
-                                            if (current.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
-                                                return current;
-                                            }
-                                            return [...current, trimmed];
-                                        })(),
-                                    }));
-
-                                    saveUserCategoryPreference(item.item, item.main_category, trimmed);
-                                    }}
-                                />
-                            </div>
-
-                            <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
-                        </div>
-                    );
-                })}
+                {(data.line_items || []).map((item, index) => (
+                        <LineItemRow
+                            key={index}
+                            item={item}
+                            index={index}
+                            mainCategoryOptions={mainCategoryOptions}
+                            subCategoryOptionsMap={subCategoryOptionsMap}
+                            handleLineItemChange={handleLineItemChange}
+                            removeLineItem={removeLineItem}
+                            setMainCategoryOptions={setMainCategoryOptions}
+                            setSubCategoryOptionsMap={setSubCategoryOptionsMap}
+                            saveUserCategoryPreference={saveUserCategoryPreference}
+                        />
+                ))}
             </div>
             </div>
             <div className="flex gap-4 mt-6">
