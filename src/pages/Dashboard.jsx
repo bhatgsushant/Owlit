@@ -14,10 +14,17 @@ const aiColor = "#8B5CF6"; // A nice violet
 const aiColorMuted = "#6D28D9"; // A darker violet
 
 // A modern, reusable chart wrapper with new styling
-const ChartWrapper = ({ title, children, isLoading }) => (
+const ChartWrapper = ({ title, subtitle, controls, actions, children, isLoading }) => (
   <div className="bg-white/5 dark:bg-gray-900/60 rounded-3xl shadow-2xl backdrop-blur p-5 md:p-6 lg:p-8 h-[400px] flex flex-col border border-white/15 min-w-0 w-full">
-    <h2 className="font-display font-semibold text-base md:text-lg mb-4 text-gray-100">{title}</h2>
-    <div className="flex-grow">
+    <div className="mb-4 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="font-display font-semibold text-base md:text-lg text-gray-100">{title}</h2>
+        {actions}
+      </div>
+      {subtitle && <p className="text-xs text-gray-400">{subtitle}</p>}
+      {controls && <div className="flex flex-wrap items-center gap-2">{controls}</div>}
+    </div>
+    <div className="flex-grow min-h-0">
       {isLoading ? (
         <div className="h-full w-full bg-gray-700/50 animate-pulse rounded-lg"></div>
       ) : (
@@ -329,3 +336,56 @@ export default function Dashboard() {
     </motion.div>
   );
 }
+const DrilldownControls = ({ segments = [], onBack, canGoBack }) => (
+  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+    <button
+      type="button"
+      onClick={onBack}
+      disabled={!canGoBack}
+      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 transition ${
+        canGoBack
+          ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+          : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
+      }`}
+    >
+      <ArrowLeft size={12} />
+      Back
+    </button>
+    <div className="flex flex-wrap items-center gap-1">
+      {segments.map((segment, idx) => (
+        <React.Fragment key={`${segment.label}-${idx}`}>
+          <button
+            type="button"
+            onClick={segment.onClick}
+            disabled={segment.active}
+            className={`rounded-full px-2 py-0.5 transition ${
+              segment.active ? 'bg-white/20 text-white cursor-default' : 'text-gray-400 hover:text-white'
+            }`}
+          >
+            {segment.label}
+          </button>
+          {idx < segments.length - 1 && <span className="text-gray-500">/</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  </div>
+);
+
+const ViewToggle = ({ mode, onChange }) => (
+  <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 text-[11px] text-white overflow-hidden">
+    <button
+      type="button"
+      onClick={() => onChange('value')}
+      className={`px-3 py-1 transition ${mode === 'value' ? 'bg-emerald-500/80 text-white' : 'text-gray-300 hover:text-white'}`}
+    >
+      £ Value
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange('percent')}
+      className={`px-3 py-1 transition ${mode === 'percent' ? 'bg-emerald-500/80 text-white' : 'text-gray-300 hover:text-white'}`}
+    >
+      % Share
+    </button>
+  </div>
+);

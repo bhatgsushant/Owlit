@@ -1,13 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
-import { getMerchantLogoUrl } from '../utils/logoUtils';
 import ItemPriceTrendChart from '@/components/analytics/ItemPriceTrendChart';
 import BasketCompositionChart from '@/components/analytics/BasketCompositionChart';
+import { ArrowLeft } from 'lucide-react';
+import {
+  ResponsiveContainer as ReResponsiveContainer,
+  BarChart as ReBarChart,
+  Bar as ReBar,
+  XAxis as ReXAxis,
+  YAxis as ReYAxis,
+  Tooltip as ReTooltip,
+  Cell as ReCell,
+} from 'recharts';
 import {
   format,
   parseISO,
@@ -118,11 +127,14 @@ const ChartCard = ({
   height = 320,
   onEvents,
   emptyMessage,
-  headerAction,
+  actions,
+  controls,
+  customContent,
 }) => {
-  const canRenderChart = Boolean(option) && hasData;
+  const hasOption = Boolean(option);
+  const shouldRender = customContent ? hasData : (hasOption && hasData);
   const shellClasses = 'w-full h-full rounded-2xl border border-white/10 bg-white/5 p-4';
-  const normalizedOption = option
+  const normalizedOption = hasOption
     ? {
         ...option,
         textStyle: {
@@ -131,33 +143,39 @@ const ChartCard = ({
         },
       }
     : null;
-  const descriptionContent = description;
 
   return (
-    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-6 shadow-2xl backdrop-blur">
-      <div className="space-y-3">
+    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-4 shadow-2xl backdrop-blur">
+      <div className="space-y-2">
         <div className="flex items-start justify-between gap-4">
           <h2 className="text-lg md:text-xl font-semibold text-white font-display">{title}</h2>
-          {headerAction}
+          {actions}
         </div>
         {description && (
           <div className="text-sm text-gray-300 leading-relaxed">
-            {typeof descriptionContent === 'string' ? descriptionContent : descriptionContent}
+            {typeof description === 'string' ? description : description}
           </div>
         )}
+        {controls && <div className="flex flex-wrap items-center gap-2">{controls}</div>}
       </div>
       <div className="flex-1 min-h-[200px]">
         {isLoading ? (
           <div className={`${shellClasses} animate-pulse`} style={{ height }} />
-        ) : canRenderChart ? (
+        ) : shouldRender ? (
           <div className={shellClasses} style={{ height }}>
-            <ReactECharts
-              option={normalizedOption}
-              style={{ height: '100%', width: '100%' }}
-              notMerge
-              lazyUpdate
-              onEvents={onEvents}
-            />
+            <div className="w-full h-full">
+              {customContent ? (
+                customContent
+              ) : (
+                <ReactECharts
+                  option={normalizedOption}
+                  style={{ height: '100%', width: '100%' }}
+                  notMerge
+                  lazyUpdate
+                  onEvents={onEvents}
+                />
+              )}
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-gray-500 text-center px-4">
@@ -165,6 +183,77 @@ const ChartCard = ({
           </div>
         )}
       </div>
+    </div>
+  );
+};
+
+const DrilldownControls = ({ segments = [], onBack, canGoBack }) => (
+  <div className="flex flex-wrap items-center gap-3 text-xs text-gray-300">
+    <button
+      type="button"
+      onClick={onBack}
+      disabled={!canGoBack}
+      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 transition ${
+        canGoBack
+          ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+          : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
+      }`}
+    >
+      <ArrowLeft size={12} />
+      Back
+    </button>
+    <div className="flex flex-wrap items-center gap-1">
+      {segments.map((segment, idx) => (
+        <React.Fragment key={`${segment.label}-${idx}`}>
+          <button
+            type="button"
+            onClick={segment.onClick}
+            disabled={segment.active || !segment.onClick}
+            className={`rounded-full px-2 py-0.5 transition ${
+              segment.active
+                ? 'bg-white/20 text-white cursor-default'
+                : segment.onClick
+                ? 'text-gray-300 hover:text-white'
+                : 'text-gray-500 cursor-default'
+            }`}
+          >
+            {segment.label}
+          </button>
+          {idx < segments.length - 1 && <span className="text-gray-500">/</span>}
+        </React.Fragment>
+      ))}
+    </div>
+  </div>
+);
+
+const ViewToggle = ({ mode, onChange }) => (
+  <div className="inline-flex items-center rounded-full border border-white/20 bg-white/10 text-[11px] text-white overflow-hidden">
+    <button
+      type="button"
+      onClick={() => onChange('value')}
+      className={`px-3 py-1 transition ${mode === 'value' ? 'bg-emerald-500/80 text-white' : 'text-gray-300 hover:text-white'}`}
+    >
+      £ Value
+    </button>
+    <button
+      type="button"
+      onClick={() => onChange('percent')}
+      className={`px-3 py-1 transition ${mode === 'percent' ? 'bg-emerald-500/80 text-white' : 'text-gray-300 hover:text-white'}`}
+    >
+      % Share
+    </button>
+  </div>
+);
+
+const MerchantTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const datum = payload[0]?.payload;
+  if (!datum) return null;
+  return (
+    <div className="rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-xs text-white shadow-xl">
+      <p className="font-semibold">{datum.name}</p>
+      <p className="text-gray-200">Spend: {formatCurrency(datum.value)}</p>
+      <p className="text-gray-400">Share: {datum.percent.toFixed(1)}%</p>
     </div>
   );
 };
@@ -332,6 +421,8 @@ export default function Insights() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [selectedSubCategory, setSelectedSubCategory] = useState(null);
   const [drillLevel, setDrillLevel] = useState('main');
+  const [merchantDrillState, setMerchantDrillState] = useState({ level: 'merchant', merchant: null, category: null });
+  const [merchantViewMode, setMerchantViewMode] = useState('value');
   const [timeGranularity, setTimeGranularity] = useState('day');
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(null);
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
@@ -1409,6 +1500,79 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [analytics.categoryNames, analytics.categoryDetails, categoryPieCategory]);
 
   useEffect(() => {
+    const drill = analytics.merchantDrilldown;
+    if (!drill) {
+      if (merchantDrillState.level !== 'merchant') {
+        setMerchantDrillState({ level: 'merchant', merchant: null, category: null });
+      }
+      return;
+    }
+    if (merchantDrillState.level === 'category' && !drill.details?.[merchantDrillState.merchant]) {
+      setMerchantDrillState({ level: 'merchant', merchant: null, category: null });
+    } else if (merchantDrillState.level === 'sub') {
+      const merchantDetails = drill.details?.[merchantDrillState.merchant];
+      if (!merchantDetails) {
+        setMerchantDrillState({ level: 'merchant', merchant: null, category: null });
+      } else if (!merchantDetails.categoryLookup?.[merchantDrillState.category]) {
+        setMerchantDrillState({ level: 'category', merchant: merchantDrillState.merchant, category: null });
+      }
+    }
+  }, [analytics.merchantDrilldown, merchantDrillState, setMerchantDrillState]);
+
+  const merchantDrilldownData = useMemo(() => {
+    const drill = analytics.merchantDrilldown;
+    if (!drill || !Array.isArray(drill.merchants) || drill.merchants.length === 0) {
+      return null;
+    }
+
+    const { level, merchant, category } = merchantDrillState;
+    let rows = drill.merchants;
+    let subtitle = 'Tap a merchant to explore its categories.';
+
+    if (level !== 'merchant') {
+      const merchantDetails = drill.details?.[merchant];
+      if (!merchantDetails) {
+        return {
+          data: drill.merchants.map((entry) => ({
+            name: entry.name,
+            value: roundToTwo(entry.value),
+          })),
+          subtitle,
+          level: 'merchant',
+        };
+      }
+
+      if (level === 'category') {
+        rows = merchantDetails.categories || [];
+        subtitle = `Categories inside ${merchant}.`;
+      } else if (level === 'sub') {
+        const categoryDetails = merchantDetails.categoryLookup?.[category];
+        rows = categoryDetails?.subCategories || [];
+        subtitle = `Sub-categories in ${category} (${merchant}).`;
+      }
+    }
+
+    const normalized = rows
+      .map((row) => {
+        const value = roundToTwo(row.value ?? row.total ?? 0);
+        return { name: row.name, value };
+      })
+      .filter((row) => row.value > 0);
+
+    const total = normalized.reduce((sum, row) => sum + row.value, 0);
+    const data = normalized.map((row) => ({
+      ...row,
+      percent: total ? (row.value / total) * 100 : 0,
+    }));
+
+    return {
+      data,
+      subtitle,
+      total,
+    };
+  }, [analytics.merchantDrilldown, merchantDrillState]);
+
+  useEffect(() => {
     if (!analytics.categoryNames.length) {
       setSelectedCategory(null);
       setSelectedSubCategory(null);
@@ -1710,102 +1874,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     selectedTimelineYear,
     selectedTimelineMonth,
   ]);
-
-  const merchantsOption = useMemo(() => {
-    if (!analytics.merchantSeries.length) return null;
-
-    const categories = [...analytics.merchantSeries].reverse();
-    const dataEntries = categories.map((item, index) => {
-      const logoUrl = getMerchantLogoUrl(item.name);
-      const truncatedName = truncateLabel(item.name, isMobile ? 20 : 30);
-      const rich = {
-        value: {
-          color: '#F8FAFC',
-          fontSize: isMobile ? 11 : 12,
-          fontWeight: 600,
-          padding: [0, 8, 0, 0],
-        },
-      };
-      if (logoUrl) {
-        rich.logo = {
-          width: isMobile ? 18 : 24,
-          height: isMobile ? 18 : 24,
-          backgroundColor: {
-            image: logoUrl,
-          },
-          borderRadius: isMobile ? 9 : 12,
-          padding: [0, 0, 0, 12],
-        };
-      }
-
-      return {
-        value: item.value,
-        name: item.name,
-        truncatedName,
-        logoUrl,
-        label: {
-          show: true,
-          position: 'right',
-          distance: 10,
-          formatter(params) {
-            const formattedValue = formatCurrency(params.value);
-            const parts = [`{value|${formattedValue}}`];
-            if (params.data.logoUrl) {
-              parts.push('{logo| }');
-            }
-            return parts.join(' ');
-          },
-          rich,
-        },
-      };
-    });
-
-    const leftPadding = isMobile ? 140 : 220;
-    const rightPadding = isMobile ? '6%' : '12%';
-    const barWidth = isMobile ? 22 : 30;
-    const yAxisFont = isMobile ? 11 : 13;
-
-    return {
-      backgroundColor: 'transparent',
-      tooltip: {
-        trigger: 'axis',
-        axisPointer: { type: 'shadow' },
-        valueFormatter: (value) => formatCurrency(value),
-      },
-      grid: { left: leftPadding, right: rightPadding, top: 40, bottom: 16 },
-      xAxis: {
-        type: 'value',
-        axisLabel: { color: '#E2E8F0', formatter: (value) => `£${value}` },
-        splitLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.15)' } },
-      },
-      yAxis: {
-        type: 'category',
-        data: dataEntries.map((entry) => entry.truncatedName),
-        axisTick: { show: false },
-        axisLine: { show: false },
-        axisLabel: {
-          color: '#F8FAFC',
-          fontSize: yAxisFont,
-        },
-      },
-      series: [
-        {
-          name: 'Total spend',
-          type: 'bar',
-          data: dataEntries,
-          barWidth,
-          barCategoryGap: '45%',
-          itemStyle: {
-            borderRadius: [0, 14, 14, 0],
-            color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
-              { offset: 0, color: '#6366F1' },
-              { offset: 1, color: '#8B5CF6' },
-            ]),
-          },
-        },
-      ],
-    };
-  }, [analytics.merchantSeries, isMobile]);
 
   const subcategoryNightingaleOption = useMemo(() => {
     const categoryDetails = analytics.categoryDetails;
@@ -2147,31 +2215,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     return '';
   }, [drillLevel, selectedCategory, selectedSubCategory]);
 
-  const drilldownPath = useMemo(() => {
-    if (drillLevel === 'main') return 'All categories';
-    if (drillLevel === 'sub') return `All categories › ${selectedCategory}`;
-    if (drillLevel === 'item') {
-      const subLabel = selectedSubCategory || 'Line items';
-      return `All categories › ${selectedCategory} › ${subLabel}`;
-    }
-    return '';
-  }, [drillLevel, selectedCategory, selectedSubCategory]);
-
-  const drilldownHeaderAction = (
-    <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400">
-      <span className="hidden sm:inline">{drilldownPath}</span>
-      {drillLevel !== 'main' && (
-        <button
-          onClick={stepBack}
-          className="text-xs font-semibold uppercase tracking-widest text-violet-300 hover:text-violet-100 transition-colors"
-        >
-          Back
-        </button>
-      )}
-      <TimeframeControls {...sharedTimeframeControlProps} className="ml-auto" />
-    </div>
-  );
-
   const drilldownEmptyMessage = useMemo(() => {
     if (!analytics.categoryNames.length) {
       return 'No categorised spending yet. Scan receipts with line items to populate this view.';
@@ -2184,6 +2227,177 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     }
     return 'No data available yet.';
   }, [analytics.categoryNames, drillLevel]);
+
+  const categoryDrillSegments = useMemo(() => {
+    const segments = [
+      {
+        label: 'All categories',
+        active: drillLevel === 'main',
+        onClick:
+          drillLevel === 'main'
+            ? undefined
+            : () => {
+                setDrillLevel('main');
+                setSelectedCategory(null);
+                setSelectedSubCategory(null);
+              },
+      },
+    ];
+    if (drillLevel !== 'main' && selectedCategory) {
+      segments.push({
+        label: selectedCategory,
+        active: drillLevel === 'sub',
+        onClick:
+          drillLevel === 'sub'
+            ? undefined
+            : () => {
+                setDrillLevel('sub');
+                setSelectedSubCategory(null);
+              },
+      });
+    }
+    if (drillLevel === 'item' && selectedSubCategory) {
+      segments.push({
+        label: selectedSubCategory,
+        active: true,
+      });
+    }
+    return segments;
+  }, [drillLevel, selectedCategory, selectedSubCategory]);
+
+  const categoryDrillControls = (
+    <DrilldownControls
+      segments={categoryDrillSegments}
+      onBack={stepBack}
+      canGoBack={drillLevel !== 'main'}
+    />
+  );
+
+  const categoryDrillActions = (
+    <TimeframeControls {...sharedTimeframeControlProps} className="ml-auto" />
+  );
+
+  const merchantDescription = useMemo(() => {
+    if (merchantDrillState.level === 'merchant') {
+      return 'Start with your highest-spend merchants. Tap a bar to inspect its categories.';
+    }
+    if (merchantDrillState.level === 'category') {
+      return `Categories inside ${merchantDrillState.merchant}. Tap to reveal its sub-categories.`;
+    }
+    return `Sub-categories inside ${merchantDrillState.category || 'selection'} at ${merchantDrillState.merchant}.`;
+  }, [merchantDrillState]);
+
+  const handleMerchantBarClick = useCallback(
+    (name) => {
+      if (!name) return;
+      if (merchantDrillState.level === 'sub') return;
+      if (merchantDrillState.level === 'merchant') {
+        setMerchantDrillState({ level: 'category', merchant: name, category: null });
+      } else if (merchantDrillState.level === 'category') {
+        setMerchantDrillState({ level: 'sub', merchant: merchantDrillState.merchant, category: name });
+      }
+    },
+    [merchantDrillState, setMerchantDrillState]
+  );
+
+  const handleMerchantBack = useCallback(() => {
+    if (merchantDrillState.level === 'sub') {
+      setMerchantDrillState({ level: 'category', merchant: merchantDrillState.merchant, category: null });
+    } else if (merchantDrillState.level === 'category') {
+      setMerchantDrillState({ level: 'merchant', merchant: null, category: null });
+    }
+  }, [merchantDrillState, setMerchantDrillState]);
+
+  const merchantSegments = useMemo(() => {
+    const segments = [
+      {
+        label: 'All merchants',
+        active: merchantDrillState.level === 'merchant',
+        onClick:
+          merchantDrillState.level === 'merchant'
+            ? undefined
+            : () => setMerchantDrillState({ level: 'merchant', merchant: null, category: null }),
+      },
+    ];
+    if (merchantDrillState.level !== 'merchant' && merchantDrillState.merchant) {
+      segments.push({
+        label: merchantDrillState.merchant,
+        active: merchantDrillState.level === 'category',
+        onClick:
+          merchantDrillState.level === 'category'
+            ? undefined
+            : () => setMerchantDrillState({ level: 'category', merchant: merchantDrillState.merchant, category: null }),
+      });
+    }
+    if (merchantDrillState.level === 'sub' && merchantDrillState.category) {
+      segments.push({
+        label: merchantDrillState.category,
+        active: true,
+      });
+    }
+    return segments;
+  }, [merchantDrillState]);
+
+  const merchantControls =
+    merchantDrilldownData && merchantDrilldownData.data.length
+      ? (
+        <DrilldownControls
+          segments={merchantSegments}
+          onBack={handleMerchantBack}
+          canGoBack={merchantDrillState.level !== 'merchant'}
+        />
+      )
+      : null;
+
+  const merchantActions =
+    merchantDrilldownData && merchantDrilldownData.data.length
+      ? <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
+      : null;
+
+  const merchantMetricKey = merchantViewMode === 'percent' ? 'percent' : 'value';
+  const merchantXAxisFormatter = (value) =>
+    merchantViewMode === 'percent' ? `${Number(value).toFixed(1)}%` : `£${Number(value).toLocaleString('en-GB')}`;
+  const merchantChartContent =
+    merchantDrilldownData && merchantDrilldownData.data.length ? (
+      <ReResponsiveContainer width="100%" height="100%">
+        <ReBarChart
+          data={merchantDrilldownData.data}
+          layout="vertical"
+          margin={{ top: 10, right: 24, left: 140, bottom: 10 }}
+        >
+          <ReXAxis
+            type="number"
+            domain={merchantViewMode === 'percent' ? [0, 100] : ['auto', 'auto']}
+            tick={{ fill: '#CBD5F5', fontSize: 11 }}
+            tickFormatter={merchantXAxisFormatter}
+          />
+          <ReYAxis
+            type="category"
+            dataKey="name"
+            width={160}
+            tick={{ fill: '#F8FAFC', fontSize: 11 }}
+            tickLine={false}
+            axisLine={false}
+          />
+          <ReTooltip content={<MerchantTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+          <ReBar
+            dataKey={merchantMetricKey}
+            radius={[0, 8, 8, 0]}
+            onClick={({ name }) => handleMerchantBarClick(name)}
+            cursor={merchantDrillState.level === 'sub' ? 'default' : 'pointer'}
+          >
+            {merchantDrilldownData.data.map((entry, idx) => (
+              <ReCell
+                key={entry.name}
+                fill={idx % 2 === 0 ? '#8B5CF6' : '#22d3ee'}
+                stroke="rgba(15,23,42,0.6)"
+                strokeWidth={1}
+              />
+            ))}
+          </ReBar>
+        </ReBarChart>
+      </ReResponsiveContainer>
+    ) : null;
 
   const categoryPieOption = useMemo(() => {
     const source = categoryPieCategory ? categoryPieData.subCategories : categoryPieData.categories;
@@ -2291,7 +2505,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     [categoryPieCategory, analytics.categoryDetails]
   );
 
-  const categoryPieHeaderAction = <TimeframeControls {...sharedTimeframeControlProps} />;
+  const categoryPieActions = <TimeframeControls {...sharedTimeframeControlProps} />;
 
   const categoryPieDescription = (
     <div className="flex flex-wrap items-center gap-3">
@@ -2446,7 +2660,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             isLoading={isLoading}
             hasData={Boolean(spendingTrendOption)}
             height={320}
-            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
+            actions={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.12}>
@@ -2458,18 +2672,20 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             hasData={Boolean(stackedCategoryOption)}
             emptyMessage="Capture receipts with line items to unlock category trends."
             height={320}
-            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
+            actions={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
         <AnimatedSection delay={0.14}>
           <ChartCard
             title="Top Merchants"
-            description="This highlights your top merchants by total spend."
-            option={merchantsOption}
+            description={merchantDescription}
+            customContent={merchantChartContent}
             isLoading={isLoading}
-            hasData={Boolean(analytics.merchantSeries.length)}
+            hasData={Boolean(merchantDrilldownData?.data?.length)}
             height={320}
-            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
+            controls={merchantControls}
+            actions={merchantActions}
+            emptyMessage="Scan more receipts to unlock merchant insights."
           />
         </AnimatedSection>
         <AnimatedSection delay={0.16}>
@@ -2480,7 +2696,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             isLoading={isLoading}
             hasData={Boolean(analytics.weekdaySeries.some((item) => item.value > 0))}
             height={320}
-            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
+            actions={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </AnimatedSection>
       </div>
@@ -2495,7 +2711,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             hasData={Boolean(drilldownOption)}
             onEvents={drilldownOption ? { click: handleDrillClick } : undefined}
             emptyMessage={drilldownEmptyMessage}
-            headerAction={drilldownHeaderAction}
+            controls={categoryDrillControls}
+            actions={categoryDrillActions}
             height={300}
           />
           <ChartCard
@@ -2506,7 +2723,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             hasData={Boolean(subcategoryNightingaleOption)}
             emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
             height={300}
-            headerAction={<TimeframeControls {...sharedTimeframeControlProps} />}
+            actions={<TimeframeControls {...sharedTimeframeControlProps} />}
           />
         </div>
       </AnimatedSection>
@@ -2567,7 +2784,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             hasData={Boolean(categoryPieOption)}
             emptyMessage="Add receipts with categorised line items to populate this chart."
             height={340}
-            headerAction={categoryPieHeaderAction}
+            actions={categoryPieActions}
             onEvents={categoryPieOption ? categoryPieEvents : undefined}
           />
 
