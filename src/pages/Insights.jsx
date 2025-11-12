@@ -10,14 +10,6 @@ import BasketCompositionChart from '@/components/analytics/BasketCompositionChar
 import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   ResponsiveContainer as ReResponsiveContainer,
   BarChart as ReBarChart,
   Bar as ReBar,
@@ -43,6 +35,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 const weekDayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const merchantBarPalette = ['#F97316', '#0EA5E9', '#22C55E', '#A855F7', '#F43F5E', '#EAB308'];
 
 const roundToTwo = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
 const formatCurrency = (value) =>
@@ -423,27 +416,6 @@ const TimeframeControls = ({
   );
 };
 
-const TopMerchantsTable = ({ data }) => {
-  return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Merchant</TableHead>
-          <TableHead className="text-right">Spend</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {data.map((merchant) => (
-          <TableRow key={merchant.name}>
-            <TableCell>{merchant.name}</TableCell>
-            <TableCell className="text-right">{formatCurrency(merchant.value)}</TableCell>
-          </TableRow>
-        ))}
-      </TableBody>
-    </Table>
-  );
-};
-
 export default function Insights() {
   const { user, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
@@ -462,7 +434,6 @@ export default function Insights() {
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
-  const [topMerchantsView, setTopMerchantsView] = useState('table');
   const [showAllMerchants, setShowAllMerchants] = useState(false);
 
 
@@ -2444,27 +2415,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantActions =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       <div className="flex flex-wrap items-center gap-2">
-        {merchantDrilldownData.canShowMore && (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-9 w-9 rounded-full border border-white/10 text-white hover:bg-white/10"
-            onClick={() => setShowAllMerchants((prev) => !prev)}
-            aria-label={merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
-          >
-            {merchantDrilldownData.showingAllMerchants ? (
-              <ChevronUp className="h-4 w-4" />
-            ) : (
-              <ChevronDown className="h-4 w-4" />
-            )}
-            <span className="sr-only">
-              {merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
-            </span>
-          </Button>
-        )}
-        <Button onClick={() => setTopMerchantsView(topMerchantsView === 'table' ? 'chart' : 'table')}>
-          {topMerchantsView === 'table' ? 'Show Chart' : 'Show Table'}
-        </Button>
         <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
         <TimeframeControls {...sharedTimeframeControlProps} />
       </div>
@@ -2476,65 +2426,80 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantXAxisFormatter = (value) =>
     merchantViewMode === 'percent' ? `${Number(value).toFixed(1)}%` : `£${Number(value).toLocaleString('en-GB')}`;
 
-  const merchantTableData = useMemo(() => {
-    const merchants = analytics.merchantDrilldown?.merchants || [];
-    return showAllMerchants ? merchants : merchants.slice(0, 10);
-  }, [analytics.merchantDrilldown, showAllMerchants]);
-  
   const merchantChartContent =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
-      topMerchantsView === 'table' ? (
-        <TopMerchantsTable data={merchantTableData} />
-      ) : (
-      <ReResponsiveContainer width="100%" height="100%">
-        <ReBarChart
-          data={merchantDrilldownData.data}
-          layout="vertical"
-          margin={{ top: 10, right: 24, left: isMobile ? 80 : 140, bottom: 10 }}
-        >
-          <ReXAxis
-            type="number"
-            domain={merchantViewMode === 'percent' ? [0, 100] : ['auto', 'auto']}
-            tick={{ fill: '#CBD5F5', fontSize: 11 }}
-            tickFormatter={merchantXAxisFormatter}
-          />
-          <ReYAxis
-            type="category"
-            dataKey="name"
-            width={isMobile ? 80 : 160}
-            tick={{ fill: '#F8FAFC', fontSize: 11 }}
-            tickLine={false}
-            axisLine={false}
-          />
-          <ReTooltip content={<MerchantTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-          <ReBar
-            dataKey={merchantMetricKey}
-            radius={[0, 8, 8, 0]}
-            onClick={({ name }) => handleMerchantBarClick(name)}
-            cursor={merchantDrillState.level === 'sub' ? 'default' : 'pointer'}
-          >
-            {merchantDrilldownData.data.map((entry, idx) => (
-              <ReCell
-                key={entry.name}
-                fill={idx % 2 === 0 ? '#8B5CF6' : '#22d3ee'}
-                stroke="rgba(15,23,42,0.6)"
-                strokeWidth={1}
+      <div className="flex h-full flex-col">
+        <div className="flex-1 min-h-0">
+          <ReResponsiveContainer width="100%" height="100%">
+            <ReBarChart
+              data={merchantDrilldownData.data}
+              layout="vertical"
+              margin={{ top: 10, right: 16, left: 16, bottom: 4 }}
+            >
+              <ReXAxis
+                type="number"
+                domain={merchantViewMode === 'percent' ? [0, 100] : ['auto', 'auto']}
+                tick={{ fill: '#CBD5F5', fontSize: 11 }}
+                tickFormatter={merchantXAxisFormatter}
               />
-            ))}
-            <ReLabelList
-              dataKey={merchantMetricKey}
-              position="right"
-              formatter={(value, entry) =>
-                merchantViewMode === 'percent'
-                  ? `${Number(value || entry?.payload?.percent || 0).toFixed(1)}%`
-                  : formatCurrency(value)
-              }
-              className="text-xs fill-white"
-            />
-          </ReBar>
-        </ReBarChart>
-      </ReResponsiveContainer>
-      )
+              <ReYAxis
+                type="category"
+                dataKey="name"
+                width={isMobile ? 64 : 120}
+                tick={{ fill: '#F8FAFC', fontSize: 11 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <ReTooltip content={<MerchantTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
+              <ReBar
+                dataKey={merchantMetricKey}
+                radius={[0, 8, 8, 0]}
+                onClick={({ name }) => handleMerchantBarClick(name)}
+                cursor={merchantDrillState.level === 'sub' ? 'default' : 'pointer'}
+              >
+                {merchantDrilldownData.data.map((entry, idx) => (
+                  <ReCell
+                    key={entry.name}
+                    fill={merchantBarPalette[idx % merchantBarPalette.length]}
+                    stroke="rgba(15,23,42,0.4)"
+                    strokeWidth={1}
+                  />
+                ))}
+                <ReLabelList
+                  dataKey={merchantMetricKey}
+                  position="right"
+                  formatter={(value, entry) =>
+                    merchantViewMode === 'percent'
+                      ? `${Number(value || entry?.payload?.percent || 0).toFixed(1)}%`
+                      : formatCurrency(value)
+                  }
+                  className="text-xs fill-white"
+                />
+              </ReBar>
+            </ReBarChart>
+          </ReResponsiveContainer>
+        </div>
+        {merchantDrilldownData.canShowMore && (
+          <div className="mt-4 flex items-center justify-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 rounded-full border border-white/10 text-white hover:bg-white/10"
+              onClick={() => setShowAllMerchants((prev) => !prev)}
+              aria-label={merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
+            >
+              {merchantDrilldownData.showingAllMerchants ? (
+                <ChevronUp className="h-4 w-4" />
+              ) : (
+                <ChevronDown className="h-4 w-4" />
+              )}
+              <span className="sr-only">
+                {merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
+              </span>
+            </Button>
+          </div>
+        )}
+      </div>
     ) : null;
 
   const categoryPieOption = useMemo(() => {
