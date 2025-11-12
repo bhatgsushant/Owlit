@@ -31,6 +31,7 @@ import {
   subWeeks,
   subDays,
 } from 'date-fns';
+import { useNavigate } from 'react-router-dom';
 
 const weekDayLabels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -416,6 +417,7 @@ const TimeframeControls = ({
 export default function Insights() {
   const { user, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
+  const navigate = useNavigate();
   const [receipts, setReceipts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -430,6 +432,24 @@ export default function Insights() {
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
+
+  const handleDelete = async (receiptId) => {
+    if (!window.confirm('Are you sure you want to delete this receipt?')) {
+        return;
+    }
+    const { error } = await supabase.from('receipts').delete().eq('id', receiptId);
+    if (error) {
+        alert('Failed to delete receipt.');
+        console.error(error);
+    } else {
+        setReceipts(receipts.filter(r => r.id !== receiptId));
+    }
+  };
+
+  const handleEdit = (receipt) => {
+      sessionStorage.setItem('edit-receipt-data', JSON.stringify(receipt));
+      navigate('/scan?edit=true');
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -1825,6 +1845,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         valueFormatter: (value) => formatCurrency(value),
       },
       legend: {
+        show: false,
         top: 10,
         textStyle: { color: '#E2E8F0' },
       },
@@ -2287,16 +2308,18 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [drillLevel, selectedCategory, selectedSubCategory]);
 
   const categoryDrillControls = (
-    <DrilldownControls
-      segments={categoryDrillSegments}
-      onBack={stepBack}
-      canGoBack={drillLevel !== 'main'}
-    />
+    <div className="flex flex-wrap items-center gap-2">
+        <DrilldownControls
+          segments={categoryDrillSegments}
+          onBack={stepBack}
+          canGoBack={drillLevel !== 'main'}
+        />
+        <ViewToggle mode={categoryDrillViewMode} onChange={setCategoryDrillViewMode} />
+    </div>
   );
 
   const categoryDrillActions = (
     <div className="flex flex-wrap items-center gap-2 ml-auto">
-      <ViewToggle mode={categoryDrillViewMode} onChange={setCategoryDrillViewMode} />
       <TimeframeControls {...sharedTimeframeControlProps} />
     </div>
   );
@@ -2392,7 +2415,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         <ReBarChart
           data={merchantDrilldownData.data}
           layout="vertical"
-          margin={{ top: 10, right: 24, left: 140, bottom: 10 }}
+          margin={{ top: 10, right: 24, left: isMobile ? 80 : 140, bottom: 10 }}
         >
           <ReXAxis
             type="number"
@@ -2403,7 +2426,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <ReYAxis
             type="category"
             dataKey="name"
-            width={160}
+            width={isMobile ? 80 : 160}
             tick={{ fill: '#F8FAFC', fontSize: 11 }}
             tickLine={false}
             axisLine={false}
@@ -2815,11 +2838,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
       <AnimatedSection delay={0.22}>
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
-          <ReceiptsAnalyticsTable
-            receipts={receipts}
-            isLoading={isLoading}
-            showInsightsLink={false}
-          />
+
 
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
             <div>
@@ -2854,6 +2873,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
               receipts={processedReceipts}
               isLoading={isLoading}
               showInsightsLink={false}
+              onDelete={handleDelete}
+              onEdit={handleEdit}
             />
           </div>
         </div>

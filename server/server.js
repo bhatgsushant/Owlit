@@ -548,6 +548,17 @@ async function runTesseract(imageBuffer) {
 function formatDate(dateString) {
     if (!dateString) return '';
     try {
+        // Attempt to parse DD/MM/YYYY
+        const parts = dateString.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+        if (parts) {
+            // parts[1] = DD, parts[2] = MM, parts[3] = YYYY
+            const date = new Date(`${parts[3]}-${parts[2]}-${parts[1]}`);
+            if (!isNaN(date)) {
+                return date.toISOString().split('T')[0];
+            }
+        }
+
+        // Fallback for other formats like YYYY-MM-DD or ISO strings
         const date = new Date(dateString);
         if (isNaN(date)) throw new Error('Invalid date');
         return date.toISOString().split('T')[0];
@@ -606,10 +617,10 @@ ${tesseractText}
 
 ` : ''}
 ${CATEGORY_PROMPT_TEXT}
-Output clean structured JSON in this format:
+Output clean structured JSON in this format. The date should be in DD/MM/YYYY format.
 {
   "MerchantName": "",
-  "Date": "",
+  "Date": "DD/MM/YYYY",
   "Items": [
      {"Name": "", "Quantity": 1, "Price": 0.0, "Category": "", "SubCategory": ""}
   ],
@@ -690,7 +701,7 @@ ${CATEGORY_PROMPT_TEXT}
 **JSON Structure:**
 {
   "merchant": "",
-  "transaction_date": "",
+  "transaction_date": "DD/MM/YYYY",
   "main_category": "",
   "store_type": "",
   "items": [
@@ -705,7 +716,8 @@ ${CATEGORY_PROMPT_TEXT}
 3. Price must be a number only (no currency symbols).
 4. Assign a logical category/sub_category from the provided taxonomy for each item.
 5. Based on the merchant name and items, infer the store's main_category (e.g., "Groceries", "Fashion", "Electronics") and store_type (e.g., "Supermarket", "Clothing Store", "Electronics Store").
-6. Return **JSON only**, no explanations.
+6. The date should be in DD/MM/YYYY format.
+7. Return **JSON only**, no explanations.
 `;
     for (let i = 0; i <= MAX_RETRIES; i++) {
         try {

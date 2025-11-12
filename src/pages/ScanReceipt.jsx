@@ -565,7 +565,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         const normalizedValue =
             field === 'price'
                 ? (typeof value === 'string' ? value.replace(/[^\d.,-]/g, '') : value)
-                : (typeof value === 'string' ? value.trim() : value);
+                : (typeof value === 'string' ? value.replace(/[^a-zA-Z0-9\s]/g, '') : value);
 
         setData(prev => {
             const currentItems = Array.isArray(prev.line_items) ? [...prev.line_items] : [];
@@ -771,6 +771,25 @@ export default function ScanReceipt() {
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const shouldEdit = params.get('edit');
+    if (shouldEdit) {
+      const dataToEdit = sessionStorage.getItem('edit-receipt-data');
+      if (dataToEdit) {
+        try {
+          const parsed = JSON.parse(dataToEdit);
+          setExtractedData(parsed);
+          setMode('upload');
+        } catch (err) {
+          console.error('Failed to parse receipt data for editing', err);
+        } finally {
+          sessionStorage.removeItem('edit-receipt-data');
+        }
+      }
+    }
+  }, [location.search, setExtractedData]);
 
   const persistPendingPreview = useCallback(() => {
     if (typeof window === 'undefined') return;
@@ -1012,6 +1031,13 @@ export default function ScanReceipt() {
       return;
     }
 
+    const isEditing = extractedData && extractedData.id;
+
+    if (isEditing) {
+        options.existingReceiptId = extractedData.id;
+        options.duplicateAction = 'replace';
+    }
+
     if (!extractedData.canonical_merchant_id && extractedData.selectedMerchantId) {
       const aliasSource = extractedData.merchant_alias || extractedData.merchant_name || '';
       const alias = normalizeMerchantName(aliasSource);
@@ -1149,14 +1175,20 @@ export default function ScanReceipt() {
             <CheckCircle size={48} className="mx-auto text-green-500" />
             <p className="mt-4 text-xl font-semibold text-gray-900">Receipt saved</p>
             <p className="mt-2 text-sm text-gray-600">
-              Your receipt has been stored successfully.
+              Your receipt has been stored successfully. Would you like to scan another?
             </p>
-            <div className="mt-6">
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 onClick={() => setSaveSuccessPrompt(false)}
                 className="w-full rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition-colors"
               >
-                Done
+                Scan Another
+              </button>
+              <button
+                onClick={() => navigate('/insights')}
+                className="w-full rounded-xl bg-gray-600 px-4 py-3 text-white font-semibold hover:bg-gray-700 transition-colors"
+              >
+                No
               </button>
             </div>
           </div>
@@ -1201,11 +1233,10 @@ export default function ScanReceipt() {
             onClick={(e) => setExtractedData(e.detail)}
         />
       <style>{`
-          .gradient-bg { background: linear-gradient(-45deg, #ee7752, #e73c7e, #23a6d5, #23d5ab); background-size: 400% 400%; animation: gradient 15s ease infinite; width: 100%; }
-          @keyframes gradient { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+          .dark-bg { background: #000; width: 100%; }
       `}</style>
 
-      <div className="gradient-bg pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto">
+      <div className="dark-bg pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto">
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
 
         {extractedData ? (
