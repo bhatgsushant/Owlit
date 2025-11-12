@@ -8,7 +8,19 @@ import React, {
   useState,
 } from 'react';
 import { withApiBase } from '@/utils/apiClient';
+import { normalizeMerchantKey } from '@/utils/logo';
 const TOKEN_STORAGE_KEY = 'ow_jwt_token';
+
+const normalizeOverrideMap = (overrides) => {
+  if (!overrides || typeof overrides !== 'object') return {};
+  return Object.entries(overrides).reduce((acc, [merchant, storeType]) => {
+    const normalizedKey = normalizeMerchantKey(merchant);
+    if (normalizedKey) {
+      acc[normalizedKey] = storeType;
+    }
+    return acc;
+  }, {});
+};
 
 const readInitialToken = () => {
   if (typeof window === 'undefined') {
@@ -72,7 +84,7 @@ export const AuthProvider = ({ children }) => {
       const response = await fetchWithAuth('/api/user-store-type-overrides');
       if (response.ok) {
         const overrides = await response.json();
-        setUserStoreOverrides(overrides);
+        setUserStoreOverrides(normalizeOverrideMap(overrides));
       } else if (response.status === 401) {
         persistToken(null);
       } else {

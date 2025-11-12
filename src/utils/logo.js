@@ -1,3 +1,8 @@
+export const normalizeMerchantKey = (name = '') => {
+  if (typeof name !== 'string') return '';
+  return name.toLowerCase().replace(/\s+/g, ' ').trim();
+};
+
 export const STORE_DATA = {
   // 🛒 Supermarkets & Groceries
   'tesco': { domain: 'tesco.com', StoreName_category: 'Groceries - Supermarket' },
@@ -172,7 +177,10 @@ export const STORE_DATA = {
 export function getStoreInfo(merchantName, userStoreOverrides = null) {
   if (!merchantName) return null;
 
-  const normalized = merchantName.toLowerCase().trim();
+  const normalized = normalizeMerchantKey(merchantName);
+  if (!normalized) {
+    return null;
+  }
 
   if (userStoreOverrides && userStoreOverrides[normalized]) {
     const overriddenCategory = userStoreOverrides[normalized];

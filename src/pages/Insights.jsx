@@ -7,7 +7,7 @@ import AnimatedSection from '@/components/ui/AnimatedSection';
 import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import ItemPriceTrendChart from '@/components/analytics/ItemPriceTrendChart';
 import BasketCompositionChart from '@/components/analytics/BasketCompositionChart';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Table,
@@ -463,6 +463,7 @@ export default function Insights() {
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
   const [topMerchantsView, setTopMerchantsView] = useState('table');
+  const [showAllMerchants, setShowAllMerchants] = useState(false);
 
 
   const handleDelete = async (receiptId) => {
@@ -1573,6 +1574,12 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     }
   }, [analytics.merchantDrilldown, merchantDrillState, setMerchantDrillState]);
 
+  useEffect(() => {
+    if (merchantDrillState.level !== 'merchant' && showAllMerchants) {
+      setShowAllMerchants(false);
+    }
+  }, [merchantDrillState.level, showAllMerchants]);
+
   const merchantDrilldownData = useMemo(() => {
     const drill = analytics.merchantDrilldown;
     if (!drill || !Array.isArray(drill.merchants) || drill.merchants.length === 0) {
@@ -1613,8 +1620,12 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       })
       .filter((row) => row.value > 0);
 
+    const isMerchantLevel = level === 'merchant';
+    const shouldShowAll = showAllMerchants && isMerchantLevel;
+    const dataToShow = shouldShowAll ? normalized : normalized.slice(0, 10);
+
     const total = normalized.reduce((sum, row) => sum + row.value, 0);
-    const data = normalized.map((row) => ({
+    const data = dataToShow.map((row) => ({
       ...row,
       percent: total ? (row.value / total) * 100 : 0,
     }));
@@ -1623,8 +1634,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       data,
       subtitle,
       total,
+      canShowMore: isMerchantLevel && normalized.length > 10,
+      showingAllMerchants: shouldShowAll,
     };
-  }, [analytics.merchantDrilldown, merchantDrillState]);
+  }, [analytics.merchantDrilldown, merchantDrillState, showAllMerchants]);
 
   useEffect(() => {
     if (!analytics.categoryNames.length) {
@@ -2431,6 +2444,24 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantActions =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       <div className="flex flex-wrap items-center gap-2">
+        {merchantDrilldownData.canShowMore && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 rounded-full border border-white/10 text-white hover:bg-white/10"
+            onClick={() => setShowAllMerchants((prev) => !prev)}
+            aria-label={merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
+          >
+            {merchantDrilldownData.showingAllMerchants ? (
+              <ChevronUp className="h-4 w-4" />
+            ) : (
+              <ChevronDown className="h-4 w-4" />
+            )}
+            <span className="sr-only">
+              {merchantDrilldownData.showingAllMerchants ? 'Show top 10 merchants' : 'Show all merchants'}
+            </span>
+          </Button>
+        )}
         <Button onClick={() => setTopMerchantsView(topMerchantsView === 'table' ? 'chart' : 'table')}>
           {topMerchantsView === 'table' ? 'Show Chart' : 'Show Table'}
         </Button>
@@ -2444,13 +2475,16 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantMetricKey = merchantViewMode === 'percent' ? 'percent' : 'value';
   const merchantXAxisFormatter = (value) =>
     merchantViewMode === 'percent' ? `${Number(value).toFixed(1)}%` : `£${Number(value).toLocaleString('en-GB')}`;
-  
-  const top10Merchants = useMemo(() => (analytics.merchantDrilldown?.merchants.slice(0, 10) || []), [analytics.merchantDrilldown]);
+
+  const merchantTableData = useMemo(() => {
+    const merchants = analytics.merchantDrilldown?.merchants || [];
+    return showAllMerchants ? merchants : merchants.slice(0, 10);
+  }, [analytics.merchantDrilldown, showAllMerchants]);
   
   const merchantChartContent =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       topMerchantsView === 'table' ? (
-        <TopMerchantsTable data={top10Merchants} />
+        <TopMerchantsTable data={merchantTableData} />
       ) : (
       <ReResponsiveContainer width="100%" height="100%">
         <ReBarChart

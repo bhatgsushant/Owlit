@@ -48,6 +48,11 @@ const ALLOWED_UPLOAD_MIME_TYPES = new Set([
 
 const MAX_MARKDOWN_LENGTH = 20000;
 
+const normalizeMerchantKey = (name = '') => {
+  if (!name || typeof name !== 'string') return '';
+  return name.toLowerCase().replace(/\s+/g, ' ').trim();
+};
+
 const ensureEnvVar = (key) => {
   const value = process.env[key];
   if (!value) {
@@ -1195,23 +1200,24 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
               .trim()
               .replace(/\b\w/g, c => c.toUpperCase());
 
-            let store_type = 'Other';
-            let main_category = 'Other';
-            const userId = req.user?.id || null;
+        let store_type = 'Other';
+        let main_category = 'Other';
+        const userId = req.user?.id || null;
+        const merchantOverrideKey = normalizeMerchantKey(merchant_name);
 
-            if (userId) {
-                const { data: override } = await supabase
-                    .from('user_store_type_overrides')
-                    .select('store_type')
-                    .eq('user_id', userId)
-                    .eq('merchant_name', merchant_name)
-                    .single();
+        if (userId && merchantOverrideKey) {
+            const { data: override } = await supabase
+                .from('user_store_type_overrides')
+                .select('store_type')
+                .eq('user_id', userId)
+                .ilike('merchant_name', merchantOverrideKey)
+                .maybeSingle();
 
-                if (override) {
-                    store_type = override.store_type;
-                    console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
-                }
+            if (override) {
+                store_type = override.store_type;
+                console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
             }
+        }
 
             if (store_type === 'Other') {
                 const { data: storeInfo, error: storeInfoError } = await supabase
@@ -1311,14 +1317,15 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
         let store_type = 'Other';
         let main_category = 'Other';
         const userId = req.user?.id || null;
+        const merchantOverrideKey = normalizeMerchantKey(merchant_name);
 
-        if (userId) {
+        if (userId && merchantOverrideKey) {
             const { data: override } = await supabase
                 .from('user_store_type_overrides')
                 .select('store_type')
                 .eq('user_id', userId)
-                .eq('merchant_name', merchant_name)
-                .single();
+                .ilike('merchant_name', merchantOverrideKey)
+                .maybeSingle();
 
             if (override) {
                 store_type = override.store_type;
@@ -1927,12 +1934,22 @@ app.post('/api/user-store-type-overrides', authenticateRequest, async (req, res)
       store_type: { type: 'string', required: true, trim: true, maxLength: 255, message: 'store_type is required.' }
     });
 
+    const normalizedMerchant = normalizeMerchantKey(merchant_name);
+    const trimmedStoreType = typeof store_type === 'string' ? store_type.trim() : '';
+
+    if (!normalizedMerchant) {
+      throw new ValidationError('merchant_name is required.');
+    }
+    if (!trimmedStoreType) {
+      throw new ValidationError('store_type is required.');
+    }
+
     const { error } = await supabase
       .from('user_store_type_overrides')
       .upsert({
         user_id: userId,
-        merchant_name,
-        store_type
+        merchant_name: normalizedMerchant,
+        store_type: trimmedStoreType
       }, { onConflict: 'user_id,merchant_name' });
 
     if (error) {
@@ -1959,7 +1976,10 @@ app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) 
     }
 
     const overrides = data.reduce((acc, row) => {
-      acc[row.merchant_name] = row.store_type;
+      const normalized = normalizeMerchantKey(row.merchant_name);
+      if (normalized) {
+        acc[normalized] = row.store_type;
+      }
       return acc;
     }, {});
 
