@@ -8,6 +8,15 @@ import ReceiptsAnalyticsTable from '../components/ReceiptsAnalyticsTable';
 import ItemPriceTrendChart from '@/components/analytics/ItemPriceTrendChart';
 import BasketCompositionChart from '@/components/analytics/BasketCompositionChart';
 import { ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
 import {
   ResponsiveContainer as ReResponsiveContainer,
   BarChart as ReBarChart,
@@ -414,6 +423,27 @@ const TimeframeControls = ({
   );
 };
 
+const TopMerchantsTable = ({ data }) => {
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead>Merchant</TableHead>
+          <TableHead className="text-right">Spend</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {data.map((merchant) => (
+          <TableRow key={merchant.name}>
+            <TableCell>{merchant.name}</TableCell>
+            <TableCell className="text-right">{formatCurrency(merchant.value)}</TableCell>
+          </TableRow>
+        ))}
+      </TableBody>
+    </Table>
+  );
+};
+
 export default function Insights() {
   const { user, loading: authLoading } = useAuth();
   const isMobile = useIsMobile();
@@ -432,6 +462,8 @@ export default function Insights() {
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
+  const [topMerchantsView, setTopMerchantsView] = useState('table');
+
 
   const handleDelete = async (receiptId) => {
     if (!window.confirm('Are you sure you want to delete this receipt?')) {
@@ -2399,6 +2431,9 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantActions =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => setTopMerchantsView(topMerchantsView === 'table' ? 'chart' : 'table')}>
+          {topMerchantsView === 'table' ? 'Show Chart' : 'Show Table'}
+        </Button>
         <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
         <TimeframeControls {...sharedTimeframeControlProps} />
       </div>
@@ -2409,8 +2444,14 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantMetricKey = merchantViewMode === 'percent' ? 'percent' : 'value';
   const merchantXAxisFormatter = (value) =>
     merchantViewMode === 'percent' ? `${Number(value).toFixed(1)}%` : `£${Number(value).toLocaleString('en-GB')}`;
+  
+  const top10Merchants = useMemo(() => (analytics.merchantDrilldown?.merchants.slice(0, 10) || []), [analytics.merchantDrilldown]);
+  
   const merchantChartContent =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
+      topMerchantsView === 'table' ? (
+        <TopMerchantsTable data={top10Merchants} />
+      ) : (
       <ReResponsiveContainer width="100%" height="100%">
         <ReBarChart
           data={merchantDrilldownData.data}
@@ -2459,6 +2500,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           </ReBar>
         </ReBarChart>
       </ReResponsiveContainer>
+      )
     ) : null;
 
   const categoryPieOption = useMemo(() => {

@@ -107,7 +107,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
                     </div>
                   </TableCell>
                   <TableCell className="text-sm text-gray-400">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
-                  <TableCell><StoreType merchantName={receipt.merchant_name} /></TableCell>
+                  <TableCell><StoreType storeType={receipt.store_type} merchantName={receipt.merchant_name} /></TableCell>
                   <TableCell className="font-semibold text-right text-sm text-gray-200">{receipt.total_amount?.toFixed(2)}</TableCell>
                   {hasActions && (
                     <TableCell className="pr-6">

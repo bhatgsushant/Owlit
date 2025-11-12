@@ -33,10 +33,13 @@ const getCategoryColor = (category) => {
     return colorMap[category] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300';
 };
 
-const StoreType = ({ merchantName }) => {
+const StoreType = ({ merchantName, storeType: propStoreType }) => {
     const { userStoreOverrides } = useAuth();
-    const storeInfo = getStoreInfo(merchantName, userStoreOverrides);
-    const storeType = storeInfo ? storeInfo.StoreName_category : 'Other';
+    let storeType = propStoreType;
+    if (!storeType) {
+      const storeInfo = getStoreInfo(merchantName, userStoreOverrides);
+      storeType = storeInfo ? storeInfo.StoreName_category : 'Other';
+    }
     const colorClass = getCategoryColor(storeType);
 
     return (

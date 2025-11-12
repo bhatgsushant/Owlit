@@ -226,7 +226,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   key={item.name}
                   to={item.href}
                   onClick={() => setIsOpen(false)}
-                  className="text-3xl font-semibold text-gray-300 hover:text-white transition-colors"
+                  className="text-xl font-semibold text-gray-300 hover:text-white transition-colors uppercase tracking-widest"
                 >
                   {item.name}
                 </Link>
