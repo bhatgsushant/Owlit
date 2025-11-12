@@ -1,3 +1,14 @@
+import React, { useState, useMemo } from 'react';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { Button } from '@/components/ui/button';
+import { formatDateSafe } from '@/lib/utils';
 import { ChevronUp, ChevronDown, ChevronsLeft, ChevronsRight, BarChart2, Trash2, Edit } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
