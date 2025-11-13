@@ -2731,11 +2731,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         <AnimatedSection delay={0.07}>
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
             <TimeframeCard
-              label="Year to Date"
-              current={overallAnalytics.timeframeInsights.year.current}
-              previous={overallAnalytics.timeframeInsights.year.previous}
-            />
-            <TimeframeCard
               label="This Month"
               current={overallAnalytics.timeframeInsights.month.current}
               previous={overallAnalytics.timeframeInsights.month.previous}
@@ -2749,6 +2744,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
               label="Today"
               current={overallAnalytics.timeframeInsights.day.current}
               previous={overallAnalytics.timeframeInsights.day.previous}
+            />
+            <TimeframeCard
+              label="Year to Date"
+              current={overallAnalytics.timeframeInsights.year.current}
+              previous={overallAnalytics.timeframeInsights.year.previous}
             />
           </div>
         </AnimatedSection>
