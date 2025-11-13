@@ -316,7 +316,7 @@ export default function Home() {
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
-              { value: 10000, suffix: "+", label: "Documents Scanned", icon: FileText },
+              { value: 10000, suffix: "+", label: "Receipts Scanned", icon: FileText },
               { value: 5000, suffix: "+", label: "Active Users", icon: Users },
               { value: 99, suffix: "%", label: "Accuracy Rate", icon: CheckCircle },
               { value: 24, suffix: "/7", label: "AI Support", icon: Clock }
@@ -357,7 +357,7 @@ export default function Home() {
             {[
               {
                 icon: Camera,
-                title: "OCR Scanning",
+                title: "AI Scanning",
                 description: "Instant document digitization with advanced AI recognition",
                 gradient: "from-blue-500 to-cyan-500",
                 link: "ScanReceipt"
@@ -557,7 +557,7 @@ export default function Home() {
               Ready to Get Started?
             </h2>
             <p className="text-lg text-gray-600 dark:text-gray-400 mb-10 leading-relaxed max-w-2xl mx-auto">
-              Join thousands of users who are already organizing their life with ReceiptWise. 
+              Join thousands of users who are already organizing their life with Owlit. 
               Start your journey to better financial management today.
             </p>
 
@@ -587,7 +587,7 @@ export default function Home() {
         viewport={{ once: true }}
         className="py-12 px-6 border-t border-gray-200 dark:border-gray-800 text-center text-gray-500 dark:text-gray-600"
       >
-        <p className="text-sm">© 2024 ReceiptWise. Your memories, intelligently organized.</p>
+        <p className="text-sm">© 2025 Owlit. Your receipts and expenses, intelligently organized.</p>
       </motion.footer>
     </motion.div>
   );
