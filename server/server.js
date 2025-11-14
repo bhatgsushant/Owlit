@@ -1569,7 +1569,9 @@ const sanitizeRedirectPath = (value) => {
 app.get('/auth/google', (req, res, next) => {
   if (req.session) {
     req.session.postAuthRedirect = sanitizeRedirectPath(req.query.redirect);
+    req.session.authPlatform = req.query.platform || "web";  
   }
+
   return passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
 });
 
@@ -1578,20 +1580,43 @@ app.get('/auth/google/callback',
   (req, res) => {
     try {
       const token = issueJwtForUser(req.user);
+
+      // ⭐ Read iOS/web platform from session or fallback to query
+      const platform = req.session?.authPlatform || req.query.platform || 'web';
+
+      // Clear stored platform value to avoid reuse
+      if (req.session) {
+        delete req.session.authPlatform;
+      }
+
+      // ---------------------------------------
+      // 📱 iOS FLOW → deep link
+      // ---------------------------------------
+      if (platform === "ios") {
+        return res.redirect(`owlit://auth-callback?token=${token}`);
+      }
+
+      // ---------------------------------------
+      // 💻 WEB FLOW → redirect to Vercel
+      // ---------------------------------------
       const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
+
       const redirectPath = sanitizeRedirectPath(req.session?.postAuthRedirect) || '/scan';
       if (req.session) {
         delete req.session.postAuthRedirect;
       }
+
       redirectUrl.searchParams.set('token', token);
       redirectUrl.searchParams.set('redirect', redirectPath);
-      res.redirect(redirectUrl.toString());
+
+      return res.redirect(redirectUrl.toString());
     } catch (error) {
       console.error('Failed to issue JWT after Google OAuth:', error);
-      res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
+      return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
     }
   }
 );
+
 
 app.get('/api/user', authenticateRequest, (req, res) => {
     res.json(req.user || null);

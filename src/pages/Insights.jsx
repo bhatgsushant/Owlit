@@ -429,12 +429,22 @@ export default function Insights() {
   const [merchantDrillState, setMerchantDrillState] = useState({ level: 'merchant', merchant: null, category: null });
   const [merchantViewMode, setMerchantViewMode] = useState('value');
   const [categoryDrillViewMode, setCategoryDrillViewMode] = useState('value');
-  const [timeGranularity, setTimeGranularity] = useState('day');
+  const [timeGranularity, setTimeGranularity] = useState('week');
   const [selectedTimelineYear, setSelectedTimelineYear] = useState(null);
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(null);
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
   const [showAllMerchants, setShowAllMerchants] = useState(false);
+  const manualTimelineMonthRef = useRef(null);
+
+  const buildManualMonthKey = useCallback(
+    (granularity, year) => `${granularity}:${year ?? 'all'}`,
+    []
+  );
+
+  const clearManualMonthSelection = useCallback(() => {
+    manualTimelineMonthRef.current = null;
+  }, []);
 
 
   const handleDelete = async (receiptId) => {
@@ -1412,17 +1422,45 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     }));
   }, [timelineSeriesForGranularity, requiresMonthSelection, selectedTimelineYear]);
 
+  const handleGranularityChange = useCallback(
+    (value) => {
+      clearManualMonthSelection();
+      setTimeGranularity(value);
+    },
+    [clearManualMonthSelection]
+  );
+
+  const handleTimelineYearChange = useCallback(
+    (value) => {
+      clearManualMonthSelection();
+      setSelectedTimelineYear(value);
+    },
+    [clearManualMonthSelection]
+  );
+
+  const handleTimelineMonthChange = useCallback(
+    (value) => {
+      if (value === null || value === undefined) {
+        clearManualMonthSelection();
+      } else {
+        manualTimelineMonthRef.current = buildManualMonthKey(timeGranularity, selectedTimelineYear);
+      }
+      setSelectedTimelineMonth(value);
+    },
+    [buildManualMonthKey, clearManualMonthSelection, selectedTimelineYear, timeGranularity]
+  );
+
   const sharedTimeframeControlProps = {
     timeGranularity,
-    onGranularityChange: setTimeGranularity,
+    onGranularityChange: handleGranularityChange,
     supportsYearSelection,
     requiresMonthSelection,
     yearOptions: timelineYearOptions,
     monthOptions: timelineMonthOptions,
     selectedYear: selectedTimelineYear,
     selectedMonth: selectedTimelineMonth,
-    onYearChange: setSelectedTimelineYear,
-    onMonthChange: setSelectedTimelineMonth,
+    onYearChange: handleTimelineYearChange,
+    onMonthChange: handleTimelineMonthChange,
   };
   const filteredReceipts = useMemo(() => {
     if (!processedReceipts.length) return [];
@@ -1663,19 +1701,21 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const series = overallAnalytics.timelineSeries?.[timeGranularity] || [];
     if (!series.length) {
       if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
-      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      if (selectedTimelineMonth !== null) {
+        clearManualMonthSelection();
+        setSelectedTimelineMonth(null);
+      }
       return;
     }
 
     if (!supportsYearSelection) {
       if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
-      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      if (selectedTimelineMonth !== null) {
+        clearManualMonthSelection();
+        setSelectedTimelineMonth(null);
+      }
       return;
     }
-
-    const previousMonthDate = subMonths(referenceDate, 1);
-    const previousYear = previousMonthDate.getFullYear();
-    const previousMonth = previousMonthDate.getMonth();
 
     const years = Array.from(
       new Set(
@@ -1685,28 +1725,29 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
     if (!years.length) {
       if (selectedTimelineYear !== null) setSelectedTimelineYear(null);
-      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      if (selectedTimelineMonth !== null) {
+        clearManualMonthSelection();
+        setSelectedTimelineMonth(null);
+      }
       return;
     }
 
-    let targetYear = years[years.length - 1];
-    if (years.includes(previousYear)) {
-      if (requiresMonthSelection) {
-        targetYear = previousYear;
-      } else if (supportsYearSelection) {
-        targetYear = previousYear;
-      }
-    } else if (years.includes(selectedTimelineYear)) {
-      targetYear = selectedTimelineYear;
-    }
+    const currentYear = referenceDate.getFullYear();
+    let targetYear = selectedTimelineYear && years.includes(selectedTimelineYear)
+      ? selectedTimelineYear
+      : (years.includes(currentYear) ? currentYear : years[years.length - 1]);
 
     if (targetYear !== selectedTimelineYear) {
+      clearManualMonthSelection();
       setSelectedTimelineYear(targetYear);
       return;
     }
 
     if (!requiresMonthSelection) {
-      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      if (selectedTimelineMonth !== null) {
+        clearManualMonthSelection();
+        setSelectedTimelineMonth(null);
+      }
       return;
     }
 
@@ -1720,18 +1761,33 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     ).sort((a, b) => a - b);
 
     if (!months.length) {
-      if (selectedTimelineMonth !== null) setSelectedTimelineMonth(null);
+      if (selectedTimelineMonth !== null) {
+        clearManualMonthSelection();
+        setSelectedTimelineMonth(null);
+      }
       return;
     }
 
-    let targetMonth = months[months.length - 1];
-    if (targetYear === previousYear && months.includes(previousMonth)) {
-      targetMonth = previousMonth;
-    } else if (months.length >= 2) {
-      targetMonth = months[months.length - 2];
+    const manualKey = manualTimelineMonthRef.current;
+    const currentKey = buildManualMonthKey(timeGranularity, targetYear);
+    const hasManualSelection =
+      manualKey && manualKey === currentKey && selectedTimelineMonth !== null;
+
+    if (hasManualSelection) {
+      if (!months.includes(selectedTimelineMonth)) {
+        clearManualMonthSelection();
+      } else {
+        return;
+      }
     }
 
+    const currentMonth = referenceDate.getMonth();
+    let targetMonth = months.includes(currentMonth)
+      ? currentMonth
+      : months[months.length - 1];
+
     if (targetMonth !== selectedTimelineMonth) {
+      clearManualMonthSelection();
       setSelectedTimelineMonth(targetMonth);
     }
   }, [
@@ -1742,6 +1798,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     supportsYearSelection,
     requiresMonthSelection,
     referenceDate,
+    buildManualMonthKey,
+    clearManualMonthSelection,
   ]);
 
   const spendingTrendOption = useMemo(() => {
