@@ -258,18 +258,37 @@ const authenticateRequest = (req, res, next) => {
   const token = extractTokenFromHeader(req);
 
   if (!token) {
+    console.warn('🔒 authenticateRequest: Missing Authorization header');
     return res.status(401).json({ error: 'Missing authentication token' });
   }
 
   try {
+    // Just for debugging, print first/last chars so we know what arrived
+    console.log(
+      '🔑 Incoming JWT (truncated):',
+      token.slice(0, 20) + '...' + token.slice(-20)
+    );
     const decoded = jwt.verify(token, JWT_SECRET);
     req.user = decoded;
+    console.log('✅ JWT verified for user:', decoded.email || decoded.id);
     return next();
   } catch (err) {
-    console.error('JWT verification failed:', err);
+   console.error('❌ JWT verification failed:', {
+     message: err.message,
+      name: err.name,
+    });
+    // (Optional) log decoded payload without verifying signature, to inspect exp etc.
+    try {
+      const decodedLoose = jwt.decode(token, { complete: true });
+      console.log('🧩 Decoded (UNVERIFIED) token payload:', decodedLoose);
+    } catch (decodeErr) {
+      console.error('⚠️ Failed to decode token even without verify:', decodeErr);
+    }
+
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
 };
+
 
 const optionalAuthenticate = (req, res, next) => {
   const token = extractTokenFromHeader(req);
