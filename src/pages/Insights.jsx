@@ -1392,7 +1392,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const timelineSeriesForGranularity =
     overallAnalytics.timelineSeries?.[timeGranularity] || [];
   const supportsYearSelection = timeGranularity !== 'year';
-  const requiresMonthSelection = timeGranularity === 'day' || timeGranularity === 'week';
+  const requiresMonthSelection = timeGranularity === 'day' || timeGranularity === 'week' || timeGranularity === 'month';
 
   const timelineYearOptions = useMemo(() => {
     if (!supportsYearSelection) return [];
