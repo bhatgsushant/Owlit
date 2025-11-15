@@ -1586,47 +1586,52 @@ const sanitizeRedirectPath = (value) => {
 };
 
 app.get('/auth/google', (req, res, next) => {
-  if (req.session) {
-    req.session.postAuthRedirect = sanitizeRedirectPath(req.query.redirect);
-    req.session.authPlatform = req.query.platform || "web";  
-  }
-
-  return passport.authenticate('google', { scope: ['profile', 'email'] })(req, res, next);
+  const platform = req.query.platform || 'web';
+  // Encode the platform in the 'state' parameter to survive the redirect
+  const state = Buffer.from(JSON.stringify({ platform })).toString('base64');
+  
+  const authenticator = passport.authenticate('google', { 
+    scope: ['profile', 'email'],
+    state: state // Pass state to Google
+  });
+  
+  authenticator(req, res, next);
 });
 
 app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login'}),
+  // Disable session creation for the callback, as we are using JWT tokens
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
     try {
+      // Issue a JWT for the authenticated user
       const token = issueJwtForUser(req.user);
 
-      // ⭐ Read iOS/web platform from session or fallback to query
-      const platform = req.session?.authPlatform || req.query.platform || 'web';
-
-      // Clear stored platform value to avoid reuse
-      if (req.session) {
-        delete req.session.authPlatform;
+      let platform = 'web';
+      // Decode the platform from the 'state' parameter returned by Google
+      if (req.query.state) {
+        try {
+          const decodedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('ascii'));
+          platform = decodedState.platform || 'web';
+        } catch (e) {
+          console.error("Error decoding state:", e);
+        }
       }
 
       // ---------------------------------------
       // 📱 iOS FLOW → deep link
       // ---------------------------------------
       if (platform === "ios") {
+        console.log(`📱 iOS platform detected. Redirecting to deep link with token.`);
         return res.redirect(`owlit://auth-callback?token=${token}`);
       }
 
       // ---------------------------------------
       // 💻 WEB FLOW → redirect to Vercel
       // ---------------------------------------
+      console.log(`💻 Web platform detected. Redirecting to client URL.`);
       const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
-
-      const redirectPath = sanitizeRedirectPath(req.session?.postAuthRedirect) || '/scan';
-      if (req.session) {
-        delete req.session.postAuthRedirect;
-      }
-
       redirectUrl.searchParams.set('token', token);
-      redirectUrl.searchParams.set('redirect', redirectPath);
+      redirectUrl.searchParams.set('redirect', '/scan'); // Default redirect for web
 
       return res.redirect(redirectUrl.toString());
     } catch (error) {
