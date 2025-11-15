@@ -1595,7 +1595,7 @@ app.get('/auth/google', (req, res, next) => {
 });
 
 app.get('/auth/google/callback',
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
+  passport.authenticate('google', { failureRedirect: '/login'}),
   (req, res) => {
     try {
       const token = issueJwtForUser(req.user);
