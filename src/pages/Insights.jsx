@@ -417,7 +417,7 @@ const TimeframeControls = ({
 };
 
 export default function Insights() {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, fetchWithAuth } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [receipts, setReceipts] = useState([]);
@@ -436,6 +436,11 @@ export default function Insights() {
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
   const [showAllMerchants, setShowAllMerchants] = useState(false);
   const manualTimelineMonthRef = useRef(null);
+  const [insightScope, setInsightScope] = useState('me'); // 'me' | 'family'
+  const [familyStatus, setFamilyStatus] = useState({ family: null, members: [], invite: null, membership: null });
+  const [familyStatusLoading, setFamilyStatusLoading] = useState(false);
+  const hasFamily = Boolean(familyStatus.family);
+  const activeScope = hasFamily ? insightScope : 'me';
 
   const buildManualMonthKey = useCallback(
     (granularity, year) => `${granularity}:${year ?? 'all'}`,
@@ -446,8 +451,58 @@ export default function Insights() {
     manualTimelineMonthRef.current = null;
   }, []);
 
+  const readErrorMessage = async (response) => {
+    const text = await response.text();
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.error) return parsed.error;
+    } catch {
+      // ignore parse errors
+    }
+    return text || 'Request failed';
+  };
+
+  const fetchFamilyStatus = useCallback(async () => {
+    if (!user) {
+      setFamilyStatus({ family: null, members: [], invite: null, membership: null });
+      return;
+    }
+    setFamilyStatusLoading(true);
+    try {
+      const response = await fetchWithAuth('/api/family/status');
+      if (!response.ok) {
+        throw new Error('Failed to load family status');
+      }
+      const payload = await response.json();
+      setFamilyStatus({
+        family: payload.family || null,
+        members: payload.members || [],
+        invite: payload.invite || null,
+        membership: payload.membership || null,
+      });
+      if (!payload.family) {
+        setInsightScope('me');
+      }
+    } catch (err) {
+      console.error(err);
+      setFamilyStatus({ family: null, members: [], invite: null, membership: null });
+    } finally {
+      setFamilyStatusLoading(false);
+    }
+  }, [fetchWithAuth, user]);
+
+  useEffect(() => {
+    if (!authLoading) {
+      fetchFamilyStatus();
+    }
+  }, [authLoading, fetchFamilyStatus]);
+
 
   const handleDelete = async (receiptId) => {
+    if (activeScope === 'family') {
+        alert('Switch to "Me" view to delete your own receipts.');
+        return;
+    }
     if (!window.confirm('Are you sure you want to delete this receipt?')) {
         return;
     }
@@ -461,6 +516,10 @@ export default function Insights() {
   };
 
   const handleEdit = (receipt) => {
+      if (activeScope === 'family') {
+        alert('Switch to \"Me\" view to edit your receipts.');
+        return;
+      }
       sessionStorage.setItem('edit-receipt-data', JSON.stringify(receipt));
       navigate('/scan?edit=true');
   };
@@ -470,21 +529,34 @@ export default function Insights() {
 
     const fetchReceipts = async () => {
       setIsLoading(true);
+      setError(null);
       try {
         if (!user) {
           if (isMounted) setReceipts([]);
           return;
         }
 
-        const { data, error } = await supabase
-          .from('v_receipts_enriched')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('transaction_date', { ascending: true });
+        if (activeScope === 'family') {
+          const response = await fetchWithAuth('/api/family/receipts');
+          if (!response.ok) {
+            const message = await readErrorMessage(response);
+            throw new Error(message || 'Failed to load family receipts');
+          }
+          const payload = await response.json();
+          if (isMounted) {
+            setReceipts(Array.isArray(payload?.receipts) ? payload.receipts : []);
+          }
+        } else {
+          const { data, error } = await supabase
+            .from('v_receipts_enriched')
+            .select('*')
+            .eq('user_id', user.id)
+            .order('transaction_date', { ascending: true });
 
-        if (error) throw error;
-        if (isMounted) {
-          setReceipts(Array.isArray(data) ? data : []);
+          if (error) throw error;
+          if (isMounted) {
+            setReceipts(Array.isArray(data) ? data : []);
+          }
         }
       } catch (err) {
         console.error(err);
@@ -501,7 +573,7 @@ export default function Insights() {
     return () => {
       isMounted = false;
     };
-  }, [authLoading, user]);
+  }, [authLoading, user, activeScope, fetchWithAuth]);
 
   const processedReceipts = useMemo(() => {
     if (!receipts.length) return [];
@@ -2737,10 +2809,30 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
             Insights & Analytics
           </h1>
-          <p className="text-sm md:text-base text-white/70 max-w-3xl leading-relaxed">
-            Explore intelligent perspectives derived from your receipts. These interactive ECharts visuals highlight
-            spending patterns, top merchants, and opportunities to optimise your budget.
-          </p>
+        </div>
+      </AnimatedSection>
+
+      <AnimatedSection delay={0.03}>
+        <div className="mt-5 flex flex-col gap-3">
+          <div className="inline-flex rounded-full border border-white/10 bg-white/10 p-1 self-start">
+            <button
+              onClick={() => setInsightScope('me')}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                activeScope === 'me' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+              }`}
+            >
+              Me
+            </button>
+            <button
+              onClick={() => hasFamily && setInsightScope('family')}
+              disabled={!hasFamily || familyStatusLoading}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                activeScope === 'family' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+              } ${(!hasFamily || familyStatusLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+            >
+              Family
+            </button>
+          </div>
         </div>
       </AnimatedSection>
 

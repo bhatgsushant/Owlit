@@ -69,6 +69,55 @@ const handleApiError = (res, error, fallbackMessage = 'An unexpected error occur
   return res.status(500).json({ error: fallbackMessage });
 };
 
+const generateJoinCode = (length = 8) => {
+  const base = crypto.randomBytes(12).toString('base64url').replace(/[^a-zA-Z0-9]/g, '');
+  return base.slice(0, length).toUpperCase();
+};
+
+const assignUserReceiptsToFamily = async (userId, familyId) => {
+  if (!userId || !familyId) return;
+  try {
+    const { error } = await supabase
+      .from('receipts')
+      .update({ family_id: familyId })
+      .eq('user_id', userId);
+    if (error) {
+      console.error('Failed to assign receipts to family', { userId, familyId, error });
+    }
+  } catch (err) {
+    console.error('Unexpected error assigning receipts to family', err);
+  }
+};
+
+const getUserFamilyMembership = async (userId) => {
+  if (!userId) return null;
+  const { data, error } = await supabase
+    .from('family_members')
+    .select('family_id, role')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  return data || null;
+};
+
+const selectActiveInvite = (invites = []) => {
+  const now = Date.now();
+  return invites.find((invite) => {
+    const notExpired = !invite.expires_at || new Date(invite.expires_at).getTime() > now;
+    const hasUses = invite.max_uses == null || invite.used_count < invite.max_uses;
+    return invite.status === 'active' && notExpired && hasUses;
+  }) || null;
+};
+
+const getUserFamilyId = async (userId) => {
+  const membership = await getUserFamilyMembership(userId);
+  return membership?.family_id || null;
+};
+
 const validateFields = (payload, schema) => {
   Object.entries(schema).forEach(([field, rules]) => {
     const value = payload[field];
@@ -1416,6 +1465,7 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
 
         const normalizedTransactionDate = transaction_date;
         const normalizedTotalAmount = total_amount;
+        const familyId = req.user?.id ? await getUserFamilyId(req.user.id) : null;
         const dedupeHash = buildReceiptHash(req.user?.id || 'multi', {
             merchant_name,
             transaction_date: normalizedTransactionDate,
@@ -1431,17 +1481,18 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
                   user_id: req.user.id,
                   merchant_name,
                   merchant_alias: merchantAlias,
-                  canonical_merchant_id: canonicalMerchantId,
-                  transaction_date: normalizedTransactionDate,
-                  total_amount: normalizedTotalAmount,
-                  line_items: categorizedLineItems,
-                  receipt_url,
-                  receipt_hash: receiptHashToStore,
-              });
+              canonical_merchant_id: canonicalMerchantId,
+              transaction_date: normalizedTransactionDate,
+              total_amount: normalizedTotalAmount,
+              line_items: categorizedLineItems,
+              receipt_url,
+              receipt_hash: receiptHashToStore,
+              family_id: familyId,
+          });
 
-            if (saveError) {
-                console.error('Error saving multi-page receipt:', saveError);
-            }
+        if (saveError) {
+            console.error('Error saving multi-page receipt:', saveError);
+        }
         }
 
         const transformedData = {
@@ -1711,6 +1762,7 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
     validateLineItems(line_items);
 
     const normalizedTransactionDate = new Date(transaction_date).toISOString().split('T')[0];
+    const familyId = await getUserFamilyId(req.user.id);
     const dedupeHash = buildReceiptHash(req.user.id, {
       merchant_name,
       transaction_date: normalizedTransactionDate,
@@ -1796,6 +1848,7 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
           total_amount: normalizedTotalAmount,
           line_items,
           receipt_url: finalReceiptUrl,
+          family_id: familyId,
         })
         .eq('id', existingReceipt.id)
         .eq('user_id', req.user.id)
@@ -1825,6 +1878,7 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
         line_items,
         receipt_url,
         receipt_hash: receiptHashToStore,
+        family_id: familyId,
       })
       .select();
 
@@ -1837,6 +1891,293 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
     res.status(201).json(data[0]);
   } catch (error) {
     return handleApiError(res, error, 'Failed to save receipt');
+  }
+});
+
+app.get('/api/family/status', authenticateRequest, async (req, res) => {
+  try {
+    const membership = await getUserFamilyMembership(req.user.id);
+    if (!membership) {
+      return res.json({ family: null, membership: null, members: [], invite: null });
+    }
+
+    const { data: family, error: familyError } = await supabase
+      .from('families')
+      .select('id, name, join_code, created_at, created_by')
+      .eq('id', membership.family_id)
+      .maybeSingle();
+    if (familyError) throw familyError;
+
+    const { data: members, error: membersError } = await supabase
+      .from('family_members')
+      .select('user_id, role, created_at')
+      .eq('family_id', membership.family_id);
+    if (membersError) throw membersError;
+
+    const { data: invites, error: inviteError } = await supabase
+      .from('family_invites')
+      .select('code, expires_at, max_uses, used_count, status, created_at')
+      .eq('family_id', membership.family_id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+    if (inviteError) throw inviteError;
+
+    const invite = selectActiveInvite(invites || []);
+
+    return res.json({
+      family,
+      membership,
+      members: members || [],
+      invite: invite || null,
+    });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to load family status.');
+  }
+});
+
+const generateUniqueInviteCode = async () => {
+  for (let i = 0; i < 5; i++) {
+    const code = generateJoinCode();
+    const { data: inviteHit, error: inviteError } = await supabase
+      .from('family_invites')
+      .select('code')
+      .eq('code', code)
+      .maybeSingle();
+    if (inviteError) throw inviteError;
+
+    const { data: familyHit, error: familyError } = await supabase
+      .from('families')
+      .select('id')
+      .eq('join_code', code)
+      .maybeSingle();
+    if (familyError) throw familyError;
+
+    if (!inviteHit && !familyHit) {
+      return code;
+    }
+  }
+  throw new Error('Failed to generate a unique invite code.');
+};
+
+app.post('/api/family', authenticateRequest, async (req, res) => {
+  try {
+    const nameRaw = req.body?.name;
+    const name = typeof nameRaw === 'string' ? nameRaw.trim() : '';
+    if (!name) {
+      throw new ValidationError('Family name is required.');
+    }
+
+    const existingMembership = await getUserFamilyMembership(req.user.id);
+    if (existingMembership) {
+      return res
+        .status(409)
+        .json({ error: 'You already belong to a family. Leave it before creating another.' });
+    }
+
+    const joinCode = await generateUniqueInviteCode();
+    const { data: family, error: familyError } = await supabase
+      .from('families')
+      .insert({
+        name,
+        created_by: req.user.id,
+        join_code: joinCode,
+      })
+      .select()
+      .single();
+
+    if (familyError) throw familyError;
+
+    const { error: membershipError } = await supabase
+      .from('family_members')
+      .insert({ family_id: family.id, user_id: req.user.id, role: 'owner' });
+    if (membershipError) throw membershipError;
+
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+    const { error: inviteError } = await supabase
+      .from('family_invites')
+      .insert({
+        code: joinCode,
+        family_id: family.id,
+        created_by: req.user.id,
+        expires_at: expiresAt,
+        status: 'active',
+      });
+    if (inviteError) throw inviteError;
+
+    await assignUserReceiptsToFamily(req.user.id, family.id);
+
+    return res.status(201).json({ family, invite: { code: joinCode, expires_at: expiresAt } });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to create family.');
+  }
+});
+
+app.post('/api/family/invite', authenticateRequest, async (req, res) => {
+  try {
+    const membership = await getUserFamilyMembership(req.user.id);
+    if (!membership) {
+      throw new ValidationError('Join or create a family before generating an invite code.');
+    }
+
+    const joinCode = await generateUniqueInviteCode();
+    const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { error: inviteError, data: inviteRow } = await supabase
+      .from('family_invites')
+      .insert({
+        code: joinCode,
+        family_id: membership.family_id,
+        created_by: req.user.id,
+        expires_at: expiresAt,
+        status: 'active',
+      })
+      .select()
+      .single();
+    if (inviteError) throw inviteError;
+
+    const { error: familyUpdateError } = await supabase
+      .from('families')
+      .update({ join_code: joinCode })
+      .eq('id', membership.family_id);
+    if (familyUpdateError) throw familyUpdateError;
+
+    return res.status(201).json({ invite: inviteRow });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to generate invite code.');
+  }
+});
+
+app.post('/api/family/join', authenticateRequest, async (req, res) => {
+  try {
+    const rawCode = req.body?.code || '';
+    const code = rawCode.trim().toUpperCase();
+    if (!code) {
+      throw new ValidationError('Join code is required.');
+    }
+
+    const existingMembership = await getUserFamilyMembership(req.user.id);
+    if (existingMembership) {
+      return res
+        .status(409)
+        .json({ error: 'You already belong to a family. Leave it before joining another.' });
+    }
+
+    const { data: invites, error: inviteError } = await supabase
+      .from('family_invites')
+      .select('code, family_id, expires_at, max_uses, used_count, status')
+      .eq('code', code)
+      .limit(1);
+    if (inviteError) throw inviteError;
+
+    const invite = invites?.[0] || null;
+    if (!invite) {
+      return res.status(404).json({ error: 'Invite code not found.' });
+    }
+
+    const activeInvite = selectActiveInvite([invite]);
+    if (!activeInvite) {
+      return res.status(410).json({ error: 'This invite code is expired or inactive.' });
+    }
+
+    const { data: family, error: familyError } = await supabase
+      .from('families')
+      .select('id, name, join_code')
+      .eq('id', invite.family_id)
+      .maybeSingle();
+    if (familyError) throw familyError;
+    if (!family) {
+      return res.status(404).json({ error: 'Family not found for this invite code.' });
+    }
+
+    const { error: membershipError } = await supabase
+      .from('family_members')
+      .insert({ family_id: family.id, user_id: req.user.id, role: 'member' });
+    if (membershipError) {
+      if (membershipError.code === '23505') {
+        return res.status(409).json({ error: 'You are already a member of a family.' });
+      }
+      throw membershipError;
+    }
+
+    await assignUserReceiptsToFamily(req.user.id, family.id);
+
+    const usedCount = (invite.used_count || 0) + 1;
+    const updates = { used_count: usedCount };
+    if (invite.max_uses != null && usedCount >= invite.max_uses) {
+      updates.status = 'expired';
+    }
+    const { error: updateInviteError } = await supabase
+      .from('family_invites')
+      .update(updates)
+      .eq('code', invite.code);
+    if (updateInviteError) throw updateInviteError;
+
+    return res.json({ family, membership: { family_id: family.id, role: 'member' } });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to join family.');
+  }
+});
+
+app.post('/api/family/leave', authenticateRequest, async (req, res) => {
+  try {
+    const membership = await getUserFamilyMembership(req.user.id);
+    if (!membership) {
+      return res.status(400).json({ error: 'You are not part of a family.' });
+    }
+
+    const { error } = await supabase
+      .from('family_members')
+      .delete()
+      .eq('family_id', membership.family_id)
+      .eq('user_id', req.user.id);
+    if (error) throw error;
+
+    return res.json({ success: true });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to leave family.');
+  }
+});
+
+app.get('/api/family/receipts', authenticateRequest, async (req, res) => {
+  try {
+    const membership = await getUserFamilyMembership(req.user.id);
+    if (!membership) {
+      return res
+        .status(403)
+        .json({ error: 'Join or create a family to view family receipts.' });
+    }
+
+    const { data: members, error: membersError } = await supabase
+      .from('family_members')
+      .select('user_id')
+      .eq('family_id', membership.family_id);
+    if (membersError) throw membersError;
+    const memberIds = (members || []).map((m) => m.user_id).filter(Boolean);
+
+    const { data: familyReceipts, error: familyError } = await supabase
+      .from('receipts')
+      .select('*')
+      .eq('family_id', membership.family_id)
+      .order('transaction_date', { ascending: true });
+    if (familyError) throw familyError;
+
+    let orphanReceipts = [];
+    if (memberIds.length) {
+      const { data: orphans, error: orphanError } = await supabase
+        .from('receipts')
+        .select('*')
+        .is('family_id', null)
+        .in('user_id', memberIds)
+        .order('transaction_date', { ascending: true });
+      if (orphanError) throw orphanError;
+      orphanReceipts = orphans || [];
+    }
+
+    const merged = [...(familyReceipts || []), ...orphanReceipts];
+
+    return res.json({ receipts: merged, familyId: membership.family_id });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to load family receipts.');
   }
 });
 

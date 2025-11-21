@@ -15,6 +15,7 @@ import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { AuthProvider } from "@/context/AuthContext"; // ✅ wrap app in AuthProvider
+import Profile from "@/pages/Profile";
 
 export default function App() {
   return (
@@ -85,6 +86,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Layout currentPageName="Ask AI"><AskAI /></Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <Layout currentPageName="Profile"><Profile /></Layout>
             </ProtectedRoute>
           }
         />

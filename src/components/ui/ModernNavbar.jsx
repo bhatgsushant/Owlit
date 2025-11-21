@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon, LogOut } from 'lucide-react';
+import { X, Menu as MenuIcon, Sun, Moon, LogOut, User } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
 import { useAuth } from '@/hooks/useAuth';
 
@@ -37,16 +37,24 @@ function BrandMark() {
 // Main component for the modern navigation bar
 export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [isOpen, setIsOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const location = useLocation();
   const navRef = useRef(null);
-  const { user, logout } = useAuth();
+  const { user, logout, fetchWithAuth } = useAuth();
   const { scrollYProgress } = useScroll();
   const scrollIndicator = useSpring(scrollYProgress, {
     stiffness: 120,
     damping: 28,
     restDelta: 0.001,
   });
+  const [familyStatus, setFamilyStatus] = useState({ family: null, members: [], invite: null, membership: null });
+  const [familyStatusLoading, setFamilyStatusLoading] = useState(false);
+  const [familyActionLoading, setFamilyActionLoading] = useState(false);
+  const [familyActionMessage, setFamilyActionMessage] = useState(null);
+  const [joinCodeInput, setJoinCodeInput] = useState('');
+  const [familyNameInput, setFamilyNameInput] = useState('');
+  const [familyActionMode, setFamilyActionMode] = useState('create'); // 'create' | 'join'
 
   // Menu items configuration
   const menuItems = useMemo(() => {
@@ -99,6 +107,157 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const navVariants = {
     hidden: { y: -16, opacity: 0 },
     visible: { y: 0, opacity: 1, transition: { duration: 0.5, ease: [0.4, 0, 0.2, 1] } },
+  };
+
+  const readErrorMessage = useCallback(async (response) => {
+    const text = await response.text();
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.error) return parsed.error;
+    } catch {
+      // ignore parse errors
+    }
+    return text || 'Request failed';
+  }, []);
+
+  const fetchFamilyStatus = useCallback(async () => {
+    if (!user) {
+      setFamilyStatus({ family: null, members: [], invite: null, membership: null });
+      return;
+    }
+    setFamilyStatusLoading(true);
+    setFamilyActionMessage(null);
+    try {
+      const response = await fetchWithAuth('/api/family/status');
+      if (!response.ok) {
+        throw new Error('Failed to load family status');
+      }
+      const payload = await response.json();
+      setFamilyStatus({
+        family: payload.family || null,
+        members: payload.members || [],
+        invite: payload.invite || null,
+        membership: payload.membership || null,
+      });
+    } catch (err) {
+      console.error(err);
+      setFamilyStatus({ family: null, members: [], invite: null, membership: null });
+      setFamilyActionMessage('Unable to load family status right now.');
+    } finally {
+      setFamilyStatusLoading(false);
+    }
+  }, [fetchWithAuth, user]);
+
+  useEffect(() => {
+    if (isProfileOpen) {
+      fetchFamilyStatus();
+    }
+  }, [isProfileOpen, fetchFamilyStatus]);
+
+  const handleCreateFamily = async () => {
+    if (!familyNameInput.trim()) {
+      setFamilyActionMessage('Please enter a family name.');
+      return;
+    }
+    setFamilyActionLoading(true);
+    setFamilyActionMessage(null);
+    try {
+      const response = await fetchWithAuth('/api/family', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: familyNameInput.trim() }),
+      });
+      if (!response.ok) {
+        const message = await readErrorMessage(response);
+        throw new Error(message || 'Failed to create family');
+      }
+      setFamilyNameInput('');
+      await fetchFamilyStatus();
+      setFamilyActionMessage('Family created. Share the invite code below.');
+    } catch (err) {
+      console.error(err);
+      setFamilyActionMessage(err.message || 'Failed to create family.');
+    } finally {
+      setFamilyActionLoading(false);
+    }
+  };
+
+  const handleGenerateInvite = async () => {
+    setFamilyActionLoading(true);
+    setFamilyActionMessage(null);
+    try {
+      const response = await fetchWithAuth('/api/family/invite', { method: 'POST' });
+      if (!response.ok) {
+        const message = await readErrorMessage(response);
+        throw new Error(message || 'Failed to generate invite code');
+      }
+      await fetchFamilyStatus();
+      setFamilyActionMessage('New invite code generated.');
+    } catch (err) {
+      console.error(err);
+      setFamilyActionMessage(err.message || 'Failed to generate invite code.');
+    } finally {
+      setFamilyActionLoading(false);
+    }
+  };
+
+  const handleJoinFamily = async () => {
+    if (!joinCodeInput.trim()) {
+      setFamilyActionMessage('Please enter a join code.');
+      return;
+    }
+    setFamilyActionLoading(true);
+    setFamilyActionMessage(null);
+    try {
+      const response = await fetchWithAuth('/api/family/join', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: joinCodeInput.trim() }),
+      });
+      if (!response.ok) {
+        const message = await readErrorMessage(response);
+        throw new Error(message || 'Failed to join family');
+      }
+      setJoinCodeInput('');
+      await fetchFamilyStatus();
+      setFamilyActionMessage('Joined family successfully.');
+    } catch (err) {
+      console.error(err);
+      setFamilyActionMessage(err.message || 'Failed to join family.');
+    } finally {
+      setFamilyActionLoading(false);
+    }
+  };
+
+  const handleLeaveFamily = async () => {
+    setFamilyActionLoading(true);
+    setFamilyActionMessage(null);
+    try {
+      const response = await fetchWithAuth('/api/family/leave', { method: 'POST' });
+      if (!response.ok) {
+        const message = await readErrorMessage(response);
+        throw new Error(message || 'Failed to leave family');
+      }
+      await fetchFamilyStatus();
+      setFamilyActionMessage('You have left the family.');
+    } catch (err) {
+      console.error(err);
+      setFamilyActionMessage(err.message || 'Failed to leave family.');
+    } finally {
+      setFamilyActionLoading(false);
+    }
+  };
+
+  const handleCopyInvite = async () => {
+    const code = familyStatus?.invite?.code || familyStatus?.family?.join_code || '';
+    if (!code) return;
+    try {
+      await navigator.clipboard.writeText(code);
+      setFamilyActionMessage('Invite code copied.');
+    } catch (err) {
+      console.error(err);
+      setFamilyActionMessage('Unable to copy invite code.');
+    }
   };
 
   return (
@@ -167,20 +326,14 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
             {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
           </motion.button>
           {user ? (
-            <motion.div className="relative group" whileHover={{ scale: 1.02 }}>
-              <button className="flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-3 py-1 shadow-sm dark:bg-slate-800/80">
+            <motion.div className="relative" whileHover={{ scale: 1.02 }}>
+              <button
+                onClick={() => setIsProfileOpen(true)}
+                className="flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-3 py-1 shadow-sm dark:bg-slate-800/80"
+              >
                 <img src={user.avatar} alt={user.displayName} className="h-8 w-8 rounded-full object-cover" />
                 <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{user.displayName}</span>
               </button>
-              <div className="pointer-events-none absolute right-0 mt-3 w-48 rounded-2xl border border-white/10 bg-white/90 py-2 opacity-0 shadow-xl shadow-black/10 transition-all duration-200 group-hover:pointer-events-auto group-hover:opacity-100 dark:bg-slate-900/90">
-                <button
-                  onClick={logout}
-                  className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-600 transition-colors hover:text-emerald-500 dark:text-slate-200 dark:hover:text-emerald-300"
-                >
-                  <LogOut size={16} />
-                  Logout
-                </button>
-              </div>
             </motion.div>
           ) : (
             <Link
@@ -248,6 +401,168 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 )}
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isProfileOpen && user && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex justify-end"
+            onClick={() => setIsProfileOpen(false)}
+          >
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', stiffness: 280, damping: 30 }}
+              className="relative h-full w-full max-w-sm bg-slate-900 text-white shadow-2xl border-l border-white/10 p-6 flex flex-col"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <img src={user.avatar} alt={user.displayName} className="h-12 w-12 rounded-full object-cover" />
+                  <div>
+                    <p className="text-sm text-white/60">Signed in</p>
+                    <p className="text-base font-semibold">{user.displayName}</p>
+                    <p className="text-xs text-white/60">{user.email}</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsProfileOpen(false)}
+                  className="rounded-full p-2 text-white/60 hover:text-white hover:bg-white/10"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs uppercase tracking-wide text-white/50 mb-1">Family status</p>
+                  {familyStatusLoading ? (
+                    <p className="text-white/70">Loading…</p>
+                  ) : familyStatus.family ? (
+                    <>
+                      <p className="text-base font-semibold text-white">{familyStatus.family.name}</p>
+                      <p className="text-white/70">Members: {familyStatus.members?.length || 0}</p>
+                      <p className="text-white/70">Role: {familyStatus.membership?.role || 'member'}</p>
+                    </>
+                  ) : (
+                    <p className="text-white/70">Not in a family yet.</p>
+                  )}
+                </div>
+
+                {!familyStatus.family && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                    <div className="inline-flex rounded-full border border-white/15 bg-white/10 p-1">
+                      <button
+                        onClick={() => setFamilyActionMode('create')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                          familyActionMode === 'create' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                        }`}
+                      >
+                        Create a family
+                      </button>
+                      <button
+                        onClick={() => setFamilyActionMode('join')}
+                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
+                          familyActionMode === 'join' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                        }`}
+                      >
+                        Join a family
+                      </button>
+                    </div>
+
+                    {familyActionMode === 'create' ? (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-white">Create a family</p>
+                        <input
+                          type="text"
+                          value={familyNameInput}
+                          onChange={(e) => setFamilyNameInput(e.target.value)}
+                          placeholder="Family name"
+                          className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                        />
+                        <button
+                          onClick={handleCreateFamily}
+                          disabled={familyActionLoading || !familyNameInput.trim()}
+                          className="w-full rounded-lg bg-emerald-500 text-black font-semibold px-3 py-2 hover:bg-emerald-400 disabled:opacity-60"
+                        >
+                          {familyActionLoading ? 'Creating…' : 'Create family'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-sm font-semibold text-white">Join a family</p>
+                        <input
+                          type="text"
+                          value={joinCodeInput}
+                          onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
+                          placeholder="Enter code"
+                          className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                        />
+                        <button
+                          onClick={handleJoinFamily}
+                          disabled={familyActionLoading || !joinCodeInput.trim()}
+                          className="w-full rounded-lg bg-white text-black font-semibold px-3 py-2 hover:bg-white/90 disabled:opacity-60"
+                        >
+                          {familyActionLoading ? 'Joining…' : 'Join family'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {familyStatus.family && (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-wide text-white/50">Invite code</p>
+                        <p className="text-base font-semibold text-white">
+                          {familyStatus?.invite?.code || familyStatus?.family?.join_code || '—'}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleCopyInvite}
+                          disabled={familyActionLoading || !(familyStatus?.invite?.code || familyStatus?.family?.join_code)}
+                          className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15 disabled:opacity-60"
+                        >
+                          Copy
+                        </button>
+                        <button
+                          onClick={handleGenerateInvite}
+                          disabled={familyActionLoading}
+                          className="rounded-lg bg-emerald-500 text-black px-3 py-2 text-xs font-semibold hover:bg-emerald-400 disabled:opacity-60"
+                        >
+                          New
+                        </button>
+                      </div>
+                    </div>
+                    <button
+                      onClick={handleLeaveFamily}
+                      disabled={familyActionLoading}
+                      className="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100 hover:border-red-400 hover:bg-red-500/20 disabled:opacity-60"
+                    >
+                      Leave family
+                    </button>
+                  </div>
+                )}
+
+                {familyActionMessage && <p className="text-xs text-white/70">{familyActionMessage}</p>}
+
+                <button
+                  onClick={() => { setIsProfileOpen(false); logout(); }}
+                  className="flex items-center justify-between gap-2 w-full rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 hover:border-red-400 hover:bg-red-500/20"
+                >
+                  <span>Logout</span>
+                  <LogOut size={16} />
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
