@@ -55,6 +55,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [joinCodeInput, setJoinCodeInput] = useState('');
   const [familyNameInput, setFamilyNameInput] = useState('');
   const [familyActionMode, setFamilyActionMode] = useState('create'); // 'create' | 'join'
+  const [familySectionOpen, setFamilySectionOpen] = useState(true);
 
   // Menu items configuration
   const menuItems = useMemo(() => {
@@ -420,48 +421,89 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 280, damping: 30 }}
-              className="relative h-full w-full max-w-sm bg-slate-900 text-white shadow-2xl border-l border-white/10 p-6 flex flex-col"
+              className="relative h-full w-full max-w-sm bg-white text-slate-900 dark:bg-black dark:text-white shadow-2xl border-l border-slate-200 dark:border-white/10 p-6 flex flex-col"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <img src={user.avatar} alt={user.displayName} className="h-12 w-12 rounded-full object-cover" />
                   <div>
-                    <p className="text-sm text-white/60">Signed in</p>
-                    <p className="text-base font-semibold">{user.displayName}</p>
-                    <p className="text-xs text-white/60">{user.email}</p>
+                    <p className="text-sm text-slate-500 dark:text-white/60">Signed in</p>
+                    <p className="text-base font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
+                    <p className="text-xs text-slate-500 dark:text-white/60">{user.email}</p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsProfileOpen(false)}
-                  className="rounded-full p-2 text-white/60 hover:text-white hover:bg-white/10"
+                  className="rounded-full p-2 text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:text-white/60 dark:hover:text-white dark:hover:bg-white/10"
                 >
                   <X size={18} />
                 </button>
               </div>
               <div className="mt-4 space-y-3 text-sm">
-                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
-                  <p className="text-xs uppercase tracking-wide text-white/50 mb-1">Family status</p>
-                  {familyStatusLoading ? (
-                    <p className="text-white/70">Loading…</p>
-                  ) : familyStatus.family ? (
-                    <>
-                      <p className="text-base font-semibold text-white">{familyStatus.family.name}</p>
-                      <p className="text-white/70">Members: {familyStatus.members?.length || 0}</p>
-                      <p className="text-white/70">Role: {familyStatus.membership?.role || 'member'}</p>
-                    </>
-                  ) : (
-                    <p className="text-white/70">Not in a family yet.</p>
+                <div className="rounded-xl border border-slate-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-white/5">
+                  <button
+                    className="w-full flex items-center justify-between text-left"
+                    onClick={() => setFamilySectionOpen((prev) => !prev)}
+                  >
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-white/50 mb-1">Family status</p>
+                      {familyStatusLoading ? (
+                        <p className="text-slate-600 dark:text-white/70">Loading…</p>
+                      ) : familyStatus.family ? (
+                        <p className="text-base font-semibold text-slate-900 dark:text-white">{familyStatus.family.name}</p>
+                      ) : (
+                        <p className="text-slate-600 dark:text-white/70">Not in a family yet.</p>
+                      )}
+                    </div>
+                    <span className="text-slate-500 dark:text-white/60 text-sm">
+                      {familySectionOpen ? '–' : '+'}
+                    </span>
+                  </button>
+                  {familySectionOpen && !familyStatusLoading && familyStatus.family && (
+                    <div className="mt-2 space-y-1">
+                      <p className="text-slate-600 dark:text-white/70">Members: {familyStatus.members?.length || 0}</p>
+                      <p className="text-slate-600 dark:text-white/70">Role: {familyStatus.membership?.role || 'member'}</p>
+                      {familyStatus.members?.length ? (
+                        <ul className="mt-2 space-y-1">
+                          {familyStatus.members.map((member) => {
+                            const display =
+                              member.member_name ||
+                              member.member_email ||
+                              member.user_id ||
+                              'Member';
+                            return (
+                              <li
+                                key={member.user_id || member.member_email || Math.random()}
+                                className="text-sm text-slate-700 dark:text-white/75 flex items-center gap-2"
+                              >
+                                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                                <span>{display}</span>
+                                {member.role && (
+                                  <span className="text-xs text-slate-500 dark:text-white/60">
+                                    ({member.role})
+                                  </span>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      ) : (
+                        <p className="text-xs text-slate-500 dark:text-white/60">No member names available.</p>
+                      )}
+                    </div>
                   )}
                 </div>
 
-                {!familyStatus.family && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
-                    <div className="inline-flex rounded-full border border-white/15 bg-white/10 p-1">
+                {familySectionOpen && !familyStatus.family && (
+                  <div className="rounded-xl border border-slate-200 bg-gray-50 p-3 space-y-3 dark:border-white/10 dark:bg-white/5">
+                    <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 dark:border-white/15 dark:bg-white/10">
                       <button
                         onClick={() => setFamilyActionMode('create')}
                         className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                          familyActionMode === 'create' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                          familyActionMode === 'create'
+                            ? 'bg-emerald-500 text-black'
+                            : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
                         }`}
                       >
                         Create a family
@@ -469,7 +511,9 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                       <button
                         onClick={() => setFamilyActionMode('join')}
                         className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                          familyActionMode === 'join' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                          familyActionMode === 'join'
+                            ? 'bg-emerald-500 text-black'
+                            : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
                         }`}
                       >
                         Join a family
@@ -478,13 +522,13 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
 
                     {familyActionMode === 'create' ? (
                       <div className="space-y-2">
-                        <p className="text-sm font-semibold text-white">Create a family</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">Create a family</p>
                         <input
                           type="text"
                           value={familyNameInput}
                           onChange={(e) => setFamilyNameInput(e.target.value)}
                           placeholder="Family name"
-                          className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 dark:border-white/15 dark:bg-white/10 dark:text-white"
                         />
                         <button
                           onClick={handleCreateFamily}
@@ -496,13 +540,13 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <p className="text-sm font-semibold text-white">Join a family</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">Join a family</p>
                         <input
                           type="text"
                           value={joinCodeInput}
                           onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
                           placeholder="Enter code"
-                          className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                          className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 dark:border-white/15 dark:bg-white/10 dark:text-white"
                         />
                         <button
                           onClick={handleJoinFamily}
@@ -516,12 +560,12 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   </div>
                 )}
 
-                {familyStatus.family && (
-                  <div className="rounded-xl border border-white/10 bg-white/5 p-3 space-y-3">
+                {familySectionOpen && familyStatus.family && (
+                  <div className="rounded-xl border border-slate-200 bg-gray-50 p-3 space-y-3 dark:border-white/10 dark:bg-white/5">
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-xs uppercase tracking-wide text-white/50">Invite code</p>
-                        <p className="text-base font-semibold text-white">
+                        <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-white/50">Invite code</p>
+                        <p className="text-base font-semibold text-slate-900 dark:text-white">
                           {familyStatus?.invite?.code || familyStatus?.family?.join_code || '—'}
                         </p>
                       </div>
@@ -529,7 +573,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                         <button
                           onClick={handleCopyInvite}
                           disabled={familyActionLoading || !(familyStatus?.invite?.code || familyStatus?.family?.join_code)}
-                          className="rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/15 disabled:opacity-60"
+                          className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-200 disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                         >
                           Copy
                         </button>
@@ -545,18 +589,18 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                     <button
                       onClick={handleLeaveFamily}
                       disabled={familyActionLoading}
-                      className="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100 hover:border-red-400 hover:bg-red-500/20 disabled:opacity-60"
+                      className="w-full rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-700 hover:border-red-400 hover:bg-red-500/20 disabled:opacity-60 dark:text-red-100"
                     >
                       Leave family
                     </button>
                   </div>
                 )}
 
-                {familyActionMessage && <p className="text-xs text-white/70">{familyActionMessage}</p>}
+                {familyActionMessage && <p className="text-xs text-slate-600 dark:text-white/70">{familyActionMessage}</p>}
 
                 <button
                   onClick={() => { setIsProfileOpen(false); logout(); }}
-                  className="flex items-center justify-between gap-2 w-full rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-100 hover:border-red-400 hover:bg-red-500/20"
+                  className="flex items-center justify-between gap-2 w-full rounded-lg border border-red-500/40 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-400 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-100"
                 >
                   <span>Logout</span>
                   <LogOut size={16} />

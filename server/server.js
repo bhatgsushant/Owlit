@@ -1910,9 +1910,38 @@ app.get('/api/family/status', authenticateRequest, async (req, res) => {
 
     const { data: members, error: membersError } = await supabase
       .from('family_members')
-      .select('user_id, role, created_at')
+      .select('user_id, role, created_at, member_name, member_email')
       .eq('family_id', membership.family_id);
     if (membersError) throw membersError;
+
+    // Ensure current user's name/email are stored
+    const selfEntry = (members || []).find((m) => m.user_id === req.user.id);
+    const desiredName = req.user.displayName || req.user.name || null;
+    const desiredEmail = req.user.email || null;
+    if (selfEntry && (!selfEntry.member_name || !selfEntry.member_email) && (desiredName || desiredEmail)) {
+      await supabase
+        .from('family_members')
+        .update({
+          member_name: selfEntry.member_name || desiredName,
+          member_email: selfEntry.member_email || desiredEmail,
+        })
+        .eq('family_id', membership.family_id)
+        .eq('user_id', req.user.id);
+      if (selfEntry && desiredName && !selfEntry.member_name) {
+        selfEntry.member_name = desiredName;
+      }
+      if (selfEntry && desiredEmail && !selfEntry.member_email) {
+        selfEntry.member_email = desiredEmail;
+      }
+    }
+
+    const enrichedMembers = (members || []).map((m) => ({
+      ...m,
+      member_name:
+        m.member_name ||
+        (m.user_id === req.user.id ? (req.user.displayName || req.user.name || null) : null),
+      member_email: m.member_email || (m.user_id === req.user.id ? (req.user.email || null) : null),
+    }));
 
     const { data: invites, error: inviteError } = await supabase
       .from('family_invites')
@@ -1927,7 +1956,7 @@ app.get('/api/family/status', authenticateRequest, async (req, res) => {
     return res.json({
       family,
       membership,
-      members: members || [],
+      members: enrichedMembers,
       invite: invite || null,
     });
   } catch (error) {
@@ -1989,7 +2018,13 @@ app.post('/api/family', authenticateRequest, async (req, res) => {
 
     const { error: membershipError } = await supabase
       .from('family_members')
-      .insert({ family_id: family.id, user_id: req.user.id, role: 'owner' });
+      .insert({
+        family_id: family.id,
+        user_id: req.user.id,
+        role: 'owner',
+        member_name: req.user.displayName || req.user.name || null,
+        member_email: req.user.email || null,
+      });
     if (membershipError) throw membershipError;
 
     const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
@@ -2091,7 +2126,13 @@ app.post('/api/family/join', authenticateRequest, async (req, res) => {
 
     const { error: membershipError } = await supabase
       .from('family_members')
-      .insert({ family_id: family.id, user_id: req.user.id, role: 'member' });
+      .insert({
+        family_id: family.id,
+        user_id: req.user.id,
+        role: 'member',
+        member_name: req.user.displayName || req.user.name || null,
+        member_email: req.user.email || null,
+      });
     if (membershipError) {
       if (membershipError.code === '23505') {
         return res.status(409).json({ error: 'You are already a member of a family.' });
