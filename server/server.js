@@ -284,6 +284,8 @@ const buildUserPayload = (user = {}) => ({
   id: user.id,
   email: user.email,
   displayName: user.displayName,
+  firstName: user.firstName,
+  lastName: user.lastName,
   avatar: user.avatar,
   provider: user.provider,
 });
@@ -1916,7 +1918,11 @@ app.get('/api/family/status', authenticateRequest, async (req, res) => {
 
     // Ensure current user's name/email are stored
     const selfEntry = (members || []).find((m) => m.user_id === req.user.id);
-    const desiredName = req.user.displayName || req.user.name || null;
+    const desiredName =
+      `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() ||
+      req.user.displayName ||
+      req.user.name ||
+      null;
     const desiredEmail = req.user.email || null;
     if (selfEntry && (!selfEntry.member_name || !selfEntry.member_email) && (desiredName || desiredEmail)) {
       await supabase
@@ -1939,7 +1945,12 @@ app.get('/api/family/status', authenticateRequest, async (req, res) => {
       ...m,
       member_name:
         m.member_name ||
-        (m.user_id === req.user.id ? (req.user.displayName || req.user.name || null) : null),
+        (m.user_id === req.user.id
+          ? (`${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() ||
+            req.user.displayName ||
+            req.user.name ||
+            null)
+          : null),
       member_email: m.member_email || (m.user_id === req.user.id ? (req.user.email || null) : null),
     }));
 
@@ -2022,7 +2033,7 @@ app.post('/api/family', authenticateRequest, async (req, res) => {
         family_id: family.id,
         user_id: req.user.id,
         role: 'owner',
-        member_name: req.user.displayName || req.user.name || null,
+        member_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.displayName || req.user.name || null,
         member_email: req.user.email || null,
       });
     if (membershipError) throw membershipError;
@@ -2130,7 +2141,7 @@ app.post('/api/family/join', authenticateRequest, async (req, res) => {
         family_id: family.id,
         user_id: req.user.id,
         role: 'member',
-        member_name: req.user.displayName || req.user.name || null,
+        member_name: `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.displayName || req.user.name || null,
         member_email: req.user.email || null,
       });
     if (membershipError) {
@@ -2166,12 +2177,21 @@ app.post('/api/family/leave', authenticateRequest, async (req, res) => {
       return res.status(400).json({ error: 'You are not part of a family.' });
     }
 
+    // Remove member from family
     const { error } = await supabase
       .from('family_members')
       .delete()
       .eq('family_id', membership.family_id)
       .eq('user_id', req.user.id);
     if (error) throw error;
+
+    // Detach this user's receipts from the family
+    const { error: receiptsError } = await supabase
+      .from('receipts')
+      .update({ family_id: null })
+      .eq('family_id', membership.family_id)
+      .eq('user_id', req.user.id);
+    if (receiptsError) throw receiptsError;
 
     return res.json({ success: true });
   } catch (error) {
@@ -2212,11 +2232,25 @@ app.get('/api/family/receipts', authenticateRequest, async (req, res) => {
         .order('transaction_date', { ascending: true });
       if (orphanError) throw orphanError;
       orphanReceipts = orphans || [];
+
+      if (orphanReceipts.length) {
+        const orphanIds = orphanReceipts.map((r) => r.id);
+        await supabase
+          .from('receipts')
+          .update({ family_id: membership.family_id })
+          .in('id', orphanIds);
+        // mark them in the response as part of the family to avoid reassign in subsequent calls
+        orphanReceipts = orphanReceipts.map((r) => ({ ...r, family_id: membership.family_id }));
+      }
     }
 
-    const merged = [...(familyReceipts || []), ...orphanReceipts];
+    // Deduplicate by receipt id in case of overlap
+    const dedupMap = new Map();
+    [...(familyReceipts || []), ...orphanReceipts].forEach((r) => {
+      if (!dedupMap.has(r.id)) dedupMap.set(r.id, r);
+    });
 
-    return res.json({ receipts: merged, familyId: membership.family_id });
+    return res.json({ receipts: Array.from(dedupMap.values()), familyId: membership.family_id });
   } catch (error) {
     return handleApiError(res, error, 'Failed to load family receipts.');
   }

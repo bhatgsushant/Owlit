@@ -768,6 +768,8 @@ export default function ScanReceipt() {
   const [isMultiPage, setIsMultiPage] = useState(false);
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const processingRef = useRef(null);
+
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -817,6 +819,12 @@ export default function ScanReceipt() {
       .then((response) => response.json())
       .then((data) => setLoadingAnimation(data));
   }, []);
+
+  useEffect(() => {
+    if (isProcessing && processingRef.current) {
+      processingRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [isProcessing]);
 
   useEffect(() => {
     const prefilled = sessionStorage.getItem('multi-scan-result');
@@ -1265,10 +1273,10 @@ export default function ScanReceipt() {
                 </div>
             </div>
         ) : (
-            <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start">
-                <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl">
+            <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start font-roboto">
+                <div className="max-w-2xl w-full bg-white/10 backdrop-blur-md p-8 rounded-2xl font-roboto">
                     <ScanModeToggle mode={scanMode} setMode={setScanMode} />
-                    <h1 className="text-3xl md:text-4xl font-bold text-white mb-4">{pageTitle}</h1>
+                    <h1 className="text-sm md:text-base font-roboto font-semibold text-white mb-4">{pageTitle}</h1>
                     <p className="text-md text-gray-200 mb-8">Choose your input method to get started.</p>
 
                     {file ? (
@@ -1295,14 +1303,14 @@ export default function ScanReceipt() {
                             </div>
 
                             {isProcessing && (
-                                <div className="flex flex-col items-center justify-center mt-6">
-                                    {loadingAnimation && <Lottie animationData={loadingAnimation} loop={true} style={{ width: 150, height: 150 }} />}
+                                <div ref={processingRef} className="flex flex-col items-center justify-center mt-6">
+                                    {loadingAnimation && <Lottie animationData={loadingAnimation} loop={true} style={{ width: 300, height: 300 }} />}
                                     <p className="text-white mt-4">Processing your receipt...</p>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div className="border-2 border-dashed border-gray-300/50 rounded-2xl p-10 text-center cursor-pointer transition-colors hover:border-green-400 bg-white/10" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
+                        <div className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/10" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf"/>
                             <Upload size={48} className="text-gray-300 mb-4 mx-auto" />
                             <p className="text-lg font-semibold text-white">Drag & Drop or Click to Upload</p>
@@ -1337,7 +1345,7 @@ export default function ScanReceipt() {
                             }`}
                           />
                         </button>
-                        <span className="text-white text-sm font-medium">High accuracy OCR</span>
+                        <span className="text-white text-xs font-medium">High Accuracy</span>
                       </div>
                       <span className="text-xs text-white/60">
                         {isHighAccuracy ? 'Best detail, slightly slower' : 'Faster processing'}

@@ -421,15 +421,15 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ type: 'spring', stiffness: 280, damping: 30 }}
-              className="relative h-full w-full max-w-sm bg-white text-slate-900 dark:bg-black dark:text-white shadow-2xl border-l border-slate-200 dark:border-white/10 p-6 flex flex-col"
+              className="relative h-full w-full max-w-xs bg-white text-slate-900 dark:bg-black dark:text-white shadow-2xl border-l border-slate-200 dark:border-white/10 p-6 flex flex-col rounded-l-3xl text-xs"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <img src={user.avatar} alt={user.displayName} className="h-12 w-12 rounded-full object-cover" />
                   <div>
-                    <p className="text-sm text-slate-500 dark:text-white/60">Signed in</p>
-                    <p className="text-base font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
+                    <p className="text-xs text-slate-500 dark:text-white/60">Signed in</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
                     <p className="text-xs text-slate-500 dark:text-white/60">{user.email}</p>
                   </div>
                 </div>
@@ -451,7 +451,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                       {familyStatusLoading ? (
                         <p className="text-slate-600 dark:text-white/70">Loading…</p>
                       ) : familyStatus.family ? (
-                        <p className="text-base font-semibold text-slate-900 dark:text-white">{familyStatus.family.name}</p>
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{familyStatus.family.name}</p>
                       ) : (
                         <p className="text-slate-600 dark:text-white/70">Not in a family yet.</p>
                       )}
@@ -462,8 +462,8 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   </button>
                   {familySectionOpen && !familyStatusLoading && familyStatus.family && (
                     <div className="mt-2 space-y-1">
-                      <p className="text-slate-600 dark:text-white/70">Members: {familyStatus.members?.length || 0}</p>
-                      <p className="text-slate-600 dark:text-white/70">Role: {familyStatus.membership?.role || 'member'}</p>
+                      <p className="text-slate-600 dark:text-white/70 text-xs">Members: {familyStatus.members?.length || 0}</p>
+                      <p className="text-slate-600 dark:text-white/70 text-xs">Role: {familyStatus.membership?.role || 'member'}</p>
                       {familyStatus.members?.length ? (
                         <ul className="mt-2 space-y-1">
                           {familyStatus.members.map((member) => {
@@ -530,14 +530,14 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                           placeholder="Family name"
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 dark:border-white/15 dark:bg-white/10 dark:text-white"
                         />
-                        <button
-                          onClick={handleCreateFamily}
-                          disabled={familyActionLoading || !familyNameInput.trim()}
-                          className="w-full rounded-lg bg-emerald-500 text-black font-semibold px-3 py-2 hover:bg-emerald-400 disabled:opacity-60"
-                        >
-                          {familyActionLoading ? 'Creating…' : 'Create family'}
-                        </button>
-                      </div>
+                          <button
+                            onClick={handleCreateFamily}
+                            disabled={familyActionLoading || !familyNameInput.trim()}
+                            className="w-full rounded-lg bg-emerald-500 text-black font-semibold px-3 py-2 hover:bg-emerald-400 disabled:opacity-60"
+                          >
+                            {familyActionLoading ? 'Creating…' : 'Create family'}
+                          </button>
+                        </div>
                     ) : (
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white">Join a family</p>
@@ -565,22 +565,30 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-white/50">Invite code</p>
-                        <p className="text-base font-semibold text-slate-900 dark:text-white">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">
                           {familyStatus?.invite?.code || familyStatus?.family?.join_code || '—'}
                         </p>
                       </div>
                       <div className="flex gap-2">
                         <button
-                          onClick={handleCopyInvite}
-                          disabled={familyActionLoading || !(familyStatus?.invite?.code || familyStatus?.family?.join_code)}
-                          className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-slate-200 disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
+                          onClick={() => {
+                            if (familyStatus?.invite?.code || familyStatus?.family?.join_code) {
+                              handleCopyInvite();
+                            } else {
+                              handleGenerateInvite();
+                            }
+                          }}
+                          disabled={familyActionLoading}
+                          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-50 disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                         >
-                          Copy
+                          {familyStatus?.invite?.code || familyStatus?.family?.join_code ? 'Copy' : 'Generate'}
                         </button>
                         <button
-                          onClick={handleGenerateInvite}
+                          onClick={() => {
+                            handleGenerateInvite();
+                          }}
                           disabled={familyActionLoading}
-                          className="rounded-lg bg-emerald-500 text-black px-3 py-2 text-xs font-semibold hover:bg-emerald-400 disabled:opacity-60"
+                          className="rounded-full border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-900 hover:bg-emerald-50 disabled:opacity-60 dark:border-white/15 dark:bg-white/10 dark:text-white dark:hover:bg-white/15"
                         >
                           New
                         </button>
@@ -600,10 +608,10 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
 
                 <button
                   onClick={() => { setIsProfileOpen(false); logout(); }}
-                  className="flex items-center justify-between gap-2 w-full rounded-lg border border-red-500/40 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700 hover:border-red-400 hover:bg-red-100 dark:bg-red-500/10 dark:text-red-100"
+                  className="flex items-center justify-between gap-2 w-full rounded-lg border border-slate-200 bg-gray-50 px-4 py-2 text-xs font-semibold text-slate-800 hover:border-emerald-400 hover:bg-white/60 dark:border-white/10 dark:bg-white/5 dark:text-white"
                 >
                   <span>Logout</span>
-                  <LogOut size={16} />
+                  <LogOut size={14} />
                 </button>
               </div>
             </motion.div>
