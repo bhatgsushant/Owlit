@@ -26,7 +26,7 @@ function BrandMark() {
 </svg>
 
       </motion.div>
-        <span className="text-xl font-bold text-black dark:text-white">
+        <span className="text-xl font-bold text-black dark:text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
   Owlit
 </span>
     </div>
@@ -300,8 +300,8 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 <Link
                   to={item.href}
                   onClick={() => setIsOpen(false)}
-                  className={`
-                    relative flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium transition-colors
+                    className={`
+                    relative flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] transition-colors
                     ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}
                   `}
                 >
@@ -425,7 +425,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
                   <img src={user.avatar} alt={user.displayName} className="h-12 w-12 rounded-full object-cover" />
                   <div>
                     <p className="text-xs text-slate-500 dark:text-white/60">Signed in</p>

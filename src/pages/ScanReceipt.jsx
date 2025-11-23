@@ -1371,7 +1371,7 @@ export default function ScanReceipt() {
                         </div>
                     ) : (
                         <div
-                          className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/10 relative overflow-hidden border border-black/10"
+                          className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/10 relative overflow-hidden border border-black/10 shadow-xl shadow-black/20"
                           onDragOver={handleDragOver}
                           onDrop={handleDrop}
                           onClick={handleUploadClick}
