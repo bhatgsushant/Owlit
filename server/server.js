@@ -642,6 +642,65 @@ function formatDate(dateString) {
     }
 }
 
+// Icon key helpers
+const CATEGORY_ICON_KEYS = new Set([
+    'fruit', 'vegetable', 'meat', 'poultry', 'seafood', 'dairy', 'bakery', 'beverages', 'snacks', 'frozen', 'canned_goods',
+    'personal_care', 'health', 'fitness', 'household', 'electronics', 'utilities', 'clothing', 'jewelry', 'transport',
+    'travel', 'stationery', 'education', 'finance', 'entertainment', 'pets', 'gifts', 'dining', 'other'
+]);
+
+const SUBCATEGORY_ICON_MATCHERS = [
+    { key: 'coffee', test: /(coffee|tea|drink)/ },
+    { key: 'beer_wine', test: /(beer|wine|spirits)/ },
+    { key: 'fuel', test: /(fuel|gas|diesel)/ },
+    { key: 'bread', test: /(bread|pastr|cake|cookie|muffin)/ },
+    { key: 'dairy', test: /(milk|cheese|yogurt|butter|cream|egg)/ },
+    { key: 'fish', test: /(fish|seafood|prawn|shrimp)/ },
+    { key: 'fruit', test: /(fruit|apple|banana|grape|melon)/ },
+    { key: 'vegetable', test: /(vegetable|greens|onion|tomato|pepper)/ },
+    { key: 'meat', test: /(meat|beef|pork|lamb)/ },
+    { key: 'chicken', test: /(chicken|turkey|duck)/ },
+    { key: 'cleaning', test: /(laundry|cleaning|detergent)/ },
+    { key: 'medicine', test: /(medicine|vitamin|pain|supplement)/ },
+    { key: 'fitness', test: /(gym|fitness|protein)/ },
+    { key: 'electronics', test: /(electronics|charger|laptop|mobile|battery)/ },
+    { key: 'utilities', test: /(electricity|internet|water|bill)/ },
+    { key: 'clothing', test: /(shoe|shirt|jean|dress|clothing|sock)/ },
+    { key: 'jewelry', test: /(jewel|ring|necklace|bracelet)/ },
+    { key: 'transport', test: /(bus|train|taxi|uber|parking)/ },
+    { key: 'travel', test: /(flight|hotel|visa|tour|luggage)/ },
+    { key: 'stationery', test: /(pen|notebook|paper|folder)/ },
+    { key: 'education', test: /(book|course|tuition|school)/ },
+    { key: 'finance', test: /(bank|fee|insurance|loan|interest)/ },
+    { key: 'entertainment', test: /(movie|music|game|event|stream)/ },
+    { key: 'pets', test: /(pet|vet|groom)/ },
+    { key: 'gifts', test: /(gift|donation|charity)/ },
+    { key: 'dining', test: /(restaurant|takeaway|fast_food|pub|bar)/ },
+];
+
+const SUBCATEGORY_ICON_KEYS = new Set(SUBCATEGORY_ICON_MATCHERS.map((m) => m.key));
+
+const normalizeCategoryIconKey = (key) => {
+    if (!key) return null;
+    const normalized = String(key).toLowerCase();
+    return CATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
+};
+
+const normalizeSubcategoryIconKey = (key) => {
+    if (!key) return null;
+    const normalized = String(key).toLowerCase();
+    return SUBCATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
+};
+
+const inferSubcategoryIconKey = (subCategory) => {
+    if (!subCategory) return null;
+    const value = String(subCategory).toLowerCase();
+    for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
+        if (matcher.test.test(value)) return matcher.key;
+    }
+    return null;
+};
+
 const CATEGORY_PROMPT_TEXT = `
 **Taxonomy for Categorization:**
 - fruit: ["apples", "bananas", "berries", "citrus", "tropical", "grapes", "melons", "stone_fruit"]
@@ -673,6 +732,10 @@ const CATEGORY_PROMPT_TEXT = `
 - gifts: ["birthday", "festival", "anniversary", "donation", "charity"]
 - dining: ["restaurant", "takeaway", "coffee_shop", "fast_food", "pub", "bar"]
 - other: ["miscellaneous"]
+
+**Allowed Category Icon Keys:** fruit, vegetable, meat, poultry, seafood, dairy, bakery, beverages, snacks, frozen, canned_goods, personal_care, health, fitness, household, electronics, utilities, clothing, jewelry, transport, travel, stationery, education, finance, entertainment, pets, gifts, dining, other
+
+**Allowed Subcategory Icon Keys (choose the closest):** coffee, beer_wine, fuel, bread, dairy, fish, fruit, vegetable, meat, chicken, cleaning, medicine, fitness, electronics, utilities, clothing, jewelry, transport, travel, stationery, education, finance, entertainment, pets, gifts, dining
 `;
 
 async function processWithOpenAI(imageBase64, tesseractText = '') {
@@ -697,12 +760,21 @@ Output clean structured JSON in this format. The date should be in DD/MM/YYYY fo
   "MerchantName": "",
   "Date": "DD/MM/YYYY",
   "Items": [
-     {"Name": "", "Quantity": 1, "Price": 0.0, "Category": "", "SubCategory": ""}
+     {
+       "Name": "",
+       "Quantity": 1,
+       "Price": 0.0,
+       "Category": "",
+       "SubCategory": "",
+       "CategoryIconKey": "",
+       "SubCategoryIconKey": ""
+     }
   ],
   "Subtotal": "",
   "Tax": "",
   "TotalAmount": ""
 }
+For CategoryIconKey pick from the allowed category icon keys. For SubCategoryIconKey pick from the allowed subcategory icon keys. If unsure, choose the closest match.
 Return **only JSON**, no explanations.
 `;
             const response = await openai.chat.completions.create({
@@ -780,7 +852,15 @@ ${CATEGORY_PROMPT_TEXT}
   "main_category": "",
   "store_type": "",
   "items": [
-    {"name": "", "quantity": 1, "price": 0.0, "category": "", "sub_category": ""}
+    {
+      "name": "",
+      "quantity": 1,
+      "price": 0.0,
+      "category": "",
+      "sub_category": "",
+      "category_icon_key": "",
+      "subcategory_icon_key": ""
+    }
   ],
   "total_amount": 0.0
 }
@@ -790,6 +870,7 @@ ${CATEGORY_PROMPT_TEXT}
 2. Quantity defaults to 1 if missing.
 3. Price must be a number only (no currency symbols).
 4. Assign a logical category/sub_category from the provided taxonomy for each item.
+5. Also provide category_icon_key and subcategory_icon_key for each item, choosing from the allowed icon key lists above (closest match).
 5. Based on the merchant name and items, infer the store's main_category (e.g., "Groceries", "Fashion", "Electronics") and store_type (e.g., "Supermarket", "Clothing Store", "Electronics Store").
 6. The date should be in DD/MM/YYYY format.
 7. Return **JSON only**, no explanations.
@@ -1105,6 +1186,11 @@ async function categorizeLineItems(lineItems, userId) {
         const normalizedItemName = rawItemName.trim();
         const canonicalItemName = normalizedItemName.toLowerCase();
 
+        const aiCategoryIconKey = normalizeCategoryIconKey(item.category_icon_key || item.CategoryIconKey);
+        const aiSubcategoryIconKey = normalizeSubcategoryIconKey(
+            item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key
+        );
+
 
         // ✅ 1) Check user-specific category override *if* user is logged in
         let userOverride = null;
@@ -1148,11 +1234,15 @@ if (userOverride) {
 
 
         if (masterListEntry) { // Found in master list
+            const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
+            const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
             categorizedLineItems.push({
                 item: rawItemName,
                 Item_Name: masterListEntry.Item_Name,
                 main_category: masterListEntry.main_category,
                 sub_category: masterListEntry.sub_category,
+                category_icon_key: categoryIconKey || null,
+                subcategory_icon_key: subcategoryIconKey || null,
                 price: parseFloat(item.price || item.Price) || 0,
                 quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
             });
@@ -1178,6 +1268,8 @@ if (userOverride) {
                 };
             }
 
+            const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(categoryInfo.main_category);
+            const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(categoryInfo.sub_category);
             const canonicalName = rawItemName; // Use the first seen name as canonical
             
             categorizedLineItems.push({
@@ -1185,6 +1277,8 @@ if (userOverride) {
                 Item_Name: canonicalName,
                 main_category: categoryInfo.main_category,
                 sub_category: categoryInfo.sub_category,
+                category_icon_key: categoryIconKey || null,
+                subcategory_icon_key: subcategoryIconKey || null,
                 price: parseFloat(item.price || item.Price) || 0,
                 quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
             });

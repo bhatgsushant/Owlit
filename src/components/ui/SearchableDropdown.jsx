@@ -92,7 +92,7 @@ export default function SearchableDropdown({
         )}
         onClick={() => setIsOpen((prev) => !prev)}
       >
-        <span className={cn('truncate flex items-center gap-2', labelClassName || 'text-sm')}>
+        <span className={cn('flex items-center gap-2', labelClassName || 'text-sm')}>
           {startIcon ? <span className="shrink-0">{startIcon}</span> : null}
           {value || placeholder || 'Select...'}
         </span>

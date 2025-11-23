@@ -171,30 +171,30 @@ export default function Profile() {
     <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white font-sans">
       <AnimatedSection>
         <div className="space-y-2">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">Profile</h1>
-          <p className="text-sm text-white/70">Manage your account and family sharing.</p>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Profile</h1>
+          <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Manage your account and family sharing.</p>
         </div>
       </AnimatedSection>
 
       <AnimatedSection delay={0.05}>
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-white/50 mb-2">Account</p>
-            <p className="text-lg font-semibold text-white">{user?.displayName || '—'}</p>
-            <p className="text-sm text-white/70">{user?.email || '—'}</p>
+            <p className="text-xs uppercase tracking-wide text-white/50 mb-2 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Account</p>
+            <p className="text-lg font-semibold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{user?.displayName || '—'}</p>
+            <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{user?.email || '—'}</p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-xs uppercase tracking-wide text-white/50 mb-2">Family status</p>
+            <p className="text-xs uppercase tracking-wide text-white/50 mb-2 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Family status</p>
             {familyStatusLoading ? (
-              <p className="text-sm text-white/70">Loading family info…</p>
+              <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Loading family info…</p>
             ) : familyStatus.family ? (
               <>
-                <p className="text-lg font-semibold text-white">{familyStatus.family.name}</p>
-                <p className="text-sm text-white/70">Members: {familyStatus.members?.length || 0}</p>
-                <p className="text-sm text-white/70">Role: {familyStatus.membership?.role || 'member'}</p>
+                <p className="text-lg font-semibold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{familyStatus.family.name}</p>
+                <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Members: {familyStatus.members?.length || 0}</p>
+                <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Role: {familyStatus.membership?.role || 'member'}</p>
               </>
             ) : (
-              <p className="text-sm text-white/70">Not in a family yet.</p>
+              <p className="text-sm text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Not in a family yet.</p>
             )}
           </div>
         </div>
@@ -206,7 +206,7 @@ export default function Profile() {
             <div className="inline-flex rounded-full border border-white/15 bg-white/10 p-1">
               <button
                 onClick={() => setFamilyActionMode('create')}
-                className={`px-4 py-1 text-xs font-semibold rounded-full transition ${
+                className={`px-4 py-1 text-xs font-semibold rounded-full transition font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] ${
                   familyActionMode === 'create' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
                 }`}
               >
@@ -214,7 +214,7 @@ export default function Profile() {
               </button>
               <button
                 onClick={() => setFamilyActionMode('join')}
-                className={`px-4 py-1 text-xs font-semibold rounded-full transition ${
+                className={`px-4 py-1 text-xs font-semibold rounded-full transition font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] ${
                   familyActionMode === 'join' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
                 }`}
               >
@@ -224,7 +224,7 @@ export default function Profile() {
 
             {familyActionMode === 'create' ? (
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-white">Create a family</p>
+                <p className="text-sm font-semibold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Create a family</p>
                 <input
                   type="text"
                   placeholder="Family name"
@@ -235,14 +235,14 @@ export default function Profile() {
                 <button
                   onClick={handleCreateFamily}
                   disabled={familyActionLoading || !familyNameInput.trim()}
-                  className="w-full px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-black shadow hover:bg-emerald-400 disabled:opacity-60"
+                  className="w-full px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-black shadow hover:bg-emerald-400 disabled:opacity-60 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]"
                 >
                   {familyActionLoading ? 'Creating…' : 'Create family'}
                 </button>
               </div>
             ) : (
               <div className="space-y-3">
-                <p className="text-sm font-semibold text-white">Join a family</p>
+                <p className="text-sm font-semibold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Join a family</p>
                 <input
                   type="text"
                   placeholder="Enter code"
@@ -253,7 +253,7 @@ export default function Profile() {
                 <button
                   onClick={handleJoinFamily}
                   disabled={familyActionLoading || !joinCodeInput.trim()}
-                  className="w-full px-4 py-2 rounded-lg bg-white text-sm font-semibold text-black shadow hover:bg-white/90 disabled:opacity-60"
+                  className="w-full px-4 py-2 rounded-lg bg-white text-sm font-semibold text-black shadow hover:bg-white/90 disabled:opacity-60 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]"
                 >
                   {familyActionLoading ? 'Joining…' : 'Join family'}
                 </button>
@@ -268,9 +268,9 @@ export default function Profile() {
           <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-5 space-y-3">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
               <div>
-                <p className="text-xs uppercase tracking-wide text-white/50">Invite code</p>
-                <p className="text-lg font-semibold text-white">{currentInviteCode || '—'}</p>
-                <p className="text-xs text-white/60 mt-1">
+                <p className="text-xs uppercase tracking-wide text-white/50 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Invite code</p>
+                <p className="text-lg font-semibold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{currentInviteCode || '—'}</p>
+                <p className="text-xs text-white/60 mt-1 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
                   Share this code with family members. They must leave their current family before joining.
                 </p>
               </div>
@@ -278,34 +278,34 @@ export default function Profile() {
                 <button
                   onClick={handleCopyInvite}
                   disabled={!currentInviteCode}
-                  className="px-4 py-2 rounded-lg border border-white/15 bg-white/10 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg border border-white/15 bg-white/10 text-sm font-semibold text-white hover:bg-white/20 disabled:opacity-60 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]"
                 >
                   Copy code
                 </button>
                 <button
                   onClick={handleGenerateInvite}
                   disabled={familyActionLoading}
-                  className="px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg bg-emerald-500 text-sm font-semibold text-black shadow-lg hover:bg-emerald-400 disabled:opacity-60 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]"
                 >
                   {familyActionLoading ? 'Generating…' : 'New code'}
                 </button>
                 <button
                   onClick={handleLeaveFamily}
                   disabled={familyActionLoading}
-                  className="px-4 py-2 rounded-lg border border-red-400/60 text-sm font-semibold text-red-100 hover:bg-red-500/10 disabled:opacity-60"
+                  className="px-4 py-2 rounded-lg border border-red-400/60 text-sm font-semibold text-red-100 hover:bg-red-500/10 disabled:opacity-60 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]"
                 >
                   Leave family
                 </button>
               </div>
             </div>
-            <p className="text-xs text-white/70">
+            <p className="text-xs text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
               {familyStatusLoading
                 ? 'Refreshing family status…'
                 : familyStatus.family
                 ? `Family ID: ${familyStatus.family.id}`
                 : 'Create or join to get an invite code.'}
             </p>
-            {familyActionMessage && <p className="text-xs text-white/70">{familyActionMessage}</p>}
+            {familyActionMessage && <p className="text-xs text-white/70 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{familyActionMessage}</p>}
           </div>
         </AnimatedSection>
       )}

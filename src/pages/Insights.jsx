@@ -520,7 +520,11 @@ export default function Insights() {
         alert('Switch to \"Me\" view to edit your receipts.');
         return;
       }
-      sessionStorage.setItem('edit-receipt-data', JSON.stringify(receipt));
+      const payload = {
+        ...receipt,
+        image_url: receipt.receipt_url || receipt.file_url || receipt.image_url || null,
+      };
+      sessionStorage.setItem('edit-receipt-data', JSON.stringify(payload));
       navigate('/scan?edit=true');
   };
 

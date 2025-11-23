@@ -4,6 +4,15 @@ import { Camera, X } from 'lucide-react';
 export default function CameraView({ onCapture, onClose }) {
   const videoRef = useRef(null);
   const [stream, setStream] = useState(null);
+  const streamRef = useRef(null);
+
+  const stopStream = () => {
+    const current = streamRef.current || stream;
+    if (current) {
+      current.getTracks().forEach((track) => track.stop());
+    }
+    streamRef.current = null;
+  };
 
   useEffect(() => {
     async function getCameraStream() {
@@ -12,6 +21,7 @@ export default function CameraView({ onCapture, onClose }) {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
+        streamRef.current = stream;
         setStream(stream);
       } catch (err) {
         console.error("Error accessing camera: ", err);
@@ -23,9 +33,7 @@ export default function CameraView({ onCapture, onClose }) {
     getCameraStream();
 
     return () => {
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-      }
+      stopStream();
     };
   }, []);
 
@@ -40,6 +48,8 @@ export default function CameraView({ onCapture, onClose }) {
       canvas.toBlob((blob) => {
         const capturedFile = new File([blob], `capture-${new Date().toISOString()}.jpg`, { type: 'image/jpeg' });
         onCapture(capturedFile);
+        stopStream();
+        onClose();
       }, 'image/jpeg');
     }
   };

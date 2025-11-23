@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Work+Sans:wght@600;700&family=Roboto:wght@400;500;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Work+Sans:wght@600;700&family=Roboto:wght@400;500;700&family=Playfair+Display:wght@400&family=Ubuntu+Sans:wght@400&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -11,6 +11,14 @@ body {
 
 .font-roboto {
   font-family: 'Roboto', system-ui, sans-serif;
+}
+
+.font-ubuntu {
+  font-family: 'Ubuntu Sans', system-ui, sans-serif;
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', serif;
 }
 
 
