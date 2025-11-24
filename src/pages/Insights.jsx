@@ -152,7 +152,7 @@ const ChartCard = ({
     <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 flex flex-col gap-4 shadow-2xl backdrop-blur">
       <div className="space-y-2">
         <div className="flex items-start justify-between gap-4">
-          <h2 className="text-lg md:text-xl font-semibold text-white font-display">{title}</h2>
+          <h2 className="text-lg md:text-xl font-semibold text-white font-playfair">{title}</h2>
           {actions}
         </div>
         {description && (
@@ -269,7 +269,7 @@ const StatsCard = ({ label, value = 0, helper }) => {
   return (
     <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl backdrop-blur md:min-h-[140px]">
       <span className="text-xs uppercase tracking-[0.2em] text-gray-300 font-semibold">{label}</span>
-      <span className="text-2xl md:text-3xl font-bold text-white font-display">
+      <span className="text-2xl md:text-3xl font-bold text-white font-ubuntu">
         {displayValue}
       </span>
       {helper && <span className="text-xs text-gray-400 leading-relaxed">{helper}</span>}
@@ -307,17 +307,17 @@ const TimeframeCard = ({ label, current = 0, previous = 0 }) => {
   return (
     <div className="bg-white/5 dark:bg-black/30 border border-white/10 rounded-2xl p-4 md:p-5 backdrop-blur-md flex flex-col gap-2 shadow-xl">
       <span className="text-xs uppercase tracking-[0.32em] text-gray-300 font-semibold">{label}</span>
-      <span className="text-xl md:text-2xl font-semibold text-white font-display">
+      <span className="text-xl md:text-2xl font-semibold text-white font-ubuntu">
         {formatCurrency(animatedCurrent)}
       </span>
-      <span className={`text-xs font-medium ${deltaClass}`}>
+      <span className={`text-xs font-medium ${deltaClass} font-ubuntu`}>
         {deltaLabel}{' '}
         <span className="text-gray-400">
           {delta === 0 ? '' : 'vs previous'}
         </span>
       </span>
       {previous > 0 && (
-        <span className="text-[11px] text-gray-400">
+        <span className="text-[11px] text-gray-400 font-ubuntu">
           Previous: {formatCurrency(animatedPrevious)}
         </span>
       )}
@@ -2807,10 +2807,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [overallAnalytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-[#050507] text-white font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-[#050507] text-white font-playfair">
       <AnimatedSection>
         <div className="space-y-3">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-display">
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-playfair">
             Insights & Analytics
           </h1>
         </div>
@@ -2990,7 +2990,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-white font-display">Item Price Trend</h3>
+                <h3 className="text-lg font-semibold text-white font-playfair">Item Price Trend</h3>
                 <p className="text-xs text-white/70">
                   Track how the unit price for a frequent item is changing over time.
                 </p>
@@ -3019,7 +3019,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <h3 className="text-lg font-semibold text-white font-display">Basket Composition</h3>
+                <h3 className="text-lg font-semibold text-white font-playfair">Basket Composition</h3>
                 <p className="text-xs text-white/70">
                   See how healthy, snack, and alcohol purchases contribute to each basket over time.
                 </p>
@@ -3037,7 +3037,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
             <div>
-              <h2 className="text-lg md:text-xl font-semibold text-white font-display">Key takeaways</h2>
+              <h2 className="text-lg md:text-xl font-semibold text-white font-playfair">Key takeaways</h2>
               <p className="text-sm text-white/70 mt-2">
                 A quick narrative summary distilled from your latest data points.
               </p>
@@ -3060,7 +3060,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       <AnimatedSection delay={0.24}>
         <div className="mt-10 space-y-4 bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <h3 className="text-lg font-semibold text-white font-display">All Receipts</h3>
+            <h3 className="text-lg font-semibold text-white font-playfair">All Receipts</h3>
             <TimeframeControls {...sharedTimeframeControlProps} />
           </div>
           <div className="border border-white/5 rounded-2xl overflow-hidden">

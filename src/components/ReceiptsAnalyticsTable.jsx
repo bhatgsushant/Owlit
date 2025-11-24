@@ -51,12 +51,12 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
     setSortConfig({ key, direction });
   };
   
-  const SortableHeader = ({ sortKey, children, className }) => {
+const SortableHeader = ({ sortKey, children, className }) => {
     const isSorted = sortConfig.key === sortKey;
     const icon = isSorted ? (sortConfig.direction === 'ascending' ? <ChevronUp className="w-4 h-4 ml-1" /> : <ChevronDown className="w-4 h-4 ml-1" />) : null;
     return (
       <TableHead onClick={() => requestSort(sortKey)} className={`cursor-pointer transition-colors ${className}`}>
-        <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400">
+        <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-gray-400 font-playfair">
           {children}
           {icon}
         </div>
@@ -65,9 +65,9 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
   };
 
   return (
-    <div className="font-sans border border-white/10 bg-cyan-950/30 backdrop-blur-xl rounded-2xl shadow-2xl">
+    <div className="font-playfair border border-white/10 bg-cyan-950/30 backdrop-blur-xl rounded-2xl shadow-2xl">
       <div className="flex flex-row items-center justify-between p-4 md:p-6 border-b border-white/10">
-          <h2 className="font-display text-lg font-semibold text-white">
+          <h2 className="text-lg font-semibold text-white font-playfair">
             All Receipts
           </h2>
           {showInsightsLink && (
@@ -87,7 +87,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
               <SortableHeader sortKey="transaction_date">Date</SortableHeader>
               <SortableHeader sortKey="category">Type</SortableHeader>
               <SortableHeader sortKey="total_amount" className="text-right">Total</SortableHeader>
-              {hasActions && <TableHead className="w-[100px] pr-6 text-right">Actions</TableHead>}
+              {hasActions && <TableHead className="w-[100px] pr-6 text-right font-playfair">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -103,12 +103,12 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
                   <TableCell className="pl-6 py-4">
                     <div className="flex items-center gap-3">
                       <MerchantLogo merchantName={receipt.merchant_name} />
-                      <span className="font-semibold text-sm text-gray-200">{receipt.merchant_name}</span>
+                      <span className="font-semibold text-sm text-gray-200 font-playfair">{receipt.merchant_name}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="text-sm text-gray-400">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
-                  <TableCell><StoreType storeType={receipt.store_type} merchantName={receipt.merchant_name} /></TableCell>
-                  <TableCell className="font-semibold text-right text-sm text-gray-200">{receipt.total_amount?.toFixed(2)}</TableCell>
+                  <TableCell className="text-sm text-gray-400 font-playfair">{formatDateSafe(receipt.transaction_date, "MMM d, yyyy")}</TableCell>
+                  <TableCell className="font-playfair"><StoreType storeType={receipt.store_type} merchantName={receipt.merchant_name} /></TableCell>
+                  <TableCell className="font-semibold text-right text-sm text-gray-200 font-ubuntu">{receipt.total_amount?.toFixed(2)}</TableCell>
                   {hasActions && (
                     <TableCell className="pr-6">
                       <div className="flex justify-end gap-2">
@@ -129,7 +129,7 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
               ))
             ) : (
               <TableRow className="border-none">
-                <TableCell colSpan={hasActions ? 5 : 4} className="h-48 text-center text-gray-500">
+                <TableCell colSpan={hasActions ? 5 : 4} className="h-48 text-center text-gray-500 font-playfair">
                   No receipts found for the selected period.
                 </TableCell>
               </TableRow>
@@ -140,8 +140,8 @@ export default function ReceiptsAnalyticsTable({ receipts, isLoading, onDelete, 
       
       {totalPages > 1 && (
         <div className="flex items-center justify-between p-2 border-t border-white/10">
-          <div className="text-xs text-gray-500 px-2">
-            Page {currentPage} of {totalPages}
+          <div className="text-xs text-gray-500 px-2 font-playfair">
+            Page <span className="font-ubuntu">{currentPage}</span> of <span className="font-ubuntu">{totalPages}</span>
           </div>
           <div className="flex items-center gap-1">
             <Button variant="ghost" size="icon" onClick={() => setCurrentPage(1)} disabled={currentPage === 1} className="w-8 h-8 text-gray-400 hover:text-white"><ChevronsLeft className="h-4 w-4" /></Button>
