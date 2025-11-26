@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, Sun, Moon, LogOut, User } from 'lucide-react';
+import { X, Menu as MenuIcon, LogOut, User } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
 import { useAuth } from '@/hooks/useAuth';
 
@@ -65,6 +65,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
     ];
     if (user) {
       items.splice(1, 0, { name: 'Insights', href: createPageUrl('Insights') });
+      items.push({ name: 'Account', href: createPageUrl('Account') });
     }
     return items;
   }, [user]);
@@ -319,13 +320,6 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
         </motion.div>
 
         <div className="hidden items-center gap-3 md:flex">
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            className="rounded-full border border-slate-300/60 bg-white/40 p-2 text-slate-600 shadow-sm hover:border-emerald-400 hover:text-emerald-500 dark:border-slate-500/60 dark:bg-slate-800/60 dark:text-slate-200 dark:hover:text-emerald-300"
-            onClick={toggleTheme}
-          >
-            {isDarkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </motion.button>
           {user ? (
             <motion.div className="relative" whileHover={{ scale: 1.02 }}>
               <button
@@ -386,10 +380,6 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 </Link>
               ))}
               <div className="flex flex-col items-center gap-6 mt-8">
-                <button onClick={toggleTheme} className="text-gray-400 hover:text-white flex items-center gap-2">
-                  {isDarkMode ? <Sun size={24} /> : <Moon size={24} />}
-                  <span className="text-xl font-medium">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                </button>
                 {user ? (
                   <button onClick={logout} className="text-xl font-medium text-gray-400 hover:text-white flex items-center">
                     <LogOut size={20} className="mr-2" />

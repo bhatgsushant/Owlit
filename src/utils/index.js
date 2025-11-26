@@ -12,6 +12,8 @@ export function createPageUrl(name) {
     case "investment": return "/investment";
     case "qna": return "/qna";
     case "askai": return "/ask-ai";
+    case "profile": return "/profile";
+    case "account": return "/account";
     default: return "/";
   }
 }

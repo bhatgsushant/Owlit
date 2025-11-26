@@ -107,6 +107,9 @@ const filterReceiptsForPeriod = (receipts = [], granularity = 'month', reference
   });
 };
 
+// Placeholder (removed delta badges from charts)
+const DeltaBadge = () => null;
+
 const useIsMobile = (breakpoint = 768) => {
   const [isMobile, setIsMobile] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1692,31 +1695,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const timelineSeriesForGranularity =
     timelineAnalytics.timelineSeries?.[timelineGranularity] || [];
 
-  const periodDelta = useMemo(() => {
-    const series = (timelineAnalytics.timelineSeries?.[timelineGranularity] || [])
-      .slice()
-      .sort((a, b) => (a.sortKey || 0) - (b.sortKey || 0));
-    if (series.length < 2) return null;
-    const current = series[series.length - 1]?.total ?? 0;
-    const previous = series[series.length - 2]?.total ?? 0;
-    if (!Number.isFinite(current) || !Number.isFinite(previous) || previous === 0) return null;
-    const pct = ((current - previous) / previous) * 100;
-    return { current, previous, pct };
-  }, [timelineAnalytics.timelineSeries, timelineGranularity]);
-
-  const DeltaBadge = ({ delta }) => {
-    if (!delta) return null;
-    const isUp = delta.pct >= 0;
-    const arrow = isUp ? '↑' : '↓';
-    const color = '#ef4444';
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold" style={{ color }}>
-        <span>{arrow}</span>
-        <span>{Math.abs(delta.pct).toFixed(1)}%</span>
-      </span>
-    );
-  };
-
   const itemPriceTrendOptions = useMemo(
     () => (timelineAnalytics.itemPriceTrends || []).sort((a, b) => b.data.length - a.data.length),
     [timelineAnalytics.itemPriceTrends]
@@ -2597,7 +2575,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
   const categoryDrillActions = (
     <div className="flex flex-wrap items-center gap-2 ml-auto">
-      <DeltaBadge delta={periodDelta} />
       <TimeframeControls
         timeGranularity={categoryDrillGranularity}
         onGranularityChange={handleChartGranularityChange('categoryDrill')}
@@ -2681,7 +2658,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   const merchantActions =
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       <div className="flex flex-wrap items-center gap-2">
-        <DeltaBadge delta={periodDelta} />
         <ViewToggle mode={merchantViewMode} onChange={setMerchantViewMode} />
         <TimeframeControls
           timeGranularity={merchantGranularity}
@@ -2716,7 +2692,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     merchantDrilldownData && merchantDrilldownData.data.length ? (
       <div className="flex h-full flex-col">
         <div className="flex-1 min-h-0">
-          <ReResponsiveContainer width="100%" height="100%">
+          <ReResponsiveContainer
+            width="100%"
+            height="100%"
+            style={{ minWidth: 0, minHeight: 140 }}
+          >
             <ReBarChart
               data={merchantDrilldownData.data}
               layout="vertical"
@@ -3122,14 +3102,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             hasData={Boolean(spendingTrendOption)}
             height={320}
             actions={
-              <div className="flex items-center gap-2">
-                <DeltaBadge delta={periodDelta} />
-                <TimeframeControls
-                  timeGranularity={timelineGranularity}
-                  onGranularityChange={handleTimelineGranularityChange}
-                  options={granularityOptionsFull}
-                />
-              </div>
+              <TimeframeControls
+                timeGranularity={timelineGranularity}
+                onGranularityChange={handleTimelineGranularityChange}
+                options={granularityOptionsFull}
+              />
             }
           />
         </AnimatedSection>
@@ -3143,14 +3120,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             emptyMessage="Capture receipts with line items to unlock category trends."
             height={320}
             actions={
-              <div className="flex items-center gap-2">
-                <DeltaBadge delta={periodDelta} />
-                <TimeframeControls
-                  timeGranularity={categoryTimelineGranularity}
-                  onGranularityChange={handleChartGranularityChange('categoryTimeline')}
-                  options={granularityOptionsFull}
-                />
-              </div>
+              <TimeframeControls
+                timeGranularity={categoryTimelineGranularity}
+                onGranularityChange={handleChartGranularityChange('categoryTimeline')}
+                options={granularityOptionsFull}
+              />
             }
           />
         </AnimatedSection>
@@ -3175,7 +3149,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             isLoading={isLoading}
             hasData={Boolean(analytics.weekdaySeries.some((item) => item.value > 0))}
             height={320}
-            actions={<DeltaBadge delta={periodDelta} />}
           />
         </AnimatedSection>
       </div>
@@ -3203,14 +3176,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
             height={300}
             actions={
-              <div className="flex items-center gap-2">
-                <DeltaBadge delta={periodDelta} />
-                <TimeframeControls
-                  timeGranularity={subcategoryNightingaleGranularity}
-                  onGranularityChange={handleChartGranularityChange('subcategoryNightingale')}
-                  options={granularityOptionsNoDay}
-                />
-              </div>
+              <TimeframeControls
+                timeGranularity={subcategoryNightingaleGranularity}
+                onGranularityChange={handleChartGranularityChange('subcategoryNightingale')}
+                options={granularityOptionsNoDay}
+              />
             }
           />
         </div>
@@ -3219,15 +3189,14 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       <AnimatedSection delay={0.2}>
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-white font-playfair">Item Price Trend</h3>
-                <p className="text-xs text-white/70">
-                  Track how the unit price for a frequent item is changing over time.
-                </p>
-              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-white font-playfair">Item Price Trend</h3>
+                  <p className="text-xs text-white/70">
+                    Track how the unit price for a frequent item is changing over time.
+                  </p>
+                </div>
               <div className="flex items-center gap-2">
-                <DeltaBadge delta={periodDelta} />
               <TimeframeControls
                 timeGranularity={itemTrendGranularity}
                 onGranularityChange={handleChartGranularityChange('itemTrend')}
@@ -3255,15 +3224,14 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             />
           </div>
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <h3 className="text-lg font-semibold text-white font-playfair">Basket Composition</h3>
-                <p className="text-xs text-white/70 max-w-xs sm:max-w-sm leading-relaxed">
-                  See how healthy, snack, and alcohol purchases contribute to each basket over time.
-                </p>
-              </div>
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-lg font-semibold text-white font-playfair">Basket Composition</h3>
+                  <p className="text-xs text-white/70 max-w-xs sm:max-w-sm leading-relaxed">
+                    See how healthy, snack, and alcohol purchases contribute to each basket over time.
+                  </p>
+                </div>
               <div className="flex items-center gap-2">
-                <DeltaBadge delta={periodDelta} />
               <TimeframeControls
                 timeGranularity={basketGranularity}
                 onGranularityChange={handleChartGranularityChange('basket')}
@@ -3307,7 +3275,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <h3 className="text-lg font-semibold text-white font-playfair">All Receipts</h3>
             <div className="flex items-center gap-2">
-              <DeltaBadge delta={periodDelta} />
               <TimeframeControls
                 timeGranularity={basketGranularity}
                 onGranularityChange={handleChartGranularityChange('basket')}

@@ -16,6 +16,7 @@ import AuthCallback from "@/pages/AuthCallback";
 import ProtectedRoute from "@/components/auth/ProtectedRoute";
 import { AuthProvider } from "@/context/AuthContext"; // ✅ wrap app in AuthProvider
 import Profile from "@/pages/Profile";
+import Account from "@/pages/Account";
 
 export default function App() {
   return (
@@ -94,6 +95,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <Layout currentPageName="Profile"><Profile /></Layout>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/account"
+          element={
+            <ProtectedRoute>
+              <Layout currentPageName="Account"><Account /></Layout>
             </ProtectedRoute>
           }
         />
