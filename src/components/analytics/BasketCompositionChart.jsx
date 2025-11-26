@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
-import * as echarts from 'echarts';
 
 const formatCurrency = (value) =>
   `£${Number(value || 0).toLocaleString('en-GB', {
@@ -42,44 +41,45 @@ export default function BasketCompositionChart({ data }) {
     rows.map((row) => {
       const value = Number((row[key] || 0).toFixed(2));
       const share = row.total > 0 ? Number(((value / row.total) * 100).toFixed(1)) : 0;
-      return { value, share };
+      return { value, share, period: row.period };
     });
 
   const healthySeries = buildSeriesData(chartData, 'healthy');
   const snacksSeries = buildSeriesData(chartData, 'snacks');
   const alcoholSeries = buildSeriesData(chartData, 'alcohol');
-  const otherSeries = buildSeriesData(chartData, 'other');
+  const palette = {
+    healthy: '#22c55e',
+    snacks: '#f59e0b',
+    alcohol: '#ef4444',
+  };
 
   const option = {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'axis',
-      formatter: function (params) {
-        return params
+      axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(226,232,240,0.08)' } },
+      formatter: (params = []) =>
+        params
           .map((p) => {
             const raw = Number(p.data?.value || 0);
             const share = Number(p.data?.share || 0);
             return `${p.marker} ${p.seriesName}: ${formatCurrency(raw)} (${share.toFixed(1)}%)`;
           })
-          .join('<br/>');
-      },
-      axisPointer: {
-        type: 'line',
-        lineStyle: { color: 'rgba(148, 163, 184, 0.4)' },
-      },
+          .join('<br/>'),
     },
     legend: {
       top: 10,
       textStyle: { color: '#cbd5e1', fontSize: 12 },
       icon: 'circle',
+      data: ['Healthy', 'Snacks', 'Alcohol'],
     },
-    grid: { left: '3%', right: '4%', top: 50, bottom: 30, containLabel: true },
+    grid: { left: '4%', right: '2%', top: 50, bottom: 40, containLabel: true },
     xAxis: {
       type: 'category',
-      boundaryGap: false,
+      boundaryGap: true,
       data: chartData.map((row) => row.period),
       axisLine: { lineStyle: { color: 'rgba(148, 163, 184, 0.4)' } },
-      axisLabel: { color: '#cbd5e1', fontSize: 12 },
+      axisLabel: { color: '#cbd5e1', fontSize: 12, interval: 0 },
     },
     yAxis: {
       type: 'value',
@@ -94,67 +94,30 @@ export default function BasketCompositionChart({ data }) {
     series: [
       {
         name: 'Healthy',
-        type: 'line',
-        smooth: true,
-        stack: 'total',
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(34,197,94,0.8)' },
-            { offset: 1, color: 'rgba(34,197,94,0.15)' },
-          ]),
-        },
-        lineStyle: { width: 2, color: 'rgba(34,197,94,1)' },
+        type: 'bar',
+        stack: 'basket',
+        barMaxWidth: 38,
+        itemStyle: { color: palette.healthy, borderRadius: [6, 6, 0, 0] },
         emphasis: { focus: 'series' },
-        showSymbol: false,
         data: healthySeries,
       },
       {
         name: 'Snacks',
-        type: 'line',
-        smooth: true,
-        stack: 'total',
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(245,158,11,0.8)' },
-            { offset: 1, color: 'rgba(245,158,11,0.15)' },
-          ]),
-        },
-        lineStyle: { width: 2, color: 'rgba(245,158,11,1)' },
+        type: 'bar',
+        stack: 'basket',
+        barMaxWidth: 38,
+        itemStyle: { color: palette.snacks, borderRadius: [6, 6, 0, 0] },
         emphasis: { focus: 'series' },
-        showSymbol: false,
         data: snacksSeries,
       },
       {
         name: 'Alcohol',
-        type: 'line',
-        smooth: true,
-        stack: 'total',
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(239,68,68,0.8)' },
-            { offset: 1, color: 'rgba(239,68,68,0.15)' },
-          ]),
-        },
-        lineStyle: { width: 2, color: 'rgba(239,68,68,1)' },
+        type: 'bar',
+        stack: 'basket',
+        barMaxWidth: 38,
+        itemStyle: { color: palette.alcohol, borderRadius: [6, 6, 0, 0] },
         emphasis: { focus: 'series' },
-        showSymbol: false,
         data: alcoholSeries,
-      },
-      {
-        name: 'Other',
-        type: 'line',
-        smooth: true,
-        stack: 'total',
-        areaStyle: {
-          color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
-            { offset: 0, color: 'rgba(139,92,246,0.8)' },
-            { offset: 1, color: 'rgba(139,92,246,0.15)' },
-          ]),
-        },
-        lineStyle: { width: 2, color: 'rgba(139,92,246,1)' },
-        emphasis: { focus: 'series' },
-        showSymbol: false,
-        data: otherSeries,
       },
     ],
   };

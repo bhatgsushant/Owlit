@@ -56,6 +56,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { STORE_DATA, getStoreInfo } from '../utils/logo';
 import { cn } from '@/lib/utils';
 import { createPageUrl } from '@/utils';
+import leafsBlowAnimationUrl from '/images/Leafsblow.json?url';
 
 const PENDING_PREVIEW_STORAGE_KEY = 'pending-receipt-preview';
 const RESUME_QUERY_PARAM = 'resume';
@@ -101,62 +102,53 @@ const CATEGORY_ICON_MAP = {
   other: CircleEllipsis,
 };
 
-const CATEGORY_ICON_KEY_MAP = { ...CATEGORY_ICON_MAP };
-const CATEGORY_ICON_KEYS = new Set(Object.keys(CATEGORY_ICON_KEY_MAP));
-
-const SUBCATEGORY_ICON_MATCHERS = [
-  { key: 'coffee', test: /(coffee|tea|drink)/, icon: Coffee },
-  { key: 'beer_wine', test: /(beer|wine|spirits)/, icon: CupSoda },
-  { key: 'fuel', test: /(fuel|gas|diesel)/, icon: Fuel },
-  { key: 'bread', test: /(bread|pastr|cake|cookie|muffin)/, icon: Package },
-  { key: 'dairy', test: /(milk|cheese|yogurt|butter|cream|egg)/, icon: Droplet },
-  { key: 'fish', test: /(fish|seafood|prawn|shrimp)/, icon: Fish },
-  { key: 'fruit', test: /(fruit|apple|banana|grape|melon)/, icon: Apple },
-  { key: 'vegetable', test: /(vegetable|greens|onion|tomato|pepper)/, icon: Sprout },
-  { key: 'meat', test: /(meat|beef|pork|lamb)/, icon: Drumstick },
-  { key: 'chicken', test: /(chicken|turkey|duck)/, icon: Drumstick },
-  { key: 'cleaning', test: /(laundry|cleaning|detergent)/, icon: Sparkles },
-  { key: 'medicine', test: /(medicine|vitamin|pain|supplement)/, icon: HeartPulse },
-  { key: 'fitness', test: /(gym|fitness|protein)/, icon: Dumbbell },
-  { key: 'electronics', test: /(electronics|charger|laptop|mobile|battery)/, icon: Cpu },
-  { key: 'utilities', test: /(electricity|internet|water|bill)/, icon: Plug },
-  { key: 'clothing', test: /(shoe|shirt|jean|dress|clothing|sock)/, icon: Shirt },
-  { key: 'jewelry', test: /(jewel|ring|necklace|bracelet)/, icon: Gem },
-  { key: 'transport', test: /(bus|train|taxi|uber|parking)/, icon: Car },
-  { key: 'travel', test: /(flight|hotel|visa|tour|luggage)/, icon: Plane },
-  { key: 'stationery', test: /(pen|notebook|paper|folder)/, icon: PenLine },
-  { key: 'education', test: /(book|course|tuition|school)/, icon: GraduationCap },
-  { key: 'finance', test: /(bank|fee|insurance|loan|interest)/, icon: Wallet },
-  { key: 'entertainment', test: /(movie|music|game|event|stream)/, icon: Clapperboard },
-  { key: 'pets', test: /(pet|vet|groom)/, icon: PawPrint },
-  { key: 'gifts', test: /(gift|donation|charity)/, icon: Gift },
-  { key: 'dining', test: /(restaurant|takeaway|fast_food|pub|bar)/, icon: UtensilsCrossed },
-];
-
-const SUBCATEGORY_ICON_KEY_MAP = SUBCATEGORY_ICON_MATCHERS.reduce((acc, matcher) => {
-  acc[matcher.key] = matcher.icon;
-  return acc;
-}, {});
-const SUBCATEGORY_ICON_KEYS = new Set(Object.keys(SUBCATEGORY_ICON_KEY_MAP));
-
-const getCategoryIconComponent = (category, iconKey) => {
-  const key = (iconKey || category || '').toString().toLowerCase();
-  if (CATEGORY_ICON_KEYS.has(key)) return CATEGORY_ICON_KEY_MAP[key];
-  return Tag;
+const getCategoryIconComponent = (category) => {
+  if (!category) return Tag;
+  const key = String(category).toLowerCase();
+  return CATEGORY_ICON_MAP[key] || Tag;
 };
 
-const getSubcategoryIconComponent = (subCategory, iconKey) => {
-  const key = (iconKey || '').toString().toLowerCase();
-  if (key && SUBCATEGORY_ICON_KEYS.has(key)) {
-    return SUBCATEGORY_ICON_KEY_MAP[key];
-  }
+const SUBCATEGORY_ICON_MATCHERS = [
+  { test: /(coffee|tea|drink)/, icon: Coffee },
+  { test: /(beer|wine|spirits)/, icon: CupSoda },
+  { test: /(fuel|gas|diesel)/, icon: Fuel },
+  { test: /(bread|pastr|cake|cookie|muffin)/, icon: Package },
+  { test: /(milk|cheese|yogurt|butter|cream|egg)/, icon: Droplet },
+  { test: /(fish|seafood|prawn|shrimp)/, icon: Fish },
+  { test: /(fruit|apple|banana|grape|melon)/, icon: Apple },
+  { test: /(vegetable|greens|onion|tomato|pepper)/, icon: Sprout },
+  { test: /(meat|beef|pork|lamb)/, icon: Drumstick },
+  { test: /(chicken|turkey|duck)/, icon: Drumstick },
+  { test: /(laundry|cleaning|detergent)/, icon: Sparkles },
+  { test: /(medicine|vitamin|pain|supplement)/, icon: HeartPulse },
+  { test: /(gym|fitness|protein)/, icon: Dumbbell },
+  { test: /(electronics|charger|laptop|mobile|battery)/, icon: Cpu },
+  { test: /(electricity|internet|water|bill)/, icon: Plug },
+  { test: /(shoe|shirt|jean|dress|clothing|sock)/, icon: Shirt },
+  { test: /(jewel|ring|necklace|bracelet)/, icon: Gem },
+  { test: /(bus|train|taxi|uber|parking)/, icon: Car },
+  { test: /(flight|hotel|visa|tour|luggage)/, icon: Plane },
+  { test: /(pen|notebook|paper|folder)/, icon: PenLine },
+  { test: /(book|course|tuition|school)/, icon: GraduationCap },
+  { test: /(bank|fee|insurance|loan|interest)/, icon: Wallet },
+  { test: /(movie|music|game|event|stream)/, icon: Clapperboard },
+  { test: /(pet|vet|groom)/, icon: PawPrint },
+  { test: /(gift|donation|charity)/, icon: Gift },
+  { test: /(restaurant|takeaway|fast_food|pub|bar)/, icon: UtensilsCrossed },
+];
+
+const getSubcategoryIconComponent = (subCategory) => {
   if (!subCategory) return Tag;
-  const value = String(subCategory).toLowerCase();
+  const key = String(subCategory).toLowerCase();
   for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
     if (matcher.test instanceof RegExp) {
-      if (matcher.test.test(value)) return matcher.icon;
-    } else if (typeof matcher.test === 'function' && matcher.test(value)) {
-      return matcher.icon;
+      if (matcher.test.test(key)) {
+        return matcher.icon;
+      }
+    } else if (typeof matcher.test === 'function') {
+      if (matcher.test(key)) {
+        return matcher.icon;
+      }
     }
   }
   return Tag;
@@ -182,24 +174,10 @@ function ScanModeToggle({ mode, setMode }) {
     return (
         <div className="flex justify-center mb-4">
             <div className="bg-white/10 backdrop-blur-md p-1 rounded-full flex items-center border border-white/20">
-                <button
-                  onClick={() => setMode('receipt')}
-                  className={`px-4 py-2 text-sm font-semibold font-playfair rounded-full transition-colors drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] ${
-                    mode === 'receipt'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-transparent text-white border border-white/30 hover:border-green-500 hover:text-black'
-                  }`}
-                >
+                <button onClick={() => setMode('receipt')} className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'receipt' ? 'bg-green-500 text-white' : 'text-gray-200 hover:bg-white/10'}`}>
                     Scan Receipt
                 </button>
-                <button
-                  onClick={() => setMode('document')}
-                  className={`px-4 py-2 text-sm font-semibold font-playfair rounded-full transition-colors drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] ${
-                    mode === 'document'
-                      ? 'bg-green-500 text-white'
-                      : 'bg-transparent text-white border border-white/30 hover:border-green-500 hover:text-black'
-                  }`}
-                >
+                <button onClick={() => setMode('document')} className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'document' ? 'bg-green-500 text-white' : 'text-gray-200 hover:bg-white/10'}`}>
                     Scan Document
                 </button>
             </div>
@@ -208,9 +186,9 @@ function ScanModeToggle({ mode, setMode }) {
 }
 
 function ActionButton({ onClick, icon: Icon, text, isActive }) {
-    const baseClasses = "w-full flex items-center justify-center py-2 px-4 rounded-full font-semibold text-sm shadow-lg transition-all duration-300 backdrop-blur-md border font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]";
+    const baseClasses = "w-full flex items-center justify-center py-2 px-4 rounded-full font-semibold text-sm shadow-lg transition-all duration-300 backdrop-blur-md border font-playfair";
     const activeClasses = "bg-green-500 text-white border-transparent";
-    const inactiveClasses = "bg-white/10 border-white/20 text-white hover:border-green-500 hover:text-black hover:bg-white/20";
+    const inactiveClasses = "bg-white/10 border-white/20 text-white hover:bg-white/20";
     return (
         <button onClick={onClick} className={`${baseClasses} ${isActive ? activeClasses : inactiveClasses}`}>
             <Icon size={16} className="mr-2"/>
@@ -221,7 +199,7 @@ function ActionButton({ onClick, icon: Icon, text, isActive }) {
 
 function DocumentPreview({ markdown, onApprove, onCancel }) {
     return (
-        <div className="font-sans bg-[#111827] rounded-[14px] p-6 w-full text-left shadow-2xl border border-gray-800">
+        <div className="font-playfair bg-[#111827]/90 backdrop-blur-2xl rounded-[14px] p-6 w-full text-left shadow-2xl border border-gray-800/80">
             <div className="flex justify-between items-start mb-4">
                 <h2 className="font-bold text-xl text-white leading-[1.3]">Extracted Document</h2>
                 <span className="bg-[#1F2937] text-white font-semibold text-xs leading-[1.4] px-2.5 py-1 rounded-full">Preview</span>
@@ -278,8 +256,8 @@ const LineItemRow = React.memo(({
     saveUserCategoryPreference
 }) => {
     const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
-    const CategoryIconComponent = getCategoryIconComponent(item.main_category, item.category_icon_key);
-    const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category, item.subcategory_icon_key);
+    const CategoryIconComponent = getCategoryIconComponent(item.main_category);
+    const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
 
     const onSubCategoryCreate = (newSub) => {
         const trimmed = newSub.trim();
@@ -318,9 +296,9 @@ const LineItemRow = React.memo(({
     };
 
     return (
-        <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:[grid-template-columns:1.8fr_0.35fr_0.5fr_1.7fr_1.7fr_0.4fr] gap-3 md:gap-4 items-center">
+        <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
 
-            <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm" />
+            <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
 
             <InputWithIcon
                 icon={PoundSterling}
@@ -335,37 +313,34 @@ const LineItemRow = React.memo(({
                 pattern="[0-9]*[.,]?[0-9]*"
             />
 
-            <input
-              type="number"
-              value={item.quantity}
-              onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))}
-              className="w-full px-3 py-2.5 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm font-ubuntu text-center"
-            />
+            <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm font-ubuntu" />
 
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2">
+                <CategoryIconComponent className="h-4 w-4 text-emerald-500" />
                 <SearchableDropdown
                     options={mainCategoryOptions}
                     value={item.main_category}
                     onChange={(value) => handleLineItemChange(index, 'main_category', value)}
                     placeholder="Select Category"
                     allowCreate
-                    pill={false}
-                    labelClassName="text-xs md:text-sm whitespace-normal break-words leading-tight"
-                    className="flex-1 min-w-0"
+                    pill
+                    labelClassName="text-xs md:text-sm"
+                    className="flex-1"
                     onCreateOption={onMainCategoryCreate}
                 />
             </div>
 
-            <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-2">
+                <SubcategoryIconComponent className="h-4 w-4 text-sky-500" />
                 <SearchableDropdown
                     options={subCategoryOptions}
                     value={item.sub_category}
                     onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
                     placeholder="Select Subcategory"
                     allowCreate
-                    pill={false}
-                    labelClassName="text-xs md:text-sm whitespace-normal break-words leading-tight"
-                    className="flex-1 min-w-0"
+                    pill
+                    labelClassName="text-xs md:text-sm"
+                    className="flex-1"
                     onCreateOption={onSubCategoryCreate}
                 />
             </div>
@@ -603,10 +578,6 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                 updatedItem.price = normalizedValue;
             } else if (field === 'main_category') {
                 updatedItem.sub_category = ''; // reset subcategory on main category change
-                updatedItem.category_icon_key = null;
-                updatedItem.subcategory_icon_key = null;
-            } else if (field === 'sub_category') {
-                updatedItem.subcategory_icon_key = null;
             }
 
             currentItems[index] = updatedItem;
@@ -645,9 +616,9 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     }, []);
 
     return (
-        <div className="bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-lg w-full text-left space-y-6">
+        <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl p-6 rounded-2xl shadow-2xl w-full text-left space-y-6 font-playfair text-gray-800">
             {imagePreviewUrl && (
-                <div className="mb-4 rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+                <div className="mb-4 rounded-2xl overflow-hidden receipt-frame">
                     <img src={imagePreviewUrl} alt="Receipt Preview" className="w-full h-auto object-contain max-h-96" />
                 </div>
             )}
@@ -655,7 +626,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4 items-center">
                     <div className="flex flex-col">
                         <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 mb-2">Store Name</span>
-                        <div className="flex items-center gap-3 min-w-0">
+                        <div className="flex items-center gap-3">
                             <MerchantLogo merchantName={data.merchant_name} />
                             <SearchableDropdown
                                 options={merchantOptions}
@@ -665,8 +636,8 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                                 allowCreate
                                 startIcon={<Store className="h-3.5 w-3.5 text-emerald-500" />}
                                 pill
-                                labelClassName="text-xs md:text-sm whitespace-normal break-words leading-tight"
-                                className="flex-1 min-w-0"
+                                labelClassName="text-xs md:text-sm"
+                                className="flex-1"
                             />
                         </div>
                     </div>
@@ -692,7 +663,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                             allowCreate
                             startIcon={<Tag className="h-3.5 w-3.5 text-amber-500" />}
                             pill
-                            labelClassName="text-xs md:text-sm whitespace-normal break-words leading-tight"
+                            labelClassName="text-xs md:text-sm"
                             onCreateOption={(newType) => {
                                 const trimmed = newType.trim();
                                 if (!trimmed) return;
@@ -709,7 +680,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                         <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-gray-400 dark:text-gray-500 mb-2">Total</span>
                         <div className="flex flex-wrap items-center gap-2 rounded-full bg-gray-100 dark:bg-gray-700 px-4 py-2 border border-transparent text-xs md:text-sm font-semibold font-ubuntu">
                             <span className="text-emerald-500">£</span>
-                            <span>{(data.total_amount ?? 0).toFixed(2)}</span>
+                            <span className="receipt-number">{(data.total_amount ?? 0).toFixed(2)}</span>
                         </div>
                     </div>
                 </div>
@@ -717,16 +688,16 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
             <div>
                 <div className="flex justify-between items-center mb-2">
-                    <h4 className="font-semibold text-gray-700 dark:text-gray-300 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Receipt Items</h4>
+                    <h4 className="font-semibold text-gray-700 dark:text-gray-300">Line Items</h4>
                     <button onClick={addLineItem} className="text-green-500 hover:text-green-600"><PlusCircle size={22} /></button>
                 </div>
-                <div className="hidden md:grid md:[grid-template-columns:2.2fr_0.35fr_0.5fr_1.5fr_1.5fr_0.4fr] gap-3 md:gap-4 px-3 py-2 text-sm font-semibold text-gray-600 dark:text-gray-400 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] mb-2">
-                    <div className="text-left">Item Name</div>
-                    <div className="text-left">Price</div>
-                    <div className="text-center">Qty</div>
-                    <div className="text-center">Category</div>
-                    <div className="text-center">Subcategory</div>
-                    <div className="text-left"></div>
+                <div className="hidden md:grid grid-cols-7 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
+                    <div className="col-span-2">Item Name</div>
+                    <div>Price</div>
+                    <div>Qty</div>
+                    <div>Category</div>
+                    <div>Subcategory</div>
+                    <div></div>
                 </div>
                 <div className="space-y-4">
                 {(data.line_items || []).map((item, index) => (
@@ -794,16 +765,33 @@ export default function ScanReceipt() {
   const fileInputRef = useRef(null);
   const savedPreferencesRef = useRef(new Set());
   const { user, userStoreOverrides, fetchWithAuth } = useAuth();
-  const [idleAnimation, setIdleAnimation] = useState(null);
   const [loadingAnimation, setLoadingAnimation] = useState(null);
+  const [leafsAnimation, setLeafsAnimation] = useState(null);
   const [isMultiPage, setIsMultiPage] = useState(false);
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const processingRef = useRef(null);
+  const pageBackgroundStyle = useMemo(() => {
+    const base = "url('/images/ScanPageBackgroundImage.svg')";
+    const gradient = "linear-gradient(135deg, rgba(255,247,251,0.9), rgba(255,241,246,0.85))";
+    return {
+      backgroundImage: extractedData ? `${gradient}, ${base}` : base,
+      backgroundSize: extractedData ? 'cover, cover' : 'cover',
+      backgroundRepeat: 'no-repeat',
+      backgroundPosition: 'center',
+    };
+  }, [extractedData]);
 
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    fetch(leafsBlowAnimationUrl)
+      .then((res) => res.json())
+      .then((json) => setLeafsAnimation(json))
+      .catch((err) => console.error('Failed to load Leafsblow animation', err));
+  }, []);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -814,9 +802,6 @@ export default function ScanReceipt() {
         try {
           const parsed = JSON.parse(dataToEdit);
           setExtractedData(parsed);
-          if (parsed.image_url || parsed.receipt_url || parsed.file_url) {
-            setImagePreviewUrl(parsed.image_url || parsed.receipt_url || parsed.file_url);
-          }
           setMode('upload');
         } catch (err) {
           console.error('Failed to parse receipt data for editing', err);
@@ -849,15 +834,9 @@ export default function ScanReceipt() {
   }, []);
 
   useEffect(() => {
-    fetch('/images/Leafsblow.json')
-      .then((response) => response.json())
-      .then((data) => setIdleAnimation(data))
-      .catch((err) => console.error('Failed to load idle animation', err));
-
     fetch('/images/ai-cpu-loading.json')
       .then((response) => response.json())
-      .then((data) => setLoadingAnimation(data))
-      .catch((err) => console.error('Failed to load processing animation', err));
+      .then((data) => setLoadingAnimation(data));
   }, []);
 
   useEffect(() => {
@@ -1066,6 +1045,8 @@ export default function ScanReceipt() {
     setDuplicatePrompt(null);
     setSaveSuccessPrompt(false);
     clearPendingPreview();
+    navigate('/scan');
+    window.location.reload();
   };
   
   const handleSave = async (options = {}) => {
@@ -1281,26 +1262,60 @@ export default function ScanReceipt() {
             onClick={(e) => setExtractedData(e.detail)}
         />
       <style>{`
-          .dark-bg { background: #000; width: 100%; }
+          .dark-bg { background-color: #000; width: 100%; }
+          .receipt-preview-bg {
+            background: linear-gradient(135deg, #fff7fb, #fff1f6);
+            width: 100%;
+          }
+          .receipt-preview {
+            font-family: 'Playfair Display', serif;
+            color: #2b1b24;
+          }
+          .receipt-preview .receipt-number,
+          .receipt-preview input[type="number"],
+          .receipt-preview input[type="date"],
+          .receipt-preview .numeric {
+            font-family: 'Ubuntu Sans', system-ui, sans-serif;
+          }
+          .receipt-frame {
+            border: 4px solid #ffffff;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+            background: #ffffff;
+          }
+          .scan-scope * {
+            color: #0a0a0a !important;
+            text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
+          }
+          .scan-scope *::placeholder {
+            color: #0a0a0a !important;
+            text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
+          }
+          .dark .scan-scope * {
+            color: #f8fafc !important;
+            text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
+          }
+          .dark .scan-scope *::placeholder {
+            color: #e2e8f0 !important;
+            text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
+          }
+          .scan-scope button:hover {
+            color: #000 !important;
+            border-color: #22c55e !important;
+          }
       `}</style>
 
       <div
-        className="dark-bg pt-4 md:pt-6 pb-12 min-h-screen overflow-y-auto"
-        style={{
-          backgroundImage: "url('/images/ScanPageBackgroundImage.svg')",
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat',
-        }}
+        className={`scan-scope ${extractedData ? 'receipt-preview-bg' : 'dark-bg'} pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto font-playfair`}
+        style={pageBackgroundStyle}
       >
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
 
         {extractedData ? (
-            <div className="p-6 md:p-10 flex flex-col items-center h-full">
-                <div className="max-w-4xl w-full font-playfair text-black dark:text-white drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
+            <div className="p-6 md:p-10 flex flex-col items-center h-full receipt-preview">
+                <div className="max-w-4xl w-full">
                     <div className="text-center mb-5">
                         <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
-                        <h1 className="text-3xl md:text-4xl font-bold text-black dark:text-white drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Review & Edit</h1>
+                        <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Review & Edit</h1>
                     </div>
                     <EditableReceipt
                         data={extractedData}
@@ -1311,7 +1326,7 @@ export default function ScanReceipt() {
                         userStoreOverrides={userStoreOverrides}
                         isSaving={isSaving}
                     />
-                    <button onClick={() => window.location.href = createPageUrl('ScanReceipt')} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">Scan Another</button>
+                    <button onClick={handleReset} className="mt-8 w-full bg-blue-500 text-white py-3 px-6 rounded-lg font-semibold hover:bg-blue-600 transition-colors">Scan Another</button>
                 </div>
             </div>
         ) : markdownPreview ? (
@@ -1321,85 +1336,66 @@ export default function ScanReceipt() {
                 </div>
             </div>
         ) : (
-            <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start font-roboto">
-                <div className="relative overflow-hidden max-w-2xl w-full bg-white/15 backdrop-blur-md p-8 rounded-2xl font-roboto border border-black/10 shadow-lg shadow-black/10">
-                    {idleAnimation && (
-                      <div className="pointer-events-none absolute inset-0 opacity-25">
-                        <Lottie
-                          animationData={idleAnimation}
-                          loop={true}
-                          style={{ width: '100%', height: '100%' }}
-                          rendererSettings={{ preserveAspectRatio: 'xMidYMid slice' }}
-                        />
+            <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start">
+                <div className="relative max-w-xl w-full min-h-[520px] bg-white/20 backdrop-blur-2xl border border-white/30 shadow-2xl p-8 rounded-3xl overflow-hidden">
+                    {leafsAnimation && (
+                      <div className="absolute -top-6 -left-6 w-1/2 h-1/2 pointer-events-none opacity-80">
+                        <Lottie animationData={leafsAnimation} loop autoplay />
                       </div>
                     )}
-                    <div className="relative z-10">
                     <ScanModeToggle mode={scanMode} setMode={setScanMode} />
-                    <p className="text-md font-normal font-playfair text-gray-600 mb-8 drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
-                      Choose your input method to get started.
-                    </p>
+                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">{pageTitle}</h1>
+                    <p className="text-md text-black/90 mb-8">Choose your input method to get started.</p>
 
                     {file ? (
-                        <div className="bg-white/80 p-6 rounded-2xl w-full text-left text-gray-900 border border-black/10">
+                        <div className="bg-white/25 backdrop-blur-xl border border-white/30 shadow-xl p-6 rounded-2xl w-full text-left">
                             <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-lg font-semibold text-gray-900 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Uploaded File</h3>
+                                <h3 className="text-lg font-semibold text-black">Uploaded File</h3>
                                 <button
                                   onClick={() => {
                                     setFile(null);
                                     setExtractedData(null);
                                     setMarkdownPreview(null);
                                   }}
-                                  className="text-gray-600 hover:text-gray-900"
+                                  className="text-gray-600 hover:text-black"
                                 >
                                   <X size={20} />
                                 </button>
                             </div>
-                            <div className="flex items-center p-4 bg-white/60 rounded-lg">
-                                <FileText size={24} className="text-green-600 mr-4" />
+                            <div className="flex items-center p-4 bg-black/25 backdrop-blur-xl rounded-lg border border-white/20">
+                                <FileText size={24} className="text-green-400 mr-4" />
                                 <div>
-                                    <p className="text-md font-normal font-playfair text-gray-900 drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">{file.name}</p>
-                                    <p className="text-sm font-normal font-ubuntu text-gray-900">{(file.size / 1024).toFixed(2)} KB</p>
+                                    <p className="font-medium text-black">{file.name}</p>
+                                    <p className="text-sm text-gray-700">{(file.size / 1024).toFixed(2)} KB</p>
                                 </div>
                             </div>
 
                             {isProcessing && (
                                 <div ref={processingRef} className="flex flex-col items-center justify-center mt-6">
                                     {loadingAnimation && <Lottie animationData={loadingAnimation} loop={true} style={{ width: 300, height: 300 }} />}
-                                    <p className="text-gray-900 mt-4 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">AI Is Reading Your Receipt</p>
+                                    <p className="text-white mt-4">Processing your receipt...</p>
                                 </div>
                             )}
                         </div>
                     ) : (
-                        <div
-                          className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/10 relative overflow-hidden border border-black/10 shadow-xl shadow-black/20"
-                          onDragOver={handleDragOver}
-                          onDrop={handleDrop}
-                          onClick={handleUploadClick}
-                          style={{ minHeight: '260px' }}
-                        >
+                        <div className="border-2 border-dashed border-white/40 rounded-2xl p-10 text-center cursor-pointer transition-colors hover:border-green-300/80 bg-white/25 backdrop-blur-2xl shadow-xl" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf"/>
-                            <div className="relative z-10 flex flex-col items-center justify-end h-full pt-24 pb-2">
-                              <Upload size={48} className="text-purple-600 mb-2 mx-auto" />
-                              <p className="text-md font-normal font-playfair text-gray-600 drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
-                                Drag & Drop or Click to Upload
-                              </p>
-                            </div>
+                            <Upload size={48} className="text-gray-300 mb-4 mx-auto" />
+                            <p className="text-lg font-semibold text-black">Drag & Drop or Click to Upload</p>
                         </div>
                     )}
 
-                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-3 text-sm text-gray-900">
-                      <label htmlFor="multi-page-toggle" className="flex items-center gap-2 cursor-pointer select-none font-playfair font-semibold drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
+                    <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm">
+                      <label htmlFor="multi-page-toggle" className="flex items-center gap-2 cursor-pointer select-none">
                         <input
                           id="multi-page-toggle"
                           type="checkbox"
                           checked={isMultiPage}
                           onChange={handleMultiPageToggle}
-                          className="h-4 w-4 rounded border-gray-400 bg-transparent"
+                          className="h-4 w-4 rounded border-white/60 bg-transparent"
                         />
                         Multiple pages?
                       </label>
-                    </div>
-                    <div className="mt-3 flex flex-col sm:flex-row items-center justify-center gap-3 text-xs text-gray-800 font-playfair">
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -1415,11 +1411,11 @@ export default function ScanReceipt() {
                             }`}
                           />
                         </button>
-                        <span className="text-purple-600 text-xs font-semibold tracking-[0.2em] uppercase drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] font-playfair">High Accuracy</span>
+                        <span className="text-sm font-small">Blurred Receipt?</span>
                       </div>
-                      <span className="text-xs text-purple-600 font-semibold tracking-[0.2em] uppercase drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] font-playfair">
-                        {isHighAccuracy ? 'Best detail, slightly slower' : 'Faster processing'}
-                      </span>
+                    </div>
+                    <div className="mt-2 text-center text-xs">
+                      {isHighAccuracy ? 'Best detail, slightly slower' : 'Faster processing'}
                     </div>
 
                     {!file && (
@@ -1434,7 +1430,6 @@ export default function ScanReceipt() {
                             )}
                         </div>
                     )}
-                    </div>
                 </div>
             </div>
         )}

@@ -127,7 +127,7 @@ export default function Home() {
     <motion.div 
       ref={containerRef}
       style={{ backgroundColor: springBg }}
-      className="dark:bg-black text-[#0f172a] dark:text-white antialiased min-h-screen"
+      className="dark:bg-black text-[#0f172a] dark:text-white antialiased min-h-screen font-playfair"
     >
       {/* Floating Navigation */}
       <motion.nav 

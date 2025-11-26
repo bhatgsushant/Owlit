@@ -168,7 +168,7 @@ export default function Profile() {
   };
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white font-sans">
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-white text-slate-900 dark:bg-black dark:text-white font-playfair">
       <AnimatedSection>
         <div className="space-y-2">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Profile</h1>

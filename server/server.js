@@ -812,6 +812,420 @@ Return **only JSON**, no explanations.
     }
 }
 
+async function generateUserInsightFromSupabase(userId) {
+    if (!userId) return null;
+    try {
+        const { data: receipts, error } = await supabase
+            .from('receipts')
+            .select('merchant_name, transaction_date, total_amount, line_items')
+            .eq('user_id', userId)
+            .order('transaction_date', { ascending: false })
+            .limit(500);
+
+        if (error || !receipts || receipts.length === 0) return null;
+
+        // Largest receipt
+        let largest = receipts.reduce((acc, r) => {
+            const total = Number(r.total_amount) || 0;
+            if (!acc || total > acc.total) return { total, merchant: r.merchant_name, date: r.transaction_date };
+            return acc;
+        }, null);
+
+        // Top merchant by total
+        const merchantTotals = {};
+        receipts.forEach((r) => {
+            const total = Number(r.total_amount) || 0;
+            const key = (r.merchant_name || 'Unknown').trim();
+            merchantTotals[key] = (merchantTotals[key] || 0) + total;
+        });
+        const topMerchant = Object.entries(merchantTotals)
+            .sort((a, b) => b[1] - a[1])
+            .map(([merchant, total]) => ({ merchant, total }))[0];
+
+        const templates = [];
+        if (largest) {
+            templates.push(
+                `Your largest recent receipt was £${largest.total.toFixed(2)} at ${largest.merchant || 'a store'} on ${largest.date || 'a recent date'}.`
+            );
+        }
+        if (topMerchant) {
+            templates.push(
+                `Across your history, you spent about £${topMerchant.total.toFixed(2)} at ${topMerchant.merchant || 'your top merchant'}.`
+            );
+        }
+        if (!templates.length) return null;
+        const insight = templates[Math.floor(Math.random() * templates.length)];
+        console.log('🧠 User insight generated:', { userId, insight });
+        return insight;
+    } catch (err) {
+        console.error('Failed to generate user insight:', err.message);
+        return null;
+    }
+}
+
+async function generateScanInsight({ merchant_name, total_amount, line_items }) {
+    try {
+        const total = Number(total_amount) || 0;
+        const items = Array.isArray(line_items) ? line_items : [];
+        const topCategories = Array.from(
+            items.reduce((acc, item) => {
+                const key = (item.main_category || item.category || '').toString().trim();
+                if (key) acc.add(key);
+                return acc;
+            }, new Set())
+        ).slice(0, 3);
+
+        const templates = [
+            `Give two short sentences about a receipt from ${merchant_name || 'this store'} totaling £${total.toFixed(2)}.`,
+            `In two sentences, highlight anything notable in this receipt from ${merchant_name || 'the merchant'}. Total: £${total.toFixed(2)}.`,
+            `Provide two concise sentences on this purchase (merchant: ${merchant_name || 'unknown'}, total £${total.toFixed(2)}, categories: ${topCategories.join(', ') || 'n/a'}).`,
+            `Give two brief lines of insight about this receipt (total £${total.toFixed(2)}, merchant ${merchant_name || 'unknown'}).`,
+        ];
+        const prompt = templates[Math.floor(Math.random() * templates.length)];
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                {
+                    role: 'system',
+                    content:
+                        'Return exactly two short sentences. Be neutral and concise. Keep under 220 characters total.',
+                },
+                {
+                    role: 'user',
+                    content: prompt,
+                },
+            ],
+            temperature: 0.3,
+            max_tokens: 120,
+        });
+
+        const content = response.choices[0]?.message?.content?.trim();
+        if (!content) return null;
+        console.log('🧠 Scan insight generated (OpenAI):', content);
+        return content;
+    } catch (err) {
+        console.error('Failed to generate AI insight for scan:', err.message);
+        return null;
+    }
+}
+
+// --- Embedding Ingestion for Receipt Line Items ---
+async function ingestReceiptItems(receipt, userId) {
+    if (!receipt || !Array.isArray(receipt.line_items) || !userId) return;
+
+    const receiptId = receipt.id;
+    const merchantName = receipt.merchant_name || '';
+    const canonicalMerchantId = receipt.canonical_merchant_id || null;
+    const transactionDate = receipt.transaction_date || null;
+
+    for (const rawItem of receipt.line_items) {
+        try {
+            const itemName = rawItem.item || rawItem.Item_Name || rawItem.name || rawItem.Name || '';
+            const mainCategory = rawItem.main_category || rawItem.category || '';
+            const subCategory = rawItem.sub_category || rawItem.SubCategory || '';
+            const quantity = Number(rawItem.quantity || rawItem.Quantity || 1) || 1;
+            const unitPrice = Number(rawItem.price || rawItem.Price || 0) || 0;
+            const totalPrice = Number(rawItem.total_price || quantity * unitPrice) || 0;
+
+            const descriptor = [
+                `Item: ${itemName}`,
+                mainCategory ? `Main category: ${mainCategory}` : null,
+                subCategory ? `Sub category: ${subCategory}` : null,
+                merchantName ? `Merchant: ${merchantName}` : null,
+                transactionDate ? `Date: ${transactionDate}` : null,
+                `Price: £${unitPrice.toFixed(2)} x ${quantity} = £${totalPrice.toFixed(2)}`
+            ]
+                .filter(Boolean)
+                .join('. ');
+
+            const embeddingResp = await openai.embeddings.create({
+                model: 'text-embedding-3-small',
+                input: descriptor,
+            });
+
+            const embedding = embeddingResp.data?.[0]?.embedding;
+            if (!embedding) {
+                console.warn('No embedding returned for line item', { itemName, receiptId });
+                continue;
+            }
+
+            const { error } = await supabase
+                .from('receipt_item_embeddings')
+                .upsert(
+                    {
+                        user_id: userId,
+                        receipt_id: receiptId,
+                        item_name: itemName,
+                        main_category: mainCategory,
+                        sub_category: subCategory,
+                        quantity,
+                        unit_price: unitPrice,
+                        total_price: totalPrice,
+                        merchant_name: merchantName,
+                        canonical_merchant_id: canonicalMerchantId,
+                        transaction_date: transactionDate,
+                        embedding,
+                    },
+                    { onConflict: 'receipt_id,item_name,total_price' }
+                );
+
+            if (error) {
+                console.error('Failed to upsert receipt_item_embedding', { receiptId, itemName, error });
+            }
+        } catch (err) {
+            console.error('Error ingesting line item embedding', err.message);
+        }
+    }
+}
+
+module.exports.ingestReceiptItems = ingestReceiptItems;
+
+// --- Query Parser (GPT-4o-mini) ---
+async function parseUserQuery(question) {
+    if (!question || typeof question !== 'string') {
+        throw new Error('Question is required');
+    }
+    const prompt = `
+You are a query parser. Fix spelling. Return strict JSON only, no extra text.
+Fields:
+- task: string (e.g., "spend_summary", "top_merchants", "find_receipts")
+- keywords: array of strings
+- merchant: string or null
+- category: string or null
+- date_range: string or null (e.g., "last_30_days", "last_90_days", "this_month", "last_month", "ytd", "all_time")
+- start_date: string or null (ISO YYYY-MM-DD)
+- end_date: string or null (ISO YYYY-MM-DD)
+- use_vector: boolean (true if semantic search is implied)
+
+Input: "${question}"
+
+Return JSON only:
+{
+  "task": "",
+  "keywords": [],
+  "merchant": null,
+  "category": null,
+  "date_range": null,
+  "start_date": null,
+  "end_date": null,
+  "use_vector": false
+}
+`;
+
+    const response = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [
+            { role: 'system', content: 'You return strict JSON only.' },
+            { role: 'user', content: prompt },
+        ],
+        temperature: 0,
+        max_tokens: 300,
+        response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('No content returned from OpenAI');
+    return JSON.parse(content);
+}
+
+module.exports.parseUserQuery = parseUserQuery;
+
+// --- SQL-based item search (no vectors) ---
+async function searchItemsSQL(parsed, userId) {
+    if (!userId) return [];
+    const {
+        keywords = [],
+        merchant = null,
+        category = null,
+        date_range = null,
+        start_date = null,
+        end_date = null,
+    } = parsed || {};
+
+    // Build base query with receipt-level filters
+    let query = supabase
+        .from('receipts')
+        .select('id, merchant_name, transaction_date, canonical_merchant_id, line_items')
+        .eq('user_id', userId)
+        .order('transaction_date', { ascending: false });
+
+    // Date range filter
+    const today = new Date();
+    const iso = (d) => d.toISOString().split('T')[0];
+    const applyBetween = (from, to) => {
+        query = query.gte('transaction_date', from).lte('transaction_date', to);
+    };
+
+    if (start_date && end_date) {
+        applyBetween(start_date, end_date);
+    } else if (date_range) {
+        const range = date_range.toLowerCase();
+        if (range === 'last_7_days') {
+            const d = new Date(today);
+            d.setDate(d.getDate() - 7);
+            applyBetween(iso(d), iso(today));
+        } else if (range === 'last_30_days' || range === 'last_30') {
+            const d = new Date(today);
+            d.setDate(d.getDate() - 30);
+            applyBetween(iso(d), iso(today));
+        } else if (range === 'last_90_days' || range === 'last_90') {
+            const d = new Date(today);
+            d.setDate(d.getDate() - 90);
+            applyBetween(iso(d), iso(today));
+        } else if (range === 'last_month') {
+            const firstDayThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+            const lastDayLastMonth = new Date(firstDayThisMonth.getTime() - 1);
+            const firstDayLastMonth = new Date(lastDayLastMonth.getFullYear(), lastDayLastMonth.getMonth(), 1);
+            applyBetween(iso(firstDayLastMonth), iso(lastDayLastMonth));
+        } else if (range === 'this_month') {
+            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+            applyBetween(iso(firstDay), iso(today));
+        } else if (range === 'ytd') {
+            const firstDay = new Date(today.getFullYear(), 0, 1);
+            applyBetween(iso(firstDay), iso(today));
+        }
+    }
+
+    // Merchant filter (receipt-level)
+    if (merchant) {
+        query = query.ilike('merchant_name', `%${merchant}%`);
+    }
+
+    const { data: receipts, error } = await query.limit(200); // limit rows before flattening
+    if (error) {
+        console.error('searchItemsSQL error:', error.message);
+        return [];
+    }
+    if (!receipts || receipts.length === 0) return [];
+
+    // Flatten line items and apply item-level filters
+    const keywordList = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+    const results = [];
+    for (const receipt of receipts) {
+        const lineItems = Array.isArray(receipt.line_items) ? receipt.line_items : [];
+        for (const li of lineItems) {
+            const itemName = li.item || li.Item_Name || li.name || li.Name || '';
+            const mainCat = li.main_category || li.category || '';
+            const subCat = li.sub_category || li.SubCategory || '';
+            const quantity = Number(li.quantity || li.Quantity || 1) || 1;
+            const price = Number(li.price || li.Price || 0) || 0;
+
+            // Item-level filters
+            if (keywordList.length) {
+                const nameLower = itemName.toLowerCase();
+                const pass = keywordList.some((kw) => nameLower.includes(String(kw).toLowerCase()));
+                if (!pass) continue;
+            }
+            if (category) {
+                const catLower = String(category).toLowerCase();
+                if (String(mainCat || '').toLowerCase() !== catLower) continue;
+            }
+
+            results.push({
+                item_name: itemName,
+                main_category: mainCat,
+                sub_category: subCat,
+                price,
+                quantity,
+                merchant_name: receipt.merchant_name,
+                transaction_date: receipt.transaction_date,
+                receipt_id: receipt.id,
+            });
+
+            if (results.length >= 50) break;
+        }
+        if (results.length >= 50) break;
+    }
+
+    return results;
+}
+
+module.exports.searchItemsSQL = searchItemsSQL;
+
+// --- Vector search for items ---
+async function searchItemsVector(question, userId, limit = 20) {
+    try {
+        if (!question || !userId) return [];
+        const embeddingResp = await openai.embeddings.create({
+            model: 'text-embedding-3-small',
+            input: question,
+        });
+        const embedding = embeddingResp.data?.[0]?.embedding;
+        if (!embedding) return [];
+
+        const { data, error } = await supabase.rpc('match_receipt_items', {
+            query_embedding: embedding,
+            match_count: limit,
+            _user_id: userId,
+        });
+
+        if (error) {
+            console.error('searchItemsVector RPC error:', error.message);
+            return [];
+        }
+        if (!data || !Array.isArray(data)) return [];
+
+        return data
+            .map((row) => ({
+                receipt_id: row.receipt_id,
+                item_name: row.item_name,
+                main_category: row.main_category,
+                sub_category: row.sub_category,
+                price: row.total_price,
+                merchant_name: row.merchant_name,
+                transaction_date: row.transaction_date,
+                similarity: row.similarity,
+            }))
+            .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+    } catch (err) {
+        console.error('searchItemsVector error:', err.message);
+        return [];
+    }
+}
+
+module.exports.searchItemsVector = searchItemsVector;
+
+// --- Final answer generation ---
+async function generateFinalAnswer(question, items, parsed) {
+    try {
+        const sysPrompt = `You are Owlit, a personal finance assistant. 
+    Your job is to answer the user's question using ONLY the provided receipt item JSON.
+    If there are no items, reply: 'No matching purchases found.'
+    Keep answers short, clear, and friendly.
+    Use GBP formatting (example: £2.50).
+    If the question asks for:
+      - total spend → sum item prices
+      - last purchase → use the most recent date
+      - list → summarize items in a single short paragraph
+      - compare → highlight differences
+      - trend → describe simple patterns
+    NEVER invent items. NEVER use knowledge outside the JSON.`;
+
+        const userContent = `User question: ${question}
+Parsed filters: ${JSON.stringify(parsed || {})}
+Matching items: ${JSON.stringify(items || [])}`;
+
+        const response = await openai.chat.completions.create({
+            model: 'gpt-4o-mini',
+            messages: [
+                { role: 'system', content: sysPrompt },
+                { role: 'user', content: userContent },
+            ],
+            temperature: 0.2,
+            max_tokens: 200,
+        });
+
+        const content = response.choices[0]?.message?.content?.trim();
+        return content || "Sorry, I couldn't process that.";
+    } catch (err) {
+        console.error('generateFinalAnswer error:', err.message);
+        return "Sorry, I couldn't process that.";
+    }
+}
+
+module.exports.generateFinalAnswer = generateFinalAnswer;
+
 async function processDocumentWithDocAI(buffer, mimeType) {
     console.log('🚀 Starting Document AI Processing...');
     const name = `projects/${DOCAI_PROJECT_ID}/locations/${DOCAI_LOCATION}/processors/${DOCAI_PROCESSOR_ID}`;
@@ -1422,10 +1836,38 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
               total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
               main_category,
               store_type,
+              ai_insight:
+                await generateUserInsightFromSupabase(req.user?.id || null) ||
+                await generateScanInsight({
+                  merchant_name,
+                  total_amount: processedData.total_amount || processedData.TotalAmount || 0,
+                  line_items: categorizedLineItems,
+                }),
             };
 
             console.log(`🟢 Processed single receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
-            return res.json(transformedData);
+            const responsePayload = { ...transformedData };
+            res.json(responsePayload);
+
+            // Fire-and-forget embedding ingestion
+            if (req.user?.id) {
+              setImmediate(async () => {
+                try {
+                  await ingestReceiptItems(
+                    {
+                      id: null,
+                      ...transformedData,
+                      receipt_url: null,
+                      canonical_merchant_id: null,
+                    },
+                    req.user.id
+                  );
+                } catch (err) {
+                  console.error('🔴 Failed to ingest receipt items (single receipt):', err.message);
+                }
+              });
+            }
+            return;
 
         } catch (error) {
             return handleApiError(res, error, 'Failed to process receipt.');
@@ -1599,10 +2041,35 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
           main_category,
           store_type,
           receipt_url,
+          ai_insight:
+            await generateUserInsightFromSupabase(req.user?.id || null) ||
+            await generateScanInsight({
+              merchant_name,
+              total_amount: normalizedTotalAmount,
+              line_items: categorizedLineItems,
+            }),
         };
 
         console.log(`🟢 Processed multi-page receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
-        return res.json(transformedData);
+        res.json(transformedData);
+
+        if (req.user?.id) {
+            setImmediate(async () => {
+                try {
+                    await ingestReceiptItems(
+                        {
+                            id: null,
+                            ...transformedData,
+                            canonical_merchant_id,
+                        },
+                        req.user.id
+                    );
+                } catch (err) {
+                    console.error('🔴 Failed to ingest receipt items (multi-page):', err.message);
+                }
+            });
+        }
+        return;
     } catch (error) {
         return handleApiError(res, error, 'Failed to process multi-page receipt.');
     }
@@ -2546,6 +3013,95 @@ app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) 
   } catch (error) {
     console.error('Error fetching store type overrides:', error);
     res.status(500).json({ error: 'Failed to fetch store type overrides' });
+  }
+});
+
+// --- Ask AI endpoint ---
+app.post('/api/ask-ai', optionalAuthenticate, async (req, res) => {
+  try {
+    const question = req.body?.question;
+    const userId = req.user?.id;
+
+    if (!question) {
+      return res.status(400).json({ error: 'Question is required.' });
+    }
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized.' });
+    }
+
+    const query_key = crypto.createHash('sha256').update(`${userId}:${question}`).digest('hex');
+
+    // Cache lookup
+    const { data: cachedRows, error: cacheErr } = await supabase
+      .from('ai_cache')
+      .select('answer, facts')
+      .eq('user_id', userId)
+      .eq('query_key', query_key)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (!cacheErr && cachedRows && cachedRows.length > 0) {
+      const cached = cachedRows[0];
+      return res.json({
+        answer: cached.answer,
+        items_used: cached.facts || [],
+        filters: 'cached',
+      });
+    }
+
+    // Parse question
+    let parsed = {};
+    try {
+      parsed = await parseUserQuery(question);
+    } catch (err) {
+      console.error('parseUserQuery failed:', err.message);
+      parsed = {};
+    }
+
+    // Retrieve items (SQL then vector fallback)
+    const useVectorFlag = parsed && typeof parsed.use_vector !== 'undefined'
+      ? Boolean(parsed.use_vector)
+      : false;
+
+    let items = await searchItemsSQL(parsed, userId);
+    if (!Array.isArray(items) || items.length === 0 || useVectorFlag) {
+      items = await searchItemsVector(question, userId, 20);
+    }
+
+    // Context items
+    const contextItems = (items || []).map((i) => ({
+      item_name: i.item_name,
+      main_category: i.main_category,
+      sub_category: i.sub_category,
+      merchant_name: i.merchant_name,
+      price: i.price || i.total_price,
+      date: i.transaction_date,
+      receipt_id: i.receipt_id,
+    }));
+
+    // Final answer
+    const answer = await generateFinalAnswer(question, contextItems, parsed);
+
+    // Cache the result (best effort)
+    try {
+      await supabase.from('ai_cache').insert({
+        user_id: userId,
+        query_key,
+        answer,
+        facts: contextItems,
+      });
+    } catch (err) {
+      console.error('Failed to cache AskAI result:', err.message);
+    }
+
+    return res.json({
+      answer,
+      items_used: contextItems,
+      filters: parsed,
+    });
+  } catch (err) {
+    console.error('AskAI failed:', err);
+    return res.status(500).json({ error: 'AskAI failed. Please try again.' });
   }
 });
 

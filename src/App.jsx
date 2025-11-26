@@ -9,7 +9,7 @@ import Documents from "@/pages/Documents";
 import Insights from "@/pages/Insights";
 import Investment from "@/pages/Investment";
 import QnA from "@/pages/QnA";
-import AskAI from "@/pages/AskAI";
+import AskAIPage from "@/pages/AskAIPage";
 import DocumentPage from "@/pages/DocumentPage";
 import Login from "@/pages/Login";
 import AuthCallback from "@/pages/AuthCallback";
@@ -85,7 +85,7 @@ export default function App() {
           path="/ask-ai"
           element={
             <ProtectedRoute>
-              <Layout currentPageName="Ask AI"><AskAI /></Layout>
+              <Layout currentPageName="Ask AI"><AskAIPage /></Layout>
             </ProtectedRoute>
           }
         />
