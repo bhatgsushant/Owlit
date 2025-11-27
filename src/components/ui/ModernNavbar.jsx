@@ -1,9 +1,226 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useScroll, useSpring } from 'framer-motion';
 import { Link, useLocation } from 'react-router-dom';
-import { X, Menu as MenuIcon, LogOut, User } from 'lucide-react';
+import { X, Menu as MenuIcon, LogOut, User, Home, Scan, LogIn, BarChart3 } from 'lucide-react';
 import { createPageUrl } from '@/utils'; // Import createPageUrl
 import { useAuth } from '@/hooks/useAuth';
+
+// Custom home icon SVG for the drawer
+function DrawerHomeIcon() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="20"
+      height="20"
+      viewBox="0 0 32 32"
+      aria-hidden="true"
+      className="h-5 w-5 shrink-0"
+    >
+      <defs>
+        <linearGradient id="KB1PQjYBsGUWyrsznZa0Sa_EaHvBlFeXuaQ_gr1" x1="7.219" x2="24.781" y1="11.901" y2="29.464" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#00e9ff" stopOpacity=".95" />
+          <stop offset="1" stopColor="#00e9ff" stopOpacity=".5" />
+        </linearGradient>
+        <linearGradient id="KB1PQjYBsGUWyrsznZa0Sb_EaHvBlFeXuaQ_gr2" x1="24.214" x2="29.501" y1="4.373" y2="9.659" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ff3519" stopOpacity=".95" />
+          <stop offset="1" stopColor="#ff3519" stopOpacity=".5" />
+        </linearGradient>
+        <linearGradient id="KB1PQjYBsGUWyrsznZa0Sc_EaHvBlFeXuaQ_gr3" x1="11.396" x2="20.604" y1="18.189" y2="27.396" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff" stopOpacity=".8" />
+          <stop offset=".519" stopColor="#fff" stopOpacity=".5" />
+          <stop offset="1" stopColor="#fff" stopOpacity=".6" />
+        </linearGradient>
+        <linearGradient id="KB1PQjYBsGUWyrsznZa0Sd_EaHvBlFeXuaQ_gr4" x1="8.189" x2="23.811" y1="6.619" y2="22.24" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#ff3519" stopOpacity=".95" />
+          <stop offset="1" stopColor="#ff3519" stopOpacity=".5" />
+        </linearGradient>
+        <linearGradient id="KB1PQjYBsGUWyrsznZa0Se_EaHvBlFeXuaQ_gr5" x1="7.696" x2="27.414" y1="7.112" y2="26.831" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="#fff" stopOpacity=".6" />
+          <stop offset=".493" stopColor="#fff" stopOpacity="0" />
+          <stop offset=".997" stopColor="#fff" stopOpacity=".3" />
+        </linearGradient>
+      </defs>
+      <path fill="url(#KB1PQjYBsGUWyrsznZa0Sa_EaHvBlFeXuaQ_gr1)" d="M28,15.12V25c0,1.66-1.34,3-3,3H7c-1.66,0-3-1.34-3-3v-9.88L15.67,5.11	c0.19-0.16,0.47-0.16,0.66,0L28,15.12z" />
+      <path fill="url(#KB1PQjYBsGUWyrsznZa0Sb_EaHvBlFeXuaQ_gr2)" d="M28,5v6.16l-4-3.43V5c0-0.55,0.45-1,1-1h2C27.55,4,28,4.45,28,5z" />
+      <path fill="url(#KB1PQjYBsGUWyrsznZa0Sc_EaHvBlFeXuaQ_gr3)" d="M12,28V18c0-0.552,0.448-1,1-1h6c0.552,0,1,0.448,1,1v10H12z" />
+      <path fill="url(#KB1PQjYBsGUWyrsznZa0Sd_EaHvBlFeXuaQ_gr4)" d="M29.5,15.93c-0.346,0-0.693-0.119-0.976-0.361L16.326,5.112c-0.188-0.161-0.463-0.161-0.651,0	L3.476,15.568c-0.628,0.539-1.576,0.467-2.115-0.163c-0.54-0.629-0.466-1.576,0.163-2.115L13.722,2.834	c1.319-1.132,3.236-1.132,4.556,0l12.198,10.457c0.629,0.539,0.702,1.486,0.163,2.115C30.342,15.752,29.922,15.93,29.5,15.93z" />
+      <path fill="url(#KB1PQjYBsGUWyrsznZa0Se_EaHvBlFeXuaQ_gr5)" d="M16,2.486c0.711,0,1.405,0.259,1.952,0.728l5.722,4.905L24.5,8.827V7.74V5	c0-0.276,0.224-0.5,0.5-0.5h2c0.276,0,0.5,0.224,0.5,0.5v6.168v0.23l0.175,0.15l2.476,2.123c0.203,0.174,0.326,0.416,0.346,0.682	c0.021,0.266-0.064,0.524-0.238,0.727c-0.19,0.222-0.467,0.349-0.759,0.349c-0.238,0-0.469-0.085-0.65-0.241l-0.524-0.449	L27.5,14.032v1.087V25c0,1.378-1.122,2.5-2.5,2.5H7c-1.378,0-2.5-1.122-2.5-2.5v-9.881v-1.087L3.675,14.74l-0.524,0.449	C2.97,15.344,2.739,15.43,2.5,15.43c-0.293,0-0.569-0.127-0.759-0.349c-0.174-0.203-0.258-0.461-0.238-0.727	c0.021-0.266,0.144-0.509,0.346-0.682L14.048,3.214C14.595,2.744,15.289,2.486,16,2.486 M16,1.986c-0.809,0-1.618,0.283-2.278,0.849	L1.524,13.291c-0.629,0.539-0.702,1.486-0.163,2.115C1.658,15.752,2.078,15.93,2.5,15.93c0.346,0,0.693-0.119,0.976-0.361L4,15.119	V25c0,1.66,1.34,3,3,3h18c1.66,0,3-1.34,3-3v-9.881l0.524,0.449c0.283,0.243,0.63,0.361,0.976,0.361	c0.422,0,0.843-0.178,1.139-0.524c0.54-0.629,0.466-1.576-0.163-2.115L28,11.168V5c0-0.55-0.45-1-1-1h-2c-0.55,0-1,0.45-1,1v2.74	l-5.722-4.905C17.618,2.269,16.809,1.986,16,1.986L16,1.986z" />
+    </svg>
+  );
+}
+
+const DrawerInsightsIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    className="h-5 w-5 shrink-0"
+  >
+    <defs>
+      <linearGradient id="purple-glow" x1="0" y1="0" x2="64" y2="64">
+        <stop stopColor="#C084FC" />
+        <stop offset="0.5" stopColor="#A855F7" />
+        <stop offset="1" stopColor="#7C3AED" />
+      </linearGradient>
+      <filter id="frost">
+        <feGaussianBlur stdDeviation="4" />
+      </filter>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="5" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <rect
+      x="10"
+      y="10"
+      width="44"
+      height="44"
+      rx="16"
+      fill="white"
+      fillOpacity="0.12"
+      stroke="white"
+      strokeOpacity="0.45"
+      strokeWidth="1.2"
+      filter="url(#frost)"
+    />
+    <g fill="url(#purple-glow)" filter="url(#glow)">
+      <rect x="22" y="34" width="6" height="12" rx="2" />
+      <rect x="31" y="28" width="6" height="18" rx="2" />
+      <rect x="40" y="20" width="6" height="26" rx="2" />
+    </g>
+  </svg>
+);
+
+const DrawerScanIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    className="h-5 w-5 shrink-0"
+  >
+    <defs>
+      <filter id="glow">
+        <feGaussianBlur stdDeviation="4" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+      <linearGradient id="neon" x1="0" y1="0" x2="64" y2="64">
+        <stop stopColor="#06B6D4" />
+        <stop offset="0.5" stopColor="#3B82F6" />
+        <stop offset="1" stopColor="#8B5CF6" />
+      </linearGradient>
+    </defs>
+    <g stroke="url(#neon)" strokeWidth="3" strokeLinecap="round" filter="url(#glow)">
+      <path d="M20 22V18C20 16.9 20.9 16 22 16H26" />
+      <path d="M38 16H42C43.1 16 44 16.9 44 18V22" />
+      <path d="M20 42V46C20 47.1 20.9 48 22 48H26" />
+      <path d="M38 48H42C43.1 48 44 47.1 44 46V42" />
+      <rect x="26" y="26" width="12" height="12" rx="3" />
+    </g>
+  </svg>
+);
+
+const DrawerAccountIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 120 120"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    className="h-5 w-5 shrink-0"
+  >
+    <defs>
+      <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="#8B5CF6" />
+        <stop offset="50%" stopColor="#EC4899" />
+        <stop offset="100%" stopColor="#22C55E" />
+      </linearGradient>
+      <linearGradient id="glassGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor="rgba(255,255,255,0.7)" />
+        <stop offset="50%" stopColor="rgba(255,255,255,0.2)" />
+        <stop offset="100%" stopColor="rgba(255,255,255,0.05)" />
+      </linearGradient>
+      <filter id="glassBlur" x="-20%" y="-20%" width="140%" height="140%">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur" />
+        <feColorMatrix
+          in="blur"
+          type="matrix"
+          values="0 0 0 0 0
+                  0 0 0 0 0
+                  0 0 0 0 0
+                  0 0 0 0.25 0"
+          result="shadow"
+        />
+        <feBlend in="SourceGraphic" in2="shadow" mode="normal" />
+      </filter>
+      <linearGradient id="glassStroke" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stopColor="rgba(255,255,255,0.9)" />
+        <stop offset="100%" stopColor="rgba(255,255,255,0.2)" />
+      </linearGradient>
+    </defs>
+    <circle cx="60" cy="60" r="60" fill="url(#bgGradient)" />
+    <g filter="url(#glassBlur)">
+      <rect x="20" y="20" width="80" height="80" rx="26" fill="url(#glassGradient)" stroke="url(#glassStroke)" strokeWidth="1.5" />
+    </g>
+    <circle cx="60" cy="52" r="14" fill="rgba(255,255,255,0.95)" stroke="rgba(255,255,255,0.35)" strokeWidth="1.5" />
+    <path
+      d="M38 82C41 70 49 64 60 64C71 64 79 70 82 82"
+      fill="none"
+      stroke="rgba(255,255,255,0.9)"
+      strokeWidth="3"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    />
+    <circle cx="60" cy="60" r="32" fill="rgba(255,255,255,0.08)" />
+  </svg>
+);
+
+const DrawerMultiScanIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    className="h-5 w-5 shrink-0"
+  >
+    <defs>
+      <linearGradient id="neon-purple" x1="0" y1="0" x2="64" y2="64">
+        <stop stopColor="#C084FC" />
+        <stop offset="0.5" stopColor="#A855F7" />
+        <stop offset="1" stopColor="#7C3AED" />
+      </linearGradient>
+      <filter id="neon-glow">
+        <feGaussianBlur stdDeviation="4" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <rect x="16" y="16" width="32" height="40" rx="6" stroke="url(#neon-purple)" strokeWidth="2" fill="none" opacity="0.5" />
+    <rect x="20" y="12" width="32" height="40" rx="6" stroke="url(#neon-purple)" strokeWidth="2" fill="none" filter="url(#neon-glow)" />
+    <g stroke="url(#neon-purple)" strokeWidth="3" strokeLinecap="round" filter="url(#neon-glow)">
+      <path d="M26 26V22C26 20.9 26.9 20 28 20H32" />
+      <path d="M40 20H44C45.1 20 46 20.9 46 22V26" />
+      <path d="M26 42V46C26 47.1 26.9 48 28 48H32" />
+      <path d="M40 48H44C45.1 48 46 47.1 46 46V42" />
+    </g>
+  </svg>
+);
 
 // Shared brand mark to mirror the home page styling
 function BrandMark() {
@@ -26,9 +243,9 @@ function BrandMark() {
 </svg>
 
       </motion.div>
-        <span className="text-xl font-bold text-black dark:text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
-  Owlit
-</span>
+      <span className="text-xl font-bold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
+        Owlit
+      </span>
     </div>
   );
 }
@@ -359,39 +576,77 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
       <AnimatePresence>
         {isOpen && (
           <motion.div
-            initial={{ opacity: 0, y: '-100%' }}
-            animate={{ opacity: 1, y: '0%' }}
-            exit={{ opacity: 0, y: '-100%' }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed inset-0 flex h-screen w-screen flex-col items-center justify-center bg-black bg-opacity-90 backdrop-blur-lg md:hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
           >
-            <div className="mb-10">
-              <BrandMark />
-            </div>
-            <div className="flex flex-col items-center gap-8">
-              {menuItems.map((item) => (
-                <Link
-                  key={item.name}
-                  to={item.href}
-                  onClick={() => setIsOpen(false)}
-                  className="text-xl font-semibold text-gray-300 hover:text-white transition-colors uppercase tracking-widest"
-                >
-                  {item.name}
-                </Link>
-              ))}
-              <div className="flex flex-col items-center gap-6 mt-8">
-                {user ? (
-                  <button onClick={logout} className="text-xl font-medium text-gray-400 hover:text-white flex items-center">
-                    <LogOut size={20} className="mr-2" />
-                    Logout
-                  </button>
-                ) : (
-                  <Link to="/login" className="text-xl font-medium text-gray-400 hover:text-white">
-                    Login
-                  </Link>
-                )}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              className="relative h-full w-[55vw] max-w-[260px] bg-purple-700/5 backdrop-blur-2xl border-l border-white/15 rounded-l-3xl flex flex-col items-start justify-start gap-4 text-left pt-8"
+            >
+              <button
+                type="button"
+                onClick={() => setIsOpen(false)}
+                className="absolute top-6 right-6 rounded-full border border-white/30 bg-white/10 p-2 text-white hover:bg-white/20"
+                aria-label="Close menu"
+              >
+                <X size={22} />
+              </button>
+              <div className="mb-2 self-start pl-6">
+                <BrandMark />
               </div>
-            </div>
+              <div className="flex flex-col items-start w-full h-full px-6 font-playfair text-sm">
+                <div className="flex flex-col w-full gap-4 pt-2">
+                  {(() => {
+                    const iconMap = {
+                      Home: DrawerHomeIcon,
+                      Scan: DrawerScanIcon,
+                      Insights: DrawerInsightsIcon,
+                      Account: DrawerAccountIcon,
+                      Login: LogIn,
+                      'Scan Multiple Pages': DrawerMultiScanIcon,
+                    };
+                    const baseLinks = [...menuItems, { name: 'Scan Multiple Pages', href: createPageUrl('ScanReceiptMulti') }];
+                    const authLink = user
+                      ? { name: 'Account', href: createPageUrl('Account') }
+                      : { name: 'Login', href: createPageUrl('Login') };
+                    const links = [...baseLinks, authLink].filter(
+                      (link, idx, arr) => arr.findIndex((l) => l.name === link.name) === idx
+                    );
+                    return links.map((item) => {
+                      const Icon = iconMap[item.name] || User;
+                      return (
+                        <Link
+                          key={item.name}
+                          to={item.href}
+                          onClick={() => setIsOpen(false)}
+                          className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-white/90 hover:text-white transition-colors"
+                        >
+                          <Icon size={20} className="shrink-0" />
+                          <span className="leading-none">{item.name}</span>
+                        </Link>
+                      );
+                    });
+                  })()}
+                </div>
+                {user ? (
+                  <div className="mt-auto w-full pb-6 pt-4">
+                    <button
+                      onClick={logout}
+                      className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-red-400 hover:text-red-300"
+                    >
+                      <LogOut size={20} className="shrink-0" />
+                      <span className="leading-none">Logout</span>
+                    </button>
+                  </div>
+                ) : null}
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

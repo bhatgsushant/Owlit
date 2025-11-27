@@ -70,6 +70,14 @@ const normalizeMerchantName = (name = '') =>
     .replace(/\s+/g, ' ')
     .trim();
 
+const parseNumberValue = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value !== 'string') return 0;
+  const sanitized = value.replace(/,/g, '').replace(/[^\d.-]/g, '');
+  const parsed = parseFloat(sanitized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
 const CATEGORY_ICON_MAP = {
   fruit: Apple,
   vegetable: Sprout,
@@ -107,6 +115,40 @@ const getCategoryIconComponent = (category) => {
   const key = String(category).toLowerCase();
   return CATEGORY_ICON_MAP[key] || Tag;
 };
+
+const CATEGORY_COLOR_MAP = {
+  fruit: '#f97316',
+  vegetable: '#22c55e',
+  meat: '#ef4444',
+  poultry: '#f97316',
+  seafood: '#0ea5e9',
+  dairy: '#a855f7',
+  bakery: '#f59e0b',
+  beverages: '#0ea5e9',
+  snacks: '#f59e0b',
+  frozen: '#6366f1',
+  canned_goods: '#22c55e',
+  personal_care: '#ec4899',
+  health: '#06b6d4',
+  fitness: '#22c55e',
+  household: '#94a3b8',
+  electronics: '#3b82f6',
+  utilities: '#14b8a6',
+  clothing: '#f472b6',
+  jewelry: '#facc15',
+  transport: '#64748b',
+  travel: '#22c55e',
+  stationery: '#06b6d4',
+  education: '#8b5cf6',
+  finance: '#10b981',
+  entertainment: '#f43f5e',
+  pets: '#22c55e',
+  gifts: '#f472b6',
+  dining: '#f97316',
+  other: '#22c55e',
+};
+
+const getCategoryColor = (category) => CATEGORY_COLOR_MAP[String(category || '').toLowerCase()] || '#10b981';
 
 const SUBCATEGORY_ICON_MATCHERS = [
   { test: /(coffee|tea|drink)/, icon: Coffee },
@@ -154,6 +196,48 @@ const getSubcategoryIconComponent = (subCategory) => {
   return Tag;
 };
 
+const SUBCATEGORY_COLOR_MAP = {
+  coffee: '#f97316',
+  tea: '#f59e0b',
+  drink: '#0ea5e9',
+  beer: '#f59e0b',
+  wine: '#a855f7',
+  spirits: '#7c3aed',
+  fuel: '#ef4444',
+  gas: '#ef4444',
+  diesel: '#ef4444',
+  bread: '#f97316',
+  milk: '#22c55e',
+  cheese: '#facc15',
+  fish: '#0ea5e9',
+  seafood: '#0ea5e9',
+  vegetable: '#22c55e',
+  meat: '#ef4444',
+  chicken: '#f97316',
+  laundry: '#38bdf8',
+  medicine: '#ec4899',
+  gym: '#22c55e',
+  electronics: '#3b82f6',
+  electricity: '#facc15',
+  shoe: '#f472b6',
+  jewel: '#facc15',
+  bus: '#64748b',
+  flight: '#22c55e',
+  pen: '#06b6d4',
+  book: '#8b5cf6',
+  bank: '#10b981',
+  movie: '#f43f5e',
+  pet: '#22c55e',
+  gift: '#f472b6',
+  restaurant: '#f97316',
+};
+
+const getSubcategoryColor = (subCategory) => {
+  const key = String(subCategory || '').toLowerCase();
+  const entry = Object.entries(SUBCATEGORY_COLOR_MAP).find(([slug]) => key.includes(slug));
+  return entry ? entry[1] : '#38bdf8';
+};
+
 const formatLineItemsForEditor = (lineItems = []) =>
   lineItems.map((entry) => ({
     ...entry,
@@ -164,11 +248,15 @@ const formatLineItemsForEditor = (lineItems = []) =>
   }));
 
 const sanitizeLineItemsForSave = (lineItems = []) =>
-  lineItems.map((entry) => ({
-    ...entry,
-    price: parseFloat(entry.price) || 0,
-    quantity: Number.isFinite(Number(entry.quantity)) && Number(entry.quantity) > 0 ? Number(entry.quantity) : 1,
-  }));
+  lineItems.map((entry) => {
+    const price = parseNumberValue(entry.price);
+    const quantity = parseNumberValue(entry.quantity);
+    return {
+      ...entry,
+      price,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 0,
+    };
+  });
 
 function ScanModeToggle({ mode, setMode }) {
     return (
@@ -258,6 +346,8 @@ const LineItemRow = React.memo(({
     const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
     const CategoryIconComponent = getCategoryIconComponent(item.main_category);
     const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
+    const categoryColor = getCategoryColor(item.main_category);
+    const subcategoryColor = getSubcategoryColor(item.sub_category);
 
     const onSubCategoryCreate = (newSub) => {
         const trimmed = newSub.trim();
@@ -316,7 +406,13 @@ const LineItemRow = React.memo(({
             <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm font-ubuntu" />
 
             <div className="flex items-center gap-2">
-                <CategoryIconComponent className="h-4 w-4 text-emerald-500" />
+                <CategoryIconComponent
+                    className="h-4 w-4"
+                    color={categoryColor}
+                    stroke={categoryColor}
+                    strokeWidth={2}
+                    fill={categoryColor}
+                />
                 <SearchableDropdown
                     options={mainCategoryOptions}
                     value={item.main_category}
@@ -331,7 +427,13 @@ const LineItemRow = React.memo(({
             </div>
 
             <div className="flex items-center gap-2">
-                <SubcategoryIconComponent className="h-4 w-4 text-sky-500" />
+                <SubcategoryIconComponent
+                    className="h-4 w-4"
+                    color={subcategoryColor}
+                    stroke={subcategoryColor}
+                    strokeWidth={2}
+                    fill={subcategoryColor}
+                />
                 <SearchableDropdown
                     options={subCategoryOptions}
                     value={item.sub_category}
@@ -431,7 +533,11 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     }, [fetchWithAuth]);
 
     useEffect(() => {
-        const newTotal = (data.line_items || []).reduce((acc, item) => acc + ((parseFloat(item.price) || 0) * (Number(item.quantity) || 1)), 0);
+        const newTotal = (data.line_items || []).reduce((acc, item) => {
+            const price = parseNumberValue(item.price);
+            const qty = parseNumberValue(item.quantity);
+            return acc + price * (Number.isFinite(qty) ? qty : 0);
+        }, 0);
         setData(prev => ({ ...prev, total_amount: newTotal }));
     }, [data.line_items, setData]);
 
@@ -565,7 +671,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     const handleLineItemChange = useCallback((index, field, value) => {
         const normalizedValue =
             field === 'price'
-                ? (typeof value === 'string' ? value.replace(/[^\d.,-]/g, '') : value)
+                ? (typeof value === 'string' ? value.replace(/,/g, '').replace(/[^\d.-]/g, '') : value)
                 : (typeof value === 'string' ? value.replace(/[^a-zA-Z0-9\s]/g, '') : value);
 
         setData(prev => {
@@ -1037,7 +1143,8 @@ export default function ScanReceipt() {
     setShowLoginPrompt(false);
   }, []);
 
-  const handleReset = () => {
+  const handleReset = (options = {}) => {
+    const { skipReload = false } = options;
     setFile(null);
     setExtractedData(null);
     setMarkdownPreview(null);
@@ -1046,7 +1153,9 @@ export default function ScanReceipt() {
     setSaveSuccessPrompt(false);
     clearPendingPreview();
     navigate('/scan');
-    window.location.reload();
+    if (!skipReload) {
+      window.location.reload();
+    }
   };
   
   const handleSave = async (options = {}) => {
@@ -1142,7 +1251,6 @@ export default function ScanReceipt() {
         throw new Error(message);
       }
 
-      handleReset();
       setSaveSuccessPrompt(true);
     } catch (error) { 
       console.error(error);
@@ -1208,13 +1316,19 @@ export default function ScanReceipt() {
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
-                onClick={() => setSaveSuccessPrompt(false)}
+                onClick={() => {
+                  handleReset({ skipReload: true });
+                  setSaveSuccessPrompt(false);
+                }}
                 className="w-full rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition-colors"
               >
                 Scan Another
               </button>
               <button
-                onClick={() => navigate('/insights')}
+                onClick={() => {
+                  setSaveSuccessPrompt(false);
+                  navigate(createPageUrl('Insights'));
+                }}
                 className="w-full rounded-xl bg-gray-600 px-4 py-3 text-white font-semibold hover:bg-gray-700 transition-colors"
               >
                 No
@@ -1290,6 +1404,10 @@ export default function ScanReceipt() {
             color: #0a0a0a !important;
             text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
           }
+          /* Remove green glow in the receipt preview/editor area */
+          .scan-scope .receipt-preview * {
+            text-shadow: none !important;
+          }
           .dark .scan-scope * {
             color: #f8fafc !important;
             text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
@@ -1297,6 +1415,9 @@ export default function ScanReceipt() {
           .dark .scan-scope *::placeholder {
             color: #e2e8f0 !important;
             text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
+          }
+          .dark .scan-scope .receipt-preview * {
+            text-shadow: none !important;
           }
           .scan-scope button:hover {
             color: #000 !important;
@@ -1311,10 +1432,10 @@ export default function ScanReceipt() {
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}
 
         {extractedData ? (
-            <div className="p-6 md:p-10 flex flex-col items-center h-full receipt-preview">
+            <div className="p-4 md:p-8 flex flex-col items-center h-full receipt-preview">
                 <div className="max-w-4xl w-full">
-                    <div className="text-center mb-5">
-                        <CheckCircle size={48} className="text-green-500 mx-auto mb-3" />
+                    <div className="text-center mb-4">
+                        <CheckCircle size={48} className="text-green-500 mx-auto mb-2" />
                         <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Review & Edit</h1>
                     </div>
                     <EditableReceipt
@@ -1378,7 +1499,7 @@ export default function ScanReceipt() {
                             )}
                         </div>
                     ) : (
-                        <div className="border-2 border-dashed border-white/40 rounded-2xl p-10 text-center cursor-pointer transition-colors hover:border-green-300/80 bg-white/25 backdrop-blur-2xl shadow-xl" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
+                        <div className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/25 backdrop-blur-2xl shadow-xl" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf"/>
                             <Upload size={48} className="text-gray-300 mb-4 mx-auto" />
                             <p className="text-lg font-semibold text-black">Drag & Drop or Click to Upload</p>
