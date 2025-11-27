@@ -306,17 +306,30 @@ const MerchantTooltip = ({ active, payload }) => {
   );
 };
 
-const StatsCard = ({ label, value = 0, helper }) => {
+const StatsCard = ({ label, value = 0, helper, glass = false }) => {
   const isNumber = typeof value === 'number' && Number.isFinite(value);
   const animatedValue = useAnimatedNumber(isNumber ? value : 0);
   const displayValue = isNumber ? formatCurrency(animatedValue) : value;
+  const baseClasses =
+    'rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl md:min-h-[140px] transition-colors';
+  const glassClasses =
+    'bg-white/12 border border-white/30 backdrop-blur-2xl text-white';
+  const defaultClasses =
+    'bg-white/5 dark:bg-gray-900/60 border border-white/10 backdrop-blur';
+
   return (
-    <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-4 md:p-6 flex flex-col gap-2 shadow-xl backdrop-blur md:min-h-[140px]">
-      <span className="text-xs uppercase tracking-[0.2em] text-gray-300 font-semibold">{label}</span>
-      <span className="text-2xl md:text-3xl font-bold text-white font-ubuntu">
+    <div className={`${baseClasses} ${glass ? glassClasses : defaultClasses}`}>
+      <span className={`text-xs uppercase tracking-[0.2em] font-semibold ${glass ? 'text-white/80' : 'text-gray-300'}`}>
+        {label}
+      </span>
+      <span className="text-2xl md:text-3xl font-bold text-white font-ubuntu drop-shadow-sm">
         {displayValue}
       </span>
-      {helper && <span className="text-xs text-gray-400 leading-relaxed">{helper}</span>}
+      {helper && (
+        <span className={`text-xs leading-relaxed ${glass ? 'text-white/70' : 'text-gray-400'}`}>
+          {helper}
+        </span>
+      )}
     </div>
   );
 };
@@ -2947,7 +2960,15 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [analytics.stats]);
 
   return (
-    <div className="p-4 md:p-6 lg:p-8 min-h-screen bg-[#050507] text-white font-playfair">
+    <div
+      className="p-4 md:p-6 lg:p-8 min-h-screen text-white font-playfair"
+      style={{
+        backgroundImage: "linear-gradient(160deg, rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url('/images/colorful-gradients-3840x2160-22838.jpg')",
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }}
+    >
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-playfair">
@@ -2995,6 +3016,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
               label="Total Spend Captured"
               value={analytics.stats.totalSpent || 0}
               helper={`Across ${analytics.stats.totalReceipts || 0} receipts`}
+              glass
             />
             <StatsCard
               label="Average Per Receipt"

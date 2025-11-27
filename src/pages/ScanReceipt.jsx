@@ -67,8 +67,14 @@ const normalizeMerchantName = (name = '') =>
     .normalize('NFKD')
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9 ]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const DEFAULT_CATEGORY_KEYS = Object.keys(SUB_CATEGORIES);
+const DEFAULT_CATEGORY_SET = new Set(DEFAULT_CATEGORY_KEYS.map((c) => c.toLowerCase()));
+const DEFAULT_SUBCATEGORY_SET = Object.fromEntries(
+  Object.entries(SUB_CATEGORIES).map(([cat, subs]) => [cat.toLowerCase(), new Set(subs.map((s) => s.toLowerCase()))])
+);
 
 const parseNumberValue = (value) => {
   if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
@@ -341,13 +347,49 @@ const LineItemRow = React.memo(({
     removeLineItem,
     setMainCategoryOptions,
     setSubCategoryOptionsMap,
-    saveUserCategoryPreference
+    saveUserCategoryPreference,
+    userMainSet,
+    masterMainSet,
+    userSubMap,
+    masterSubMap,
 }) => {
-    const subCategoryOptions = subCategoryOptionsMap[item.main_category] || [];
+    const mainKey = String(item.main_category || '');
+    const lowerKey = mainKey.toLowerCase();
+    const subCategoryOptions =
+        subCategoryOptionsMap[mainKey] ||
+        subCategoryOptionsMap[lowerKey] ||
+        [];
     const CategoryIconComponent = getCategoryIconComponent(item.main_category);
     const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
     const categoryColor = getCategoryColor(item.main_category);
     const subcategoryColor = getSubcategoryColor(item.sub_category);
+
+    const orderedMainCategories = useMemo(() => {
+        const userMains = Array.from(userMainSet || []);
+        const masterMains = Array.from(masterMainSet || []);
+        const defaults = DEFAULT_CATEGORY_KEYS;
+        const customs = (mainCategoryOptions || []).filter(
+            (c) => !DEFAULT_CATEGORY_SET.has(String(c || '').toLowerCase())
+        );
+        const combined = [...userMains, ...masterMains, ...defaults, ...customs];
+        return combined.filter(
+            (c, idx) => combined.findIndex((x) => String(x || '').toLowerCase() === String(c || '').toLowerCase()) === idx
+        );
+    }, [mainCategoryOptions, userMainSet, masterMainSet]);
+
+    const orderedSubcategories = useMemo(() => {
+        const key = String(item.main_category || '').toLowerCase();
+        const userSubs = Array.from((userSubMap && userSubMap[key]) || []);
+        const masterSubs = Array.from((masterSubMap && masterSubMap[key]) || []);
+        const defaults = Array.from(DEFAULT_SUBCATEGORY_SET[key] || []);
+        const customs = (subCategoryOptions || []).filter(
+            (s) => !(DEFAULT_SUBCATEGORY_SET[key] || new Set()).has(String(s || '').toLowerCase())
+        );
+        const combined = [...userSubs, ...masterSubs, ...defaults, ...customs];
+        return combined.filter(
+            (s, idx) => combined.findIndex((x) => String(x || '').toLowerCase() === String(s || '').toLowerCase()) === idx
+        );
+    }, [subCategoryOptions, item.main_category, userSubMap, masterSubMap]);
 
     const onSubCategoryCreate = (newSub) => {
         const trimmed = newSub.trim();
@@ -414,7 +456,7 @@ const LineItemRow = React.memo(({
                     fill={categoryColor}
                 />
                 <SearchableDropdown
-                    options={mainCategoryOptions}
+                    options={orderedMainCategories}
                     value={item.main_category}
                     onChange={(value) => handleLineItemChange(index, 'main_category', value)}
                     placeholder="Select Category"
@@ -435,7 +477,7 @@ const LineItemRow = React.memo(({
                     fill={subcategoryColor}
                 />
                 <SearchableDropdown
-                    options={subCategoryOptions}
+                    options={orderedSubcategories}
                     value={item.sub_category}
                     onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
                     placeholder="Select Subcategory"
@@ -450,11 +492,11 @@ const LineItemRow = React.memo(({
             <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
         </div>
     );
-});
+   });
 LineItemRow.displayName = 'LineItemRow';
 
 function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides, isSaving }) {
-    const { fetchWithAuth } = useAuth();
+    const { fetchWithAuth, user } = useAuth();
     const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
     const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
         Object.entries(SUB_CATEGORIES).reduce((acc, [key, values]) => {
@@ -462,6 +504,10 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             return acc;
         }, {})
     );
+    const [userMainSet, setUserMainSet] = useState(new Set());
+    const [masterMainSet, setMasterMainSet] = useState(new Set());
+    const [userSubMap, setUserSubMap] = useState({});
+    const [masterSubMap, setMasterSubMap] = useState({});
     const [storeTypeOptions, setStoreTypeOptions] = useState(() => {
         const base = new Set(
             Object.values(STORE_DATA).map((entry) => entry.StoreName_category)
@@ -471,6 +517,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     });
     const [storeList, setStoreList] = useState([]);
     const storeTypeManualRef = useRef(false);
+    const [userCategoryRows, setUserCategoryRows] = useState([]);
     const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
     const merchantOptions = useMemo(() => {
         const trimmed = (data.merchant_name || '').trim().toLowerCase();
@@ -527,6 +574,86 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             }
         }
         loadStores();
+        return () => {
+            isMounted = false;
+        };
+    }, [fetchWithAuth]);
+
+    useEffect(() => {
+        let isMounted = true;
+        async function loadCategoryOptions() {
+            try {
+                const fetcher = fetchWithAuth || fetch;
+                const resp = await fetcher('/api/category-options');
+                if (!resp.ok) return;
+                const payload = await resp.json();
+                if (!isMounted) return;
+
+                const userRows = Array.isArray(payload?.userCategories) ? payload.userCategories : [];
+                const masterRows = Array.isArray(payload?.masterCategories) ? payload.masterCategories : [];
+
+                setUserCategoryRows(userRows);
+
+                const nextUserMain = new Set();
+                const nextMasterMain = new Set();
+                const nextUserSubs = {};
+                const nextMasterSubs = {};
+
+                userRows.forEach((row) => {
+                    const main = (row.main_category || '').trim();
+                    const sub = (row.sub_category || '').trim();
+                    if (!main) return;
+                    nextUserMain.add(main);
+                    if (sub) {
+                        const key = main.toLowerCase();
+                        if (!nextUserSubs[key]) nextUserSubs[key] = new Set();
+                        nextUserSubs[key].add(sub);
+                    }
+                });
+
+                masterRows.forEach((row) => {
+                    const main = (row.main_category || '').trim();
+                    const sub = (row.sub_category || '').trim();
+                    if (!main) return;
+                    nextMasterMain.add(main);
+                    if (sub) {
+                        const key = main.toLowerCase();
+                        if (!nextMasterSubs[key]) nextMasterSubs[key] = new Set();
+                        nextMasterSubs[key].add(sub);
+                    }
+                });
+
+                setUserMainSet(nextUserMain);
+                setMasterMainSet(nextMasterMain);
+                setUserSubMap(Object.fromEntries(Object.entries(nextUserSubs).map(([k, v]) => [k, Array.from(v)])));
+                setMasterSubMap(Object.fromEntries(Object.entries(nextMasterSubs).map(([k, v]) => [k, Array.from(v)])));
+
+                setMainCategoryOptions((prev) => {
+                    const combined = new Set(prev);
+                    nextUserMain.forEach((m) => combined.add(m));
+                    nextMasterMain.forEach((m) => combined.add(m));
+                    return Array.from(combined);
+                });
+
+                setSubCategoryOptionsMap((prev) => {
+                    const next = { ...prev };
+                    const mergeSubs = (targetMap, source) => {
+                        Object.entries(source).forEach(([mainLower, subs]) => {
+                            const existing = new Set(next[mainLower] || next[Object.keys(next).find(k => k.toLowerCase() === mainLower)] || []);
+                            subs.forEach((s) => existing.add(s));
+                            const mainKey = Object.keys(next).find((k) => k.toLowerCase() === mainLower) || mainLower;
+                            next[mainKey] = Array.from(existing);
+                        });
+                    };
+                    mergeSubs(next, Object.fromEntries(Object.entries(nextUserSubs).map(([k, set]) => [k, Array.from(set)])));
+                    mergeSubs(next, Object.fromEntries(Object.entries(nextMasterSubs).map(([k, set]) => [k, Array.from(set)])));
+                    return next;
+                });
+            } catch (error) {
+                console.error('Failed to load category options', error);
+            }
+        }
+        loadCategoryOptions();
         return () => {
             isMounted = false;
         };
@@ -724,8 +851,12 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     return (
         <div className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-2xl p-6 rounded-2xl shadow-2xl w-full text-left space-y-6 font-playfair text-gray-800">
             {imagePreviewUrl && (
-                <div className="mb-4 rounded-2xl overflow-hidden receipt-frame">
-                    <img src={imagePreviewUrl} alt="Receipt Preview" className="w-full h-auto object-contain max-h-96" />
+                <div className="mb-4 rounded-2xl overflow-hidden receipt-frame sticky top-6 z-20">
+                    <img
+                        src={imagePreviewUrl}
+                        alt="Receipt Preview"
+                        className="w-full h-auto object-contain max-h-96"
+                    />
                 </div>
             )}
             <div className="bg-gray-50/60 dark:bg-gray-800/40 border border-gray-200/40 dark:border-gray-700/40 rounded-3xl p-4 md:p-5 mb-6">
@@ -818,6 +949,10 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
                             setMainCategoryOptions={setMainCategoryOptions}
                             setSubCategoryOptionsMap={setSubCategoryOptionsMap}
                             saveUserCategoryPreference={saveUserCategoryPreference}
+                            userMainSet={userMainSet}
+                            masterMainSet={masterMainSet}
+                            userSubMap={userSubMap}
+                            masterSubMap={masterSubMap}
                         />
                 ))}
             </div>

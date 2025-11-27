@@ -2929,6 +2929,53 @@ app.post('/api/update-user-category', authenticateRequest, async (req, res) => {
   }
 });
 
+app.get('/api/user-categories', authenticateRequest, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('user_categories')
+      .select('main_category, sub_category')
+      .eq('user_id', req.user.id);
+
+    if (error) {
+      throw error;
+    }
+
+    res.json(Array.isArray(data) ? data : []);
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to load user categories');
+  }
+});
+
+app.get('/api/category-options', authenticateRequest, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    const userPromise = supabase
+      .from('user_categories')
+      .select('main_category, sub_category')
+      .eq('user_id', userId);
+
+    const masterPromise = supabase
+      .from('master_items')
+      .select('main_category, sub_category');
+
+    const [{ data: userData, error: userError }, { data: masterData, error: masterError }] = await Promise.all([
+      userPromise,
+      masterPromise,
+    ]);
+
+    if (userError) throw userError;
+    if (masterError) throw masterError;
+
+    res.json({
+      userCategories: Array.isArray(userData) ? userData : [],
+      masterCategories: Array.isArray(masterData) ? masterData : [],
+    });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to load category options');
+  }
+});
+
 app.post('/api/reset-user-category', authenticateRequest, async (req, res) => {
   try {
     const { item_name } = req.body || {};
