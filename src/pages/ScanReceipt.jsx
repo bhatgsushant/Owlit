@@ -1061,14 +1061,6 @@ export default function ScanReceipt() {
   }, []);
 
   useEffect(() => {
-    if (isMobile) {
-      setMode('manual');
-      setScanMode('receipt');
-      setIsCameraOpen(false);
-    }
-  }, [isMobile]);
-
-  useEffect(() => {
     const params = new URLSearchParams(location.search);
     const shouldEdit = params.get('edit');
     if (shouldEdit) {
@@ -1271,16 +1263,12 @@ export default function ScanReceipt() {
   };
 
   const handleUploadClick = () => {
-    if (isMobile) {
-      setMode('manual');
-      return;
-    }
     setMode('upload');
     fileInputRef.current.click();
   }
 
   const handleModeChange = (newMode) => {
-    if (isMobile && (newMode === 'upload' || newMode === 'camera')) {
+    if (isMobile && newMode === 'camera') {
         setMode('manual');
         setIsCameraOpen(false);
         return;
@@ -1326,7 +1314,7 @@ export default function ScanReceipt() {
     setFile(null);
     setExtractedData(null);
     setMarkdownPreview(null);
-    setMode(isMobile ? 'manual' : 'upload');
+    setMode('upload');
     setScanMode('receipt');
     setIsCameraOpen(false);
     setDuplicatePrompt(null);
@@ -1741,12 +1729,10 @@ export default function ScanReceipt() {
                     </div>
 
                     {!file && (
-                        <div className={`mt-8 grid grid-cols-2 ${(!isMobile && scanMode === 'receipt') ? 'md:grid-cols-4' : 'md:grid-cols-2'} gap-4`}>
+                        <div className="mt-8 grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <ActionButton text="Upload" icon={Upload} onClick={handleUploadClick} isActive={mode === 'upload'} />
                             {!isMobile && (
-                              <>
-                                <ActionButton text="Upload" icon={Upload} onClick={handleUploadClick} isActive={mode === 'upload'} />
-                                <ActionButton text="Camera" icon={Camera} onClick={() => handleModeChange('camera')} isActive={mode === 'camera'} />
-                              </>
+                              <ActionButton text="Camera" icon={Camera} onClick={() => handleModeChange('camera')} isActive={mode === 'camera'} />
                             )}
                             <ActionButton text="Manual" icon={Edit} onClick={() => handleModeChange('manual')} isActive={mode === 'manual'} />
                             <ActionButton text="Voice" icon={Mic} onClick={() => handleModeChange('voice')} isActive={mode === 'voice'} />
