@@ -2201,8 +2201,9 @@ const sanitizeRedirectPath = (value) => {
 
 app.get('/auth/google', (req, res, next) => {
   const platform = req.query.platform || 'web';
-  // Encode the platform in the 'state' parameter to survive the redirect
-  const state = Buffer.from(JSON.stringify({ platform })).toString('base64');
+  const redirect = req.query.redirect || '/scan';
+  // Encode the platform and redirect in the 'state' parameter to survive the redirect
+  const state = Buffer.from(JSON.stringify({ platform, redirect })).toString('base64');
   
   const authenticator = passport.authenticate('google', { 
     scope: ['profile', 'email'],
@@ -2216,20 +2217,22 @@ app.get('/auth/google/callback',
   // Disable session creation for the callback, as we are using JWT tokens
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
-    try {
-      // Issue a JWT for the authenticated user
-      const token = issueJwtForUser(req.user);
+  try {
+    // Issue a JWT for the authenticated user
+    const token = issueJwtForUser(req.user);
 
-      let platform = 'web';
-      // Decode the platform from the 'state' parameter returned by Google
-      if (req.query.state) {
-        try {
-          const decodedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('ascii'));
-          platform = decodedState.platform || 'web';
-        } catch (e) {
-          console.error("Error decoding state:", e);
-        }
+    let platform = 'web';
+    let redirectPath = '/scan';
+    // Decode the platform from the 'state' parameter returned by Google
+    if (req.query.state) {
+      try {
+        const decodedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('ascii'));
+        platform = decodedState.platform || 'web';
+        redirectPath = decodedState.redirect || '/scan';
+      } catch (e) {
+        console.error("Error decoding state:", e);
       }
+    }
 
       // ---------------------------------------
       // 📱 iOS FLOW → deep link
@@ -2239,16 +2242,16 @@ app.get('/auth/google/callback',
         return res.redirect(`owlit://auth-callback?token=${token}`);
       }
 
-      // ---------------------------------------
-      // 💻 WEB FLOW → redirect to Vercel
-      // ---------------------------------------
-      console.log(`💻 Web platform detected. Redirecting to client URL.`);
-      const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
-      redirectUrl.searchParams.set('token', token);
-      redirectUrl.searchParams.set('redirect', '/scan'); // Default redirect for web
+    // ---------------------------------------
+    // 💻 WEB FLOW → redirect to Vercel
+    // ---------------------------------------
+    console.log(`💻 Web platform detected. Redirecting to client URL.`);
+    const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
+    redirectUrl.searchParams.set('token', token);
+    redirectUrl.searchParams.set('redirect', redirectPath || '/scan'); // honor requested redirect
 
-      return res.redirect(redirectUrl.toString());
-    } catch (error) {
+    return res.redirect(redirectUrl.toString());
+  } catch (error) {
       console.error('Failed to issue JWT after Google OAuth:', error);
       return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
     }

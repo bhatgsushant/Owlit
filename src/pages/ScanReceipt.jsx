@@ -1615,7 +1615,7 @@ export default function ScanReceipt() {
       `}</style>
 
       <div
-        className={`scan-scope ${extractedData ? 'receipt-preview-bg' : 'dark-bg'} pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto font-playfair`}
+        className="scan-scope pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto font-playfair"
         style={pageBackgroundStyle}
       >
         {isCameraOpen && <CameraView onCapture={handleCapture} onClose={() => setIsCameraOpen(false)} />}

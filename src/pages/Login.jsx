@@ -33,7 +33,7 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0b1120] px-4 py-10">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gradient-to-br from-[#0f172a] via-[#1e1b4b] to-[#0b1120] px-4 py-10 font-playfair">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(255,255,255,0.12),_transparent_50%),_radial-gradient(circle_at_bottom,_rgba(96,165,250,0.35),_transparent_45%)] blur-[220px]" />
 
       <div className="relative grid w-full max-w-4xl grid-cols-1 gap-6 rounded-[36px] border border-white/15 bg-white/8 p-8 backdrop-blur-[55px] shadow-[0_45px_140px_rgba(7,10,24,0.7)] md:grid-cols-[0.9fr_1.1fr]">
@@ -45,23 +45,21 @@ const LoginPage = () => {
         >
           <div className="inline-flex items-center gap-3 mb-6">
             <div className="w-12 h-12 bg-black rounded-xl flex items-center justify-center shadow-lg">
-              <svg viewBox="0 0 128 128" className="w-7 h-7" aria-hidden="true">
-                <defs>
-                  <linearGradient id="login-white-grad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="white" stopOpacity="1" />
-                    <stop offset="100%" stopColor="white" stopOpacity="0.65" />
-                  </linearGradient>
-                </defs>
+              <svg viewBox="0 0 128 128" width="32" height="32" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                 <path
-                  fill="url(#login-white-grad)"
-                  d="M40 60 c-10 -20 10 -40 36 -36 c18 3 32 22 28 36 c8 4 14 12 14 20 c0 14 -14 24 -32 24 H46 c-18 0 -32 -10 -32 -24 c0 -9 6 -16 14 -20 z"
+                  fill="white"
+                  d="
+                    M28 34 64 16 100 34 100 92
+                    C100 108 84 116 64 116
+                    C44 116 28 108 28 92
+                    Z"
                 />
-                <rect x="58" y="84" width="12" height="26" rx="4" fill="url(#login-white-grad)" />
+                <circle cx="48" cy="60" r="9" fill="black" />
+                <circle cx="80" cy="60" r="9" fill="black" />
+                <polygon points="64,72 56,86 72,86" fill="black" />
               </svg>
             </div>
-            <span className="text-3xl font-extrabold text-white">
-              Owlit
-            </span>
+            <span className="text-3xl font-extrabold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">Owlit</span>
           </div>
           <h1 className="text-3xl font-bold text-white">Welcome Back</h1>
           <p className="text-slate-300 mt-2">Sign in to access your intelligent Owlit.</p>
@@ -69,7 +67,7 @@ const LoginPage = () => {
           <div className="flex flex-col gap-4 mt-10">
             <Button
               onClick={() => handleLogin('google')}
-              className="flex items-center justify-center w-full h-14 rounded-xl bg-gradient-to-r from-red-400 to-red-600 text-white font-semibold shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300"
+              className="flex items-center justify-center w-full h-14 rounded-xl bg-gradient-to-r from-red-400 to-red-600 text-white font-semibold shadow-lg hover:shadow-2xl transform hover:-translate-y-1 transition-all duration-300 font-sans"
             >
               <FcGoogle className="mr-3 h-6 w-6" />
               Sign in with Google
