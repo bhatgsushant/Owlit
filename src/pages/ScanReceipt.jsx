@@ -70,6 +70,17 @@ const normalizeMerchantName = (name = '') =>
   .replace(/\s+/g, ' ')
   .trim();
 
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(typeof window !== 'undefined' ? window.innerWidth <= breakpoint : false);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+  return isMobile;
+};
+
 const DEFAULT_CATEGORY_KEYS = Object.keys(SUB_CATEGORIES);
 const DEFAULT_CATEGORY_SET = new Set(DEFAULT_CATEGORY_KEYS.map((c) => c.toLowerCase()));
 const DEFAULT_SUBCATEGORY_SET = Object.fromEntries(
@@ -271,9 +282,6 @@ function ScanModeToggle({ mode, setMode }) {
                 <button onClick={() => setMode('receipt')} className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'receipt' ? 'bg-green-500 text-white' : 'text-gray-200 hover:bg-white/10'}`}>
                     Scan Receipt
                 </button>
-                <button onClick={() => setMode('document')} className={`px-4 py-2 text-sm font-semibold rounded-full transition-colors ${mode === 'document' ? 'bg-green-500 text-white' : 'text-gray-200 hover:bg-white/10'}`}>
-                    Scan Document
-                </button>
             </div>
         </div>
     );
@@ -293,17 +301,29 @@ function ActionButton({ onClick, icon: Icon, text, isActive }) {
 
 function DocumentPreview({ markdown, onApprove, onCancel }) {
     return (
-        <div className="font-playfair bg-[#111827]/90 backdrop-blur-2xl rounded-[14px] p-6 w-full text-left shadow-2xl border border-gray-800/80">
+        <div className="font-playfair bg-white text-white backdrop-blur-2xl rounded-[14px] p-6 w-full text-left shadow-2xl border border-white/20 document-preview">
             <div className="flex justify-between items-start mb-4">
-                <h2 className="font-bold text-xl text-white leading-[1.3]">Extracted Document</h2>
-                <span className="bg-[#1F2937] text-white font-semibold text-xs leading-[1.4] px-2.5 py-1 rounded-full">Preview</span>
+                <h2 className="font-bold text-xl leading-[1.3] text-white">Extracted Document</h2>
+                <span className="bg-white/20 text-white font-semibold text-xs leading-[1.4] px-2.5 py-1 rounded-full">Preview</span>
             </div>
-            <div className="space-y-4 text-base font-normal text-[#D1D5DB] leading-[1.6] max-h-96 overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#4B5563 #1F2937' }}>
+            <div className="space-y-4 text-base font-normal leading-[1.6] max-h-96 overflow-y-auto pr-2 text-white" style={{ scrollbarWidth: 'thin', scrollbarColor: '#e2e8f0 #0f172a' }}>
                 {markdown.split('\n').map((p, i) => <p key={i}>{p}</p>)}
             </div>
             <div className="flex gap-4 mt-8">
-                <button onClick={onApprove} className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center"><CheckCircle size={20} className="mr-2" />Approve & Save</button>
-                <button onClick={onCancel} className="w-full bg-gray-700 text-white py-3 px-6 rounded-lg font-semibold hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-opacity-50 flex items-center justify-center"><X size={20} className="mr-2" />Discard</button>
+                <button
+                    onClick={onApprove}
+                    className="w-full bg-green-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-green-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 flex items-center justify-center"
+                >
+                    <CheckCircle size={20} className="mr-2" />
+                    <span className="text-white">Approve & Save</span>
+                </button>
+                <button
+                    onClick={onCancel}
+                    className="w-full bg-red-600 text-white py-3 px-6 rounded-lg font-semibold hover:bg-red-700 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-opacity-50 flex items-center justify-center"
+                >
+                    <X size={20} className="mr-2" />
+                    <span className="text-white">Discard</span>
+                </button>
             </div>
         </div>
     );
@@ -711,7 +731,12 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
               )
             : null;
         const info = getStoreInfo(merchantValue, userStoreOverrides);
-        const derivedType = matchedStore?.store_type || info?.StoreName_category || 'Other';
+        // Prefer live store_info match, then existing value, then local mapping
+        const derivedType =
+            matchedStore?.store_type ||
+            data.store_type ||
+            info?.StoreName_category ||
+            'Other';
 
         if (derivedType) {
             setStoreTypeOptions((prevOptions) => {
@@ -1012,6 +1037,7 @@ export default function ScanReceipt() {
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const processingRef = useRef(null);
+  const isMobile = useIsMobile();
   const pageBackgroundStyle = useMemo(() => {
     const base = "url('/images/ScanPageBackgroundImage.svg')";
     const gradient = "linear-gradient(135deg, rgba(255,247,251,0.9), rgba(255,241,246,0.85))";
@@ -1033,6 +1059,14 @@ export default function ScanReceipt() {
       .then((json) => setLeafsAnimation(json))
       .catch((err) => console.error('Failed to load Leafsblow animation', err));
   }, []);
+
+  useEffect(() => {
+    if (isMobile) {
+      setMode('manual');
+      setScanMode('receipt');
+      setIsCameraOpen(false);
+    }
+  }, [isMobile]);
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -1237,11 +1271,20 @@ export default function ScanReceipt() {
   };
 
   const handleUploadClick = () => {
+    if (isMobile) {
+      setMode('manual');
+      return;
+    }
     setMode('upload');
     fileInputRef.current.click();
   }
 
   const handleModeChange = (newMode) => {
+    if (isMobile && (newMode === 'upload' || newMode === 'camera')) {
+        setMode('manual');
+        setIsCameraOpen(false);
+        return;
+    }
     setMode(newMode);
     if (newMode !== 'upload') {
         setFile(null);
@@ -1283,7 +1326,9 @@ export default function ScanReceipt() {
     setFile(null);
     setExtractedData(null);
     setMarkdownPreview(null);
-    setMode('upload');
+    setMode(isMobile ? 'manual' : 'upload');
+    setScanMode('receipt');
+    setIsCameraOpen(false);
     setDuplicatePrompt(null);
     setSaveSuccessPrompt(false);
     clearPendingPreview();
@@ -1405,7 +1450,7 @@ export default function ScanReceipt() {
     handleSave(payload);
   };
 
-  const pageTitle = scanMode === 'receipt' ? 'Scan Receipt' : 'Scan Document';
+  const pageTitle = 'Scan Receipt';
 
   return (
     <>
@@ -1442,20 +1487,24 @@ export default function ScanReceipt() {
         </div>
       )}
       {saveSuccessPrompt && (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 px-4">
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl text-center">
-            <CheckCircle size={48} className="mx-auto text-green-500" />
-            <p className="mt-4 text-xl font-semibold text-gray-900">Receipt saved</p>
-            <p className="mt-2 text-sm text-gray-600">
-              Your receipt has been stored successfully. Would you like to scan another?
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4">
+          <div className="w-full max-w-md rounded-3xl border border-white/15 bg-white/10 text-white shadow-[0_30px_120px_rgba(0,0,0,0.6)] backdrop-blur-2xl p-6 md:p-7 text-center">
+            <div className="flex flex-col items-center gap-3">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-300/30 shadow-inner shadow-emerald-500/30">
+                <CheckCircle size={28} className="text-emerald-300" />
+              </div>
+              <p className="text-xl font-semibold font-playfair">Receipt saved</p>
+              <p className="text-sm text-white/80">
+                Your receipt has been stored successfully. Would you like to scan another?
+              </p>
+            </div>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
                   handleReset({ skipReload: true });
                   setSaveSuccessPrompt(false);
                 }}
-                className="w-full rounded-xl bg-blue-600 px-4 py-3 text-white font-semibold hover:bg-blue-700 transition-colors"
+                className="w-full rounded-xl bg-emerald-500/90 px-4 py-3 text-white font-semibold hover:bg-emerald-500 transition-colors shadow-lg shadow-emerald-500/30"
               >
                 Scan Another
               </button>
@@ -1464,7 +1513,7 @@ export default function ScanReceipt() {
                   setSaveSuccessPrompt(false);
                   navigate(createPageUrl('Insights'));
                 }}
-                className="w-full rounded-xl bg-gray-600 px-4 py-3 text-white font-semibold hover:bg-gray-700 transition-colors"
+                className="w-full rounded-xl bg-white/10 px-4 py-3 text-white font-semibold hover:bg-white/20 transition-colors border border-white/20"
               >
                 No
               </button>
@@ -1543,6 +1592,19 @@ export default function ScanReceipt() {
           .scan-scope .receipt-preview * {
             text-shadow: none !important;
           }
+          /* Remove glow from document preview text */
+          .scan-scope .document-preview * {
+            text-shadow: none !important;
+            color: inherit !important;
+          }
+          .scan-scope .document-preview {
+            color: #000000 !important;
+          }
+          .scan-scope .document-preview button,
+          .scan-scope .document-preview button span,
+          .scan-scope .document-preview button svg {
+            color: #ffffff !important;
+          }
           .dark .scan-scope * {
             color: #f8fafc !important;
             text-shadow: 0 1px 1px rgba(34, 197, 94, 0.5);
@@ -1553,6 +1615,10 @@ export default function ScanReceipt() {
           }
           .dark .scan-scope .receipt-preview * {
             text-shadow: none !important;
+          }
+          .dark .scan-scope .document-preview * {
+            text-shadow: none !important;
+            color: inherit !important;
           }
           .scan-scope button:hover {
             color: #000 !important;
@@ -1675,15 +1741,15 @@ export default function ScanReceipt() {
                     </div>
 
                     {!file && (
-                        <div className={`mt-8 grid grid-cols-1 sm:grid-cols-2 ${scanMode === 'receipt' ? 'md:grid-cols-4' : 'sm:grid-cols-2'} gap-4`}>
-                            <ActionButton text="Upload" icon={Upload} onClick={handleUploadClick} isActive={mode === 'upload'} />
-                            <ActionButton text="Camera" icon={Camera} onClick={() => handleModeChange('camera')} isActive={mode === 'camera'} />
-                            {scanMode === 'receipt' && (
-                                <>
-                                    <ActionButton text="Manual" icon={Edit} onClick={() => handleModeChange('manual')} isActive={mode === 'manual'} />
-                                    <ActionButton text="Voice" icon={Mic} onClick={() => handleModeChange('voice')} isActive={mode === 'voice'} />
-                                </>
+                        <div className={`mt-8 grid grid-cols-2 ${(!isMobile && scanMode === 'receipt') ? 'md:grid-cols-4' : 'md:grid-cols-2'} gap-4`}>
+                            {!isMobile && (
+                              <>
+                                <ActionButton text="Upload" icon={Upload} onClick={handleUploadClick} isActive={mode === 'upload'} />
+                                <ActionButton text="Camera" icon={Camera} onClick={() => handleModeChange('camera')} isActive={mode === 'camera'} />
+                              </>
                             )}
+                            <ActionButton text="Manual" icon={Edit} onClick={() => handleModeChange('manual')} isActive={mode === 'manual'} />
+                            <ActionButton text="Voice" icon={Mic} onClick={() => handleModeChange('voice')} isActive={mode === 'voice'} />
                         </div>
                     )}
                 </div>

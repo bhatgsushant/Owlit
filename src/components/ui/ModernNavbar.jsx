@@ -243,7 +243,7 @@ function BrandMark() {
 </svg>
 
       </motion.div>
-      <span className="text-xl font-bold text-white font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
+      <span className="text-xl font-bold text-black font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
         Owlit
       </span>
     </div>
@@ -581,18 +581,20 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
             className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-sm"
+            onClick={() => setIsOpen(false)}
           >
             <motion.div
               initial={{ x: '100%' }}
               animate={{ x: 0 }}
               exit={{ x: '100%' }}
               transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
-              className="relative h-full w-[55vw] max-w-[260px] bg-purple-700/5 backdrop-blur-2xl border-l border-white/15 rounded-l-3xl flex flex-col items-start justify-start gap-4 text-left pt-8"
+              className="relative h-full w-[55vw] max-w-[260px] bg-white text-black backdrop-blur-2xl border-l border-black/10 rounded-l-3xl flex flex-col items-start justify-start gap-4 text-left pt-8"
+              onClick={(e) => e.stopPropagation()}
             >
               <button
                 type="button"
                 onClick={() => setIsOpen(false)}
-                className="absolute top-6 right-6 rounded-full border border-white/30 bg-white/10 p-2 text-white hover:bg-white/20"
+                className="absolute top-6 right-6 rounded-full border border-black/10 bg-black/5 p-2 text-black hover:bg-black/10"
                 aria-label="Close menu"
               >
                 <X size={22} />
@@ -600,8 +602,8 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
               <div className="mb-2 self-start pl-6">
                 <BrandMark />
               </div>
-              <div className="flex flex-col items-start w-full h-full px-6 font-playfair text-sm">
-                <div className="flex flex-col w-full gap-4 pt-2">
+              <div className="flex flex-col items-start w-full h-full px-6 font-playfair text-sm text-black">
+                <div className="flex flex-col w-full gap-4 pt-2 text-black">
                   {(() => {
                     const iconMap = {
                       Home: DrawerHomeIcon,
@@ -625,9 +627,9 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                           key={item.name}
                           to={item.href}
                           onClick={() => setIsOpen(false)}
-                          className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-white/90 hover:text-white transition-colors"
+                          className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-black hover:text-emerald-600 transition-colors"
                         >
-                          <Icon size={20} className="shrink-0" />
+                          <Icon size={20} className="shrink-0 text-black" />
                           <span className="leading-none">{item.name}</span>
                         </Link>
                       );
@@ -638,10 +640,10 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                   <div className="mt-auto w-full pb-6 pt-4">
                     <button
                       onClick={logout}
-                      className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-red-400 hover:text-red-300"
+                      className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-red-600 hover:text-red-500"
                     >
-                      <LogOut size={20} className="shrink-0" />
-                      <span className="leading-none">Logout</span>
+                      <LogOut size={20} className="shrink-0 text-red-600" />
+                      <span className="leading-none text-red-600">Logout</span>
                     </button>
                   </div>
                 ) : null}

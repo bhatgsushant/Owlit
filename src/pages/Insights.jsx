@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
+import { getStoreInfo } from '@/utils/logo';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
@@ -477,7 +478,7 @@ const TimeframeControls = ({
 };
 
 export default function Insights() {
-  const { user, loading: authLoading, fetchWithAuth } = useAuth();
+  const { user, loading: authLoading, fetchWithAuth, userStoreOverrides } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
   const [receipts, setReceipts] = useState([]);
@@ -516,6 +517,7 @@ export default function Insights() {
   const [selectedTimelineMonth, setSelectedTimelineMonth] = useState(() => new Date().getMonth());
   const [selectedTimelineQuarter, setSelectedTimelineQuarter] = useState(null);
   const [selectedTrendItem, setSelectedTrendItem] = useState(null);
+  const [storeInfoList, setStoreInfoList] = useState([]);
   const [categoryPieCategory, setCategoryPieCategory] = useState(null);
   const [dateRange, setDateRange] = useState({ start: null, end: null }); // {start: 'yyyy-MM-dd', end: 'yyyy-MM-dd'}
   const [showAllMerchants, setShowAllMerchants] = useState(false);
@@ -654,6 +656,21 @@ export default function Insights() {
   useEffect(() => {
     let isMounted = true;
 
+    const fetchStoreInfo = async () => {
+      try {
+        const response = await fetchWithAuth('/api/store-info');
+        if (!response.ok) return;
+        const data = await response.json();
+        if (isMounted && Array.isArray(data)) {
+          setStoreInfoList(data);
+        }
+      } catch (err) {
+        console.error('Failed to load store info', err);
+      }
+    };
+
+    fetchStoreInfo();
+
     const fetchReceipts = async () => {
       setIsLoading(true);
       setError(null);
@@ -705,6 +722,20 @@ export default function Insights() {
   const processedReceipts = useMemo(() => {
     if (!receipts.length) return [];
 
+    const resolveStoreType = (receipt) => {
+      const name = (receipt.merchant_name || '').trim();
+      const match = storeInfoList.find(
+        (entry) => (entry.merchant_name || '').toLowerCase() === name.toLowerCase()
+      );
+      const fallbackInfo = getStoreInfo(name, userStoreOverrides);
+      return (
+        match?.store_type ||
+        receipt.store_type ||
+        fallbackInfo?.StoreName_category ||
+        'Other'
+      );
+    };
+
     return receipts.map((receipt) => {
       const items = Array.isArray(receipt.line_items) ? receipt.line_items : [];
       const itemsTotal = items.reduce((sum, item) => {
@@ -733,6 +764,7 @@ export default function Insights() {
 
       return {
         ...receipt,
+        store_type: resolveStoreType(receipt),
         line_items: items,
         total_amount: Number(receipt.total_amount) > 0 ? Number(receipt.total_amount) : itemsTotal,
         dateObj: isValidDate ? parsedDate : null,
@@ -2111,9 +2143,11 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
                 : p.value;
               const value = Number(rawValue || 0);
               if (!value) return null;
-              return `${p.marker} ${p.seriesName}: ${formatCurrency(value)}`;
+              return { label: `${p.marker} ${p.seriesName}: ${formatCurrency(value)}`, value };
             })
-            .filter(Boolean);
+            .filter(Boolean)
+            .sort((a, b) => b.value - a.value)
+            .map((item) => item.label);
           if (!entries.length) return '';
           const axisLabel = params?.[0]?.axisValueLabel || params?.[0]?.name || '';
           return [axisLabel, ...entries].join('<br/>');
@@ -2960,15 +2994,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
   }, [analytics.stats]);
 
   return (
-    <div
-      className="p-4 md:p-6 lg:p-8 min-h-screen text-white font-playfair"
-      style={{
-        backgroundImage: "linear-gradient(160deg, rgba(0,0,0,0.4), rgba(0,0,0,0.7)), url('/images/colorful-gradients-3840x2160-22838.jpg')",
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat',
-      }}
-    >
+    <div className="p-4 md:p-6 lg:p-8 min-h-screen text-white font-playfair bg-[#050507]">
       <AnimatedSection>
         <div className="space-y-3">
           <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-white font-playfair">
@@ -3117,6 +3143,38 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8 mt-8">
         <AnimatedSection delay={0.1}>
           <ChartCard
+            title="Category Drilldown"
+            description={drilldownDescription}
+            option={drilldownOption}
+            isLoading={isLoading}
+            hasData={Boolean(drilldownOption)}
+            onEvents={drilldownOption ? { click: handleDrillClick } : undefined}
+            emptyMessage={drilldownEmptyMessage}
+            controls={categoryDrillControls}
+            actions={categoryDrillActions}
+            height={300}
+          />
+        </AnimatedSection>
+        <AnimatedSection delay={0.12}>
+          <ChartCard
+            title="Sub-category Nightingale"
+            description="A Nightingale rose chart showcasing which sub-categories dominate your overall spend."
+            option={subcategoryNightingaleOption}
+            isLoading={isLoading}
+            hasData={Boolean(subcategoryNightingaleOption)}
+            emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
+            height={300}
+            actions={
+              <TimeframeControls
+                timeGranularity={subcategoryNightingaleGranularity}
+                onGranularityChange={handleChartGranularityChange('subcategoryNightingale')}
+                options={granularityOptionsNoDay}
+              />
+            }
+          />
+        </AnimatedSection>
+        <AnimatedSection delay={0.14}>
+          <ChartCard
             title="Timeline Spend Trend"
             description="Pivot between day, week, month, quarter, or year totals to see how spending patterns evolve."
             option={spendingTrendOption}
@@ -3132,7 +3190,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             }
           />
         </AnimatedSection>
-        <AnimatedSection delay={0.12}>
+        <AnimatedSection delay={0.16}>
           <ChartCard
             title="Category Timeline"
             description="Compare how each category contributes to overall spend for the selected timeline granularity."
@@ -3150,7 +3208,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             }
           />
         </AnimatedSection>
-        <AnimatedSection delay={0.14}>
+        <AnimatedSection delay={0.18}>
           <ChartCard
             title="Top Merchants"
             description={merchantDescription}
@@ -3163,7 +3221,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             emptyMessage="Scan more receipts to unlock merchant insights."
           />
         </AnimatedSection>
-        <AnimatedSection delay={0.16}>
+        <AnimatedSection delay={0.2}>
           <ChartCard
             title="Weekday Intensity"
             description="Understand which days of the week drive the biggest spending spikes."
@@ -3175,38 +3233,6 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         </AnimatedSection>
       </div>
 
-      <AnimatedSection delay={0.18}>
-        <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
-          <ChartCard
-            title="Category Drilldown"
-            description={drilldownDescription}
-            option={drilldownOption}
-            isLoading={isLoading}
-            hasData={Boolean(drilldownOption)}
-            onEvents={drilldownOption ? { click: handleDrillClick } : undefined}
-            emptyMessage={drilldownEmptyMessage}
-            controls={categoryDrillControls}
-            actions={categoryDrillActions}
-            height={300}
-          />
-          <ChartCard
-            title="Sub-category Nightingale"
-            description="A Nightingale rose chart showcasing which sub-categories dominate your overall spend."
-            option={subcategoryNightingaleOption}
-            isLoading={isLoading}
-            hasData={Boolean(subcategoryNightingaleOption)}
-            emptyMessage="Capture receipts with detailed line items to reveal sub-category spend."
-            height={300}
-            actions={
-              <TimeframeControls
-                timeGranularity={subcategoryNightingaleGranularity}
-                onGranularityChange={handleChartGranularityChange('subcategoryNightingale')}
-                options={granularityOptionsNoDay}
-              />
-            }
-          />
-        </div>
-      </AnimatedSection>
 
       <AnimatedSection delay={0.2}>
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
