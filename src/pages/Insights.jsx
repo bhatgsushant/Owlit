@@ -739,11 +739,8 @@ export default function Insights() {
     return receipts.map((receipt) => {
       const items = Array.isArray(receipt.line_items) ? receipt.line_items : [];
       const itemsTotal = items.reduce((sum, item) => {
-        const price = Number(item.price ?? item.Price ?? 0);
-        const quantityRaw = item.quantity ?? item.Quantity ?? 1;
-        const quantity = Number(quantityRaw);
-        const multiplier = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
-        return sum + price * multiplier;
+        const price = Number(item.line_total ?? item.price ?? item.Price ?? 0);
+        return sum + price;
       }, 0);
 
       const rawDate =

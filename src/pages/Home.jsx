@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 import { Camera, MessageCircle, FolderOpen, Menu, ArrowRight, Star, Award, Sparkles, FileText, Brain, Shield, Zap, TrendingUp, Users, Clock, CheckCircle, BarChart2 } from "lucide-react";
@@ -7,16 +7,16 @@ import { motion, useScroll, useTransform, useSpring, useInView } from "framer-mo
 import { useAuth } from "@/hooks/useAuth";
 
 // Animated Section Component with Scroll Trigger
-const AnimatedSection = ({ children, className = "", delay = 0 }) => {
+const AnimatedSection = ({ children, className = "", delay = 0, disabled = false }) => {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: false, margin: "-100px" });
 
   return (
     <motion.div
       ref={ref}
-      initial={{ opacity: 0, y: 50 }}
-      animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
-      transition={{ duration: 0.8, delay, ease: [0.25, 0.4, 0.25, 1] }}
+      initial={disabled ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
+      animate={disabled ? { opacity: 1, y: 0 } : isInView ? { opacity: 1, y: 0 } : { opacity: 0, y: 50 }}
+      transition={disabled ? { duration: 0 } : { duration: 0.8, delay, ease: [0.25, 0.4, 0.25, 1] }}
       className={className}
     >
       {children}
@@ -74,6 +74,7 @@ const AnimatedStat = ({ value, suffix = "", duration = 2000 }) => {
 };
 
 export default function Home() {
+  const [isMobile, setIsMobile] = useState(false);
   const navigate = useNavigate();
   const containerRef = useRef(null);
   const { user } = useAuth();
@@ -89,6 +90,12 @@ export default function Home() {
     const wasDark = root.classList.contains('dark');
     const previousTheme = root.getAttribute('data-theme');
 
+    const checkMobile = () => {
+      setIsMobile(typeof window !== 'undefined' ? window.innerWidth <= 768 : false);
+    };
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+
     if (wasDark) {
       root.classList.remove('dark');
       body?.classList.remove('dark');
@@ -96,6 +103,7 @@ export default function Home() {
     root.setAttribute('data-theme', 'light');
 
     return () => {
+      window.removeEventListener('resize', checkMobile);
       if (wasDark) {
         root.classList.add('dark');
         body?.classList.add('dark');
@@ -226,7 +234,7 @@ export default function Home() {
             Your Intelligent
             <br />
             <span className="bg-gradient-to-r from-green-600 via-emerald-600 to-blue-600 bg-clip-text text-transparent">
-              Spending Analyst
+              Receipt Analyst
             </span>
           </motion.h1>
 
@@ -312,7 +320,7 @@ export default function Home() {
       </section>
 
       {/* Stats Section with Scroll Animation */}
-      <AnimatedSection className="py-20 px-6">
+      <AnimatedSection className="py-20 px-6" disabled={isMobile}>
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {[
@@ -344,7 +352,7 @@ export default function Home() {
         </ParallaxElement>
 
         <div className="max-w-7xl mx-auto relative z-10">
-          <AnimatedSection className="text-center mb-16">
+          <AnimatedSection className="text-center mb-16" disabled={isMobile}>
             <h2 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-to-r from-gray-900 to-gray-700 dark:from-white dark:to-gray-300 bg-clip-text text-transparent">
               Everything You Need
             </h2>
@@ -398,15 +406,15 @@ export default function Home() {
                 link: null  // <— disable
               }
             ].map((feature, index) => (
-              <AnimatedSection key={index} delay={index * 0.1}>
+              <AnimatedSection key={index} delay={index * 0.1} disabled={isMobile}>
                 <Link to={createPageUrl(feature.link)}>
                   <motion.div
-                    whileHover={{ y: -8, scale: 1.02 }}
+                    whileHover={isMobile ? {} : { y: -8, scale: 1.02 }}
                     transition={{ duration: 0.3 }}
                     className="h-full p-8 rounded-3xl bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl border border-gray-200/50 dark:border-gray-700/50 hover:shadow-2xl transition-all duration-300 cursor-pointer group"
                   >
                     <motion.div
-                      whileHover={{ rotate: 360 }}
+                      whileHover={isMobile ? {} : { rotate: 360 }}
                       transition={{ duration: 0.6 }}
                       className={`inline-flex p-4 rounded-2xl bg-gradient-to-br ${feature.gradient} mb-6 shadow-lg group-hover:shadow-xl transition-all duration-300`}
                     >

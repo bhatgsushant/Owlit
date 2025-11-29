@@ -681,6 +681,9 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => {
+            if (item.line_total !== undefined && item.line_total !== null) {
+                return acc + parseNumberValue(item.line_total);
+            }
             const price = parseNumberValue(item.price);
             const qty = parseNumberValue(item.quantity);
             return acc + price * (Number.isFinite(qty) ? qty : 0);
@@ -1030,6 +1033,7 @@ export default function ScanReceipt() {
   const [saveSuccessPrompt, setSaveSuccessPrompt] = useState(false);
   const fileInputRef = useRef(null);
   const savedPreferencesRef = useRef(new Set());
+  const [manualText, setManualText] = useState('');
   const { user, userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [leafsAnimation, setLeafsAnimation] = useState(null);
@@ -1274,6 +1278,9 @@ export default function ScanReceipt() {
         return;
     }
     setMode(newMode);
+    if (newMode !== 'manual') {
+        setManualText('');
+    }
     if (newMode !== 'upload') {
         setFile(null);
     }
@@ -1297,6 +1304,41 @@ export default function ScanReceipt() {
     setIsCameraOpen(false);
     setMode('upload');
     processFile(capturedFile);
+  };
+
+  const handleManualSubmit = () => {
+    const text = (manualText || '').trim();
+    if (!text) {
+      alert('Please enter an item description.');
+      return;
+    }
+    const numbers = [...text.matchAll(/[-+]?[0-9]*\\.?[0-9]+/g)].map((m) => parseFloat(m[0])).filter((n) => Number.isFinite(n));
+    const quantity = numbers.length > 1 ? numbers[0] : 1;
+    const price = numbers.length > 0 ? numbers[numbers.length - 1] : 0;
+    const cleanedName = text
+      .replace(/[-+]?[0-9]*\\.?[0-9]+/g, '')
+      .replace(/\bpounds?\b/gi, '')
+      .replace(/\blbs?\b/gi, '')
+      .trim() || 'Manual item';
+    const merchantGuess = /tesco/i.test(text) ? 'Tesco' : (extractedData?.merchant_name || 'Manual');
+
+    const manualItem = {
+      item: cleanedName,
+      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
+      price: Number.isFinite(price) ? price : 0,
+      main_category: 'other',
+      sub_category: 'miscellaneous',
+    };
+
+    const payload = {
+      merchant_name: merchantGuess,
+      transaction_date: new Date().toISOString().split('T')[0],
+      total_amount: manualItem.price,
+      line_items: [manualItem],
+    };
+    setExtractedData(payload);
+    setManualText('');
+    setMode('upload');
   };
 
   const handleLoginRedirect = useCallback(() => {
@@ -1739,6 +1781,28 @@ export default function ScanReceipt() {
                             <ActionButton text="Manual" icon={Edit} onClick={() => handleModeChange('manual')} isActive={mode === 'manual'} />
                             <ActionButton text="Voice" icon={Mic} onClick={() => handleModeChange('voice')} isActive={mode === 'voice'} />
                         </div>
+                    )}
+                    {mode === 'manual' && (
+                      <div className="mt-6 bg-white text-black border border-emerald-100 shadow-2xl p-6 rounded-2xl w-full text-left">
+                        <h3 className="text-lg font-semibold mb-2">Manual entry</h3>
+                        <p className="text-sm text-gray-700 mb-3">Type one item per line, e.g. “4 bananas 1.50 Tesco”. We’ll use the last number as the line total.</p>
+                        <textarea
+                          value={manualText}
+                          onChange={(e) => setManualText(e.target.value)}
+                          rows={4}
+                          className="w-full rounded-xl border border-emerald-100 bg-white text-black p-3 font-playfair focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
+                          placeholder="e.g. 4 bananas 1.50 Tesco"
+                        />
+                        <div className="mt-4 flex justify-end">
+                          <button
+                            type="button"
+                            onClick={handleManualSubmit}
+                            className="rounded-xl bg-emerald-500 px-4 py-2 text-white font-semibold shadow hover:bg-emerald-600 transition-colors"
+                          >
+                            Submit
+                          </button>
+                        </div>
+                      </div>
                     )}
                 </div>
             </div>
