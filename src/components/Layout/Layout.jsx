@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useLayoutEffect } from "react";
 import { useLocation } from "react-router-dom";
 import ModernNavbar from "@/components/ui/ModernNavbar"; // Import the new navbar
 
@@ -6,11 +6,12 @@ export default function Layout({ children, currentPageName }) {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const isLandingPage = currentPageName === 'Home';
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (isLandingPage) {
       document.documentElement.classList.remove('dark');
       document.body?.classList.remove('dark');
       document.documentElement.setAttribute('data-theme', 'light');
+      applyTheme(false);
       return;
     }
 
@@ -20,10 +21,12 @@ export default function Layout({ children, currentPageName }) {
     fontLink.rel = 'stylesheet';
     document.head.appendChild(fontLink);
 
-    // Force light mode everywhere
-    setIsDarkMode(false);
-    applyTheme(false);
-    localStorage.setItem('receiptwise-theme', 'light');
+    // Check if user has a saved theme preference
+    const savedTheme = localStorage.getItem('receiptwise-theme');
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
+    setIsDarkMode(shouldUseDark);
+    applyTheme(shouldUseDark);
   }, [isLandingPage]);
 
   const applyTheme = (dark) => {
@@ -105,9 +108,10 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const toggleTheme = () => {
-    setIsDarkMode(false);
-    applyTheme(false);
-    localStorage.setItem('receiptwise-theme', 'light');
+    const newTheme = !isDarkMode;
+    setIsDarkMode(newTheme);
+    applyTheme(newTheme);
+    localStorage.setItem('receiptwise-theme', newTheme ? 'dark' : 'light');
   };
   
   if (isLandingPage) {

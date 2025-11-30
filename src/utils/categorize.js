@@ -39,6 +39,7 @@ export const SUB_CATEGORIES = {
   entertainment: ["movies", "music", "games", "subscriptions", "events", "streaming", "concerts"],
   pets: ["pet_food", "veterinary", "toys", "grooming"],
   gifts: ["birthday", "festival", "anniversary", "donation", "charity"],
+  kids: ["toys", "Drawing","games","education", "activities"],
 
   // 🍽️ Dining
   dining: ["restaurant", "takeaway", "coffee_shop", "fast_food", "pub", "bar"],

@@ -44,22 +44,17 @@ export default function ScanReceiptMulti() {
   }), []);
   const actionBaseClasses = "flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg transition-all duration-300 backdrop-blur-md border font-playfair";
   const primaryActionClasses = `${actionBaseClasses} bg-emerald-500 text-white border-transparent hover:bg-emerald-600`;
-  const secondaryActionClasses = `${actionBaseClasses} bg-white/10 border-white/20 text-white hover:bg-white/30 hover:text-black hover:border-emerald-500`;
+  const secondaryActionClasses = `${actionBaseClasses} bg-white/10 border-white/20 text-white hover:bg-white/20`;
 
   const handleFileSelect = (event) => {
     const selected = Array.from(event.target.files || []);
     if (!selected.length) return;
 
     setFiles((prev) => {
-      const baseFiles = isMobile ? prev : [];
+      const baseFiles = [...prev];
       const startIndex = baseFiles.length;
       const nextFiles = selected.map((file, index) => buildPreview(file, startIndex + index));
       const combined = [...baseFiles, ...nextFiles];
-
-      if (!isMobile && (selected.length < MIN_FILES || selected.length > MAX_FILES)) {
-        setError(`Please choose between ${MIN_FILES} and ${MAX_FILES} pages.`);
-        return [];
-      }
 
       if (combined.length > MAX_FILES) {
         setError(`You can only add up to ${MAX_FILES} pages.`);
@@ -151,24 +146,21 @@ export default function ScanReceiptMulti() {
       <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start w-full">
         <div className="relative max-w-xl w-full min-h-[520px] bg-white/20 backdrop-blur-2xl border border-white/30 shadow-2xl p-8 rounded-3xl overflow-hidden text-black">
           <div className="flex flex-col items-center text-center gap-3 font-playfair">
-            <div className="flex justify-center">
-              <button
-                type="button"
-                className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-2 text-sm font-semibold text-black shadow-sm"
-                aria-label="Multi-page scan"
-              >
-                Multi-page
-              </button>
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold text-black mt-1">Scan Multi-page Receipts</h1>
+            <button
+              type="button"
+              className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-2 text-sm font-semibold text-black shadow-sm"
+              aria-label="Multi-page scan"
+            >
+              Multi-page
+            </button>
+            <h1 className="text-3xl md:text-4xl font-bold text-black">Scan Multi-Page Receipts</h1>
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,application/pdf"
-            multiple={!isMobile}
-            capture={isMobile ? 'environment' : undefined}
+            multiple
             className="hidden"
             onChange={handleFileSelect}
           />

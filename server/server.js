@@ -755,7 +755,7 @@ ${tesseractText}
 
 ` : ''}
 ${CATEGORY_PROMPT_TEXT}
-Output clean structured JSON in this format. The date should be in DD/MM/YYYY format.
+Output clean structured JSON in this format. The date should be in DD/MM/YYYY format. if you cannot find a date, use today's date as a sensible defaults:
 {
   "MerchantName": "",
   "Date": "DD/MM/YYYY",
@@ -810,54 +810,6 @@ Return **only JSON**, no explanations.
             console.log('Retrying...');
         }
     }
-}
-
-function adjustLineItemsForTotals(items = [], merchantName = '') {
-  const result = [];
-  let computedTotal = 0;
-  const isTesco = /tesco/i.test(merchantName || '');
-
-  const looksLikeDiscount = (name = '', price = 0) => {
-    return (
-      price < 0 ||
-      /discount|offer|coupon|promo|cc\b|saver/i.test(String(name || '').toLowerCase())
-    );
-  };
-
-  items.forEach((rawItem) => {
-    const name =
-      rawItem.item ||
-      rawItem.Name ||
-      rawItem.Item_Name ||
-      rawItem.name ||
-      '';
-    const rawPrice = rawItem.price ?? rawItem.Price ?? 0;
-    const rawQty = rawItem.quantity ?? rawItem.Quantity ?? 1;
-    const quantity = Number.isFinite(Number(rawQty)) && Number(rawQty) > 0 ? Number(rawQty) : 1;
-    const price = Number(rawPrice) || 0;
-
-    if (isTesco && looksLikeDiscount(name, price) && result.length) {
-      const prev = result[result.length - 1];
-      const discount = Math.abs(price);
-      const prevPrice = Number(prev.price || 0);
-      prev.price = Math.max(0, prevPrice - discount);
-      prev.line_total = Math.max(0, Number(prev.line_total || prevPrice) - discount);
-      return;
-    }
-
-    const lineTotal = price;
-    const cleaned = {
-      ...rawItem,
-      item: rawItem.item ?? rawItem.Name ?? rawItem.Item_Name ?? name,
-      price: lineTotal,
-      quantity,
-      line_total: lineTotal,
-    };
-    result.push(cleaned);
-    computedTotal += lineTotal;
-  });
-
-  return { items: result, computedTotal };
 }
 
 async function generateUserInsightFromSupabase(userId) {
@@ -1812,18 +1764,11 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
                 }
 
                 const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-                if (extractedText) {
-                    const snippet = extractedText.length > 800 ? `${extractedText.slice(0, 800)}...` : extractedText;
-                    console.log('🧾 OCR extracted text (truncated):', snippet);
-                } else {
-                    console.log('🧾 OCR extracted text was empty.');
-                }
 
                 const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
-
+            
             const lineItems = processedData.items || processedData.Items || [];
-            const { items: adjustedLineItems } = adjustLineItemsForTotals(lineItems, processedData.merchant || processedData.MerchantName);
-            const categorizedLineItems = await categorizeLineItems(adjustedLineItems, req.user?.id || null);
+            const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
 
             const rawMerchant = processedData.merchant || processedData.MerchantName || '';
             const merchant_name = rawMerchant
@@ -1884,16 +1829,11 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
                 }
             }
 
-            const { items: finalLineItems, computedTotal } = adjustLineItemsForTotals(categorizedLineItems, merchant_name);
-
             const transformedData = {
               merchant_name,
               transaction_date: formatDate(processedData.transaction_date || processedData.Date),
-              line_items: finalLineItems,
-              total_amount:
-                parseFloat(processedData.total_amount || processedData.TotalAmount) ||
-                computedTotal ||
-                0,
+              line_items: categorizedLineItems,
+              total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
               main_category,
               store_type,
               ai_insight:
@@ -2517,6 +2457,59 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
     res.status(201).json(data[0]);
   } catch (error) {
     return handleApiError(res, error, 'Failed to save receipt');
+  }
+});
+
+app.delete('/api/receipts', authenticateRequest, async (req, res) => {
+  const receiptId = req.body?.id || req.query?.id;
+  if (!receiptId) {
+    return res.status(400).json({ error: 'Receipt id is required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('receipts')
+      .delete()
+      .eq('id', receiptId)
+      .eq('user_id', req.user.id)
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to delete receipt');
+  }
+});
+
+app.delete('/api/receipts/:id', authenticateRequest, async (req, res) => {
+  const receiptId = req.params.id;
+  if (!receiptId) {
+    return res.status(400).json({ error: 'Receipt id is required' });
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('receipts')
+      .delete()
+      .eq('id', receiptId)
+      .eq('user_id', req.user.id)
+      .select('id')
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    return res.json({ success: true });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to delete receipt');
   }
 });
 

@@ -1,5 +1,4 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 import { useAuth } from '@/context/AuthContext';
 import { User } from 'lucide-react';
@@ -190,9 +189,14 @@ export default function Profile() {
     }
   };
 
+  const membersCount = familyStatus.members?.length || 0;
+  const invitesCount = familyStatus.invite ? 1 : 0;
+  const familiesCount = familyStatus.family ? 1 : 0;
+  const isJoining = familyActionMode === 'join';
+
   return (
     <div
-      className="px-4 md:px-6 lg:px-8 py-4 min-h-screen text-white font-playfair flex justify-center items-start"
+      className="min-h-screen w-full flex items-center justify-center px-4 py-10 font-playfair text-white"
       style={{
         backgroundImage: "url('/images/colorful-gradients-3840x2160-22838.jpg')",
         backgroundSize: 'cover',
@@ -200,140 +204,109 @@ export default function Profile() {
         backgroundPosition: 'center',
       }}
     >
-      <div className="w-full max-w-3xl flex justify-center">
-        <AnimatedSection delay={0.05}>
-          <div
-            className="relative w-full max-w-sm min-h-[520px] rounded-[22px] shadow-2xl shadow-black/30 p-6 md:p-8 flex flex-col gap-6 items-center text-center"
-            style={{
-              backgroundColor: 'rgba(148,148,148,0.25)',
-              backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.35)',
-            }}
-          >
-            <div className="flex flex-col gap-3 items-center">
-              <div className="relative h-28 w-28 rounded-full border-2 border-white bg-white/10 overflow-hidden flex items-center justify-center shadow-lg shadow-black/20">
-                {displayPhoto ? (
-                  <img src={displayPhoto} alt="Profile" className="h-full w-full object-cover" />
-                ) : (
-                  <User className="text-white" size={40} />
-                )}
-                <label className="absolute bottom-0 left-0 right-0 text-center text-[10px] font-semibold text-emerald-900 bg-emerald-100/90 cursor-pointer px-2 py-1">
-                  Upload
-                  <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
-                </label>
+      <AnimatedSection>
+        <div className="relative max-w-3xl w-full mx-auto rounded-[36px] border border-white/20 bg-white/5 backdrop-blur-3xl shadow-[0_35px_120px_rgba(0,0,0,0.35)] overflow-hidden px-6 md:px-10 py-8 md:py-10 text-center">
+          <div className="absolute inset-0 pointer-events-none bg-white/10" />
+          <div className="relative flex flex-col items-center gap-6">
+            <div className="relative h-32 w-32 rounded-full border-4 border-white/60 overflow-hidden shadow-2xl">
+              {displayPhoto ? (
+                <img src={displayPhoto} alt="Profile" className="h-full w-full object-cover" />
+              ) : (
+                <div className="h-full w-full flex items-center justify-center bg-white/10">
+                  <User className="text-white/80" size={48} />
+                </div>
+              )}
+              <label className="absolute bottom-0 left-0 right-0 bg-white/85 text-emerald-800 text-xs font-semibold cursor-pointer py-1">
+                Upload
+                <input type="file" accept="image/*" className="hidden" onChange={handlePhotoChange} />
+              </label>
+            </div>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">{user?.displayName || 'Account'}</h1>
+              <p className="text-base text-white/80 mt-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">{user?.email || '—'}</p>
+            </div>
+
+            <div className="grid grid-cols-3 w-full max-w-xl gap-4 text-center text-white">
+              <div className="space-y-1">
+                <div className="text-xl font-bold">{membersCount}</div>
+                <div className="text-xs uppercase tracking-[0.15em]">Members</div>
               </div>
-              <div>
-                <p className="text-xl font-bold text-white font-semibold">{user?.displayName || '—'}</p>
-                <p className="text-sm text-white/90 font-semibold">{user?.email || '—'}</p>
+              <div className="space-y-1">
+                <div className="text-xl font-bold">{invitesCount}</div>
+                <div className="text-xs uppercase tracking-[0.15em]">Invites</div>
+              </div>
+              <div className="space-y-1">
+                <div className="text-xl font-bold">{familiesCount}</div>
+                <div className="text-xs uppercase tracking-[0.15em]">Families</div>
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-4 text-white w-full">
-              <div>
-                <p className="text-lg font-bold">{familyStatus.members?.length ?? 0}</p>
-                <p className="text-xs uppercase tracking-wide text-white/80 font-semibold">Members</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold">{familyStatus.invite?.code ? 1 : 0}</p>
-                <p className="text-xs uppercase tracking-wide text-white/80 font-semibold">Invites</p>
-              </div>
-              <div>
-                <p className="text-lg font-bold">{familyStatus.family ? 1 : 0}</p>
-                <p className="text-xs uppercase tracking-wide text-white/80 font-semibold">Families</p>
-              </div>
-            </div>
-
-            <div className="flex gap-3 w-full justify-center">
+            <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
               <button
+                type="button"
                 onClick={() => setFamilyActionMode('join')}
-                className="flex-1 rounded-xl border border-white/50 bg-white/20 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-white/30 transition"
+                className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
+                  isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
+                }`}
               >
                 Join
               </button>
               <button
+                type="button"
                 onClick={() => setFamilyActionMode('create')}
-                className="flex-1 rounded-xl border border-white/50 bg-transparent px-4 py-2 text-sm font-semibold text-white shadow hover:bg-white/10 transition"
+                className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
+                  !isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
+                }`}
               >
                 Create
               </button>
             </div>
 
-            {familyActionMode === 'create' ? (
-              <div className="w-full space-y-2 text-sm">
-                <input
-                  type="text"
-                  placeholder="Family name"
-                  value={familyNameInput}
-                  onChange={(e) => setFamilyNameInput(e.target.value)}
-                  className="w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 placeholder:text-white/70"
-                />
-                <button
-                  onClick={handleCreateFamily}
-                  disabled={familyActionLoading || !familyNameInput.trim()}
-                  className="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-400 disabled:opacity-60"
-                >
-                  {familyActionLoading ? 'Creating…' : 'Create family'}
-                </button>
-              </div>
-            ) : (
-              <div className="w-full space-y-2 text-sm">
-                <input
-                  type="text"
-                  placeholder="Enter code"
-                  value={joinCodeInput}
-                  onChange={(e) => setJoinCodeInput(e.target.value.toUpperCase())}
-                  className="w-full rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-emerald-400/60 placeholder:text-white/70"
-                />
-                <button
-                  onClick={handleJoinFamily}
-                  disabled={familyActionLoading || !joinCodeInput.trim()}
-                  className="w-full rounded-lg bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow hover:bg-emerald-400 disabled:opacity-60"
-                >
-                  {familyActionLoading ? 'Joining…' : 'Join family'}
-                </button>
-              </div>
+            <div className="w-full max-w-2xl space-y-4">
+              <input
+                type="text"
+                value={isJoining ? joinCodeInput : familyNameInput}
+                onChange={(e) => (isJoining ? setJoinCodeInput(e.target.value) : setFamilyNameInput(e.target.value))}
+                placeholder={isJoining ? 'Invite code' : 'Family name'}
+                className="w-full rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-base text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-inner shadow-black/30"
+              />
+              <button
+                type="button"
+                disabled={familyActionLoading}
+                onClick={isJoining ? handleJoinFamily : handleCreateFamily}
+                className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-700 transition disabled:opacity-60"
+              >
+                {familyActionLoading ? (isJoining ? 'Joining…' : 'Creating…') : isJoining ? 'Join family' : 'Create family'}
+              </button>
+            </div>
+
+            {familyActionMessage && (
+              <div className="text-sm font-semibold text-white/90">{familyActionMessage}</div>
+            )}
+
+            {currentInviteCode && (
+              <button
+                type="button"
+                onClick={handleCopyInvite}
+                className="text-xs font-semibold text-white/90 underline underline-offset-4"
+              >
+                Copy invite code: {currentInviteCode}
+              </button>
             )}
 
             {hasFamily && (
-              <div className="w-full space-y-2 text-sm">
-                <p className="text-xs uppercase tracking-wide text-white/80">Invite code</p>
-                <p className="text-sm text-white">{currentInviteCode || '—'}</p>
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleCopyInvite}
-                    disabled={!currentInviteCode}
-                    className="flex-1 rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20 disabled:opacity-60"
-                  >
-                    Copy
-                  </button>
-                  <button
-                    onClick={handleGenerateInvite}
-                    disabled={familyActionLoading}
-                    className="flex-1 rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-white shadow hover:bg-emerald-400 disabled:opacity-60"
-                  >
-                    {familyActionLoading ? 'New…' : 'New code'}
-                  </button>
-                  <button
-                    onClick={handleLeaveFamily}
-                    disabled={familyActionLoading}
-                    className="flex-1 rounded-lg border border-red-300 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-100 hover:bg-red-500/20 disabled:opacity-60"
-                  >
-                    Leave
-                  </button>
-                </div>
-                <p className="text-xs text-white">
-                  {familyStatusLoading
-                    ? 'Refreshing family status…'
-                    : familyStatus.family
-                    ? `Family ID: ${familyStatus.family.id}`
-                    : 'Create or join to get an invite code.'}
-                </p>
-                {familyActionMessage && <p className="text-xs text-white">{familyActionMessage}</p>}
-              </div>
+              <button
+                type="button"
+                onClick={handleLeaveFamily}
+                disabled={familyActionLoading}
+                className="mt-2 text-xs font-semibold text-white/80 underline underline-offset-4 disabled:opacity-60"
+              >
+                Leave family
+              </button>
             )}
           </div>
-        </AnimatedSection>
-      </div>
+        </div>
+      </AnimatedSection>
     </div>
   );
 }

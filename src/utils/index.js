@@ -14,6 +14,7 @@ export function createPageUrl(name) {
     case "askai": return "/ask-ai";
     case "profile": return "/profile";
     case "account": return "/account";
+    case "login": return "/login";
     default: return "/";
   }
 }

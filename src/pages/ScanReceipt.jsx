@@ -1391,8 +1391,12 @@ export default function ScanReceipt() {
     const isEditing = extractedData && extractedData.id;
 
     if (isEditing) {
+      if (!options.existingReceiptId) {
         options.existingReceiptId = extractedData.id;
+      }
+      if (!options.duplicateAction) {
         options.duplicateAction = 'replace';
+      }
     }
 
     if (!extractedData.canonical_merchant_id && extractedData.selectedMerchantId) {

@@ -631,12 +631,20 @@ export default function Insights() {
     if (!window.confirm('Are you sure you want to delete this receipt?')) {
         return;
     }
-    const { error } = await supabase.from('receipts').delete().eq('id', receiptId);
-    if (error) {
-        alert('Failed to delete receipt.');
-        console.error(error);
-    } else {
-        setReceipts(receipts.filter(r => r.id !== receiptId));
+    try {
+      const response = await fetchWithAuth('/api/receipts', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: receiptId }),
+      });
+      if (!response.ok) {
+        const msg = await response.text();
+        throw new Error(msg || 'Failed to delete receipt.');
+      }
+      setReceipts((prev) => prev.filter((r) => r.id !== receiptId));
+    } catch (error) {
+      console.error(error);
+      alert('Failed to delete receipt.');
     }
   };
 
