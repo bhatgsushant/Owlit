@@ -12,7 +12,6 @@ import {
   Mic,
   Edit,
   PlusCircle,
-  MinusCircle,
   Store,
   Calendar,
   Tag,
@@ -46,6 +45,8 @@ import {
   UtensilsCrossed,
   CircleEllipsis,
   Loader2,
+  Wrench,
+  Trash2,
 } from 'lucide-react';
 import CameraView from '../components/CameraView';
 import { SUB_CATEGORIES } from '../utils/categorize';
@@ -168,33 +169,78 @@ const CATEGORY_COLOR_MAP = {
 const getCategoryColor = (category) => CATEGORY_COLOR_MAP[String(category || '').toLowerCase()] || '#10b981';
 
 const SUBCATEGORY_ICON_MATCHERS = [
-  { test: /(coffee|tea|drink)/, icon: Coffee },
-  { test: /(beer|wine|spirits)/, icon: CupSoda },
-  { test: /(fuel|gas|diesel)/, icon: Fuel },
-  { test: /(bread|pastr|cake|cookie|muffin)/, icon: Package },
-  { test: /(milk|cheese|yogurt|butter|cream|egg)/, icon: Droplet },
-  { test: /(fish|seafood|prawn|shrimp)/, icon: Fish },
-  { test: /(fruit|apple|banana|grape|melon)/, icon: Apple },
-  { test: /(vegetable|greens|onion|tomato|pepper)/, icon: Sprout },
-  { test: /(meat|beef|pork|lamb)/, icon: Drumstick },
-  { test: /(chicken|turkey|duck)/, icon: Drumstick },
-  { test: /(laundry|cleaning|detergent)/, icon: Sparkles },
-  { test: /(medicine|vitamin|pain|supplement)/, icon: HeartPulse },
-  { test: /(gym|fitness|protein)/, icon: Dumbbell },
-  { test: /(electronics|charger|laptop|mobile|battery)/, icon: Cpu },
-  { test: /(electricity|internet|water|bill)/, icon: Plug },
-  { test: /(shoe|shirt|jean|dress|clothing|sock)/, icon: Shirt },
-  { test: /(jewel|ring|necklace|bracelet)/, icon: Gem },
-  { test: /(bus|train|taxi|uber|parking)/, icon: Car },
-  { test: /(flight|hotel|visa|tour|luggage)/, icon: Plane },
-  { test: /(pen|notebook|paper|folder)/, icon: PenLine },
-  { test: /(book|course|tuition|school)/, icon: GraduationCap },
-  { test: /(bank|fee|insurance|loan|interest)/, icon: Wallet },
-  { test: /(movie|music|game|event|stream)/, icon: Clapperboard },
-  { test: /(pet|vet|groom)/, icon: PawPrint },
-  { test: /(gift|donation|charity)/, icon: Gift },
-  { test: /(restaurant|takeaway|fast_food|pub|bar)/, icon: UtensilsCrossed },
+  // Food & Drinks
+  { test: /(coffee|tea|drink|juice|smoothie)/i, icon: Coffee },
+  { test: /(beer|wine|spirits|vodka|whiskey|liquor|alcohol)/i, icon: CupSoda },
+  { test: /(restaurant|takeaway|fast[_ ]?food|pub|bar|diner|cafe)/i, icon: UtensilsCrossed },
+  { test: /(bread|pastr|cake|cookie|muffin|bakery)/i, icon: Package },
+  { test: /(milk|cheese|yogurt|butter|cream|egg|dairy)/i, icon: Droplet },
+  { test: /(fish|seafood|prawn|shrimp|salmon|tuna)/i, icon: Fish },
+  { test: /(fruit|apple|banana|grape|melon|berry|citrus)/i, icon: Apple },
+  { test: /(vegetable|greens|onion|tomato|pepper|carrot|broccoli)/i, icon: Sprout },
+  { test: /(meat|beef|pork|lamb|steak)/i, icon: Drumstick },
+  { test: /(chicken|turkey|duck|poultry)/i, icon: Drumstick },
+
+  // Groceries & Household
+  { test: /(laundry|cleaning|detergent|soap|bleach|dish)/i, icon: Sparkles },
+  { test: /(toilet|tissue|paper[_ ]?towel|napkin)/i, icon: Package },
+  { test: /(beauty|cosmetic|makeup|skincare|lotion)/i, icon: Sparkles },
+  { test: /(hair|shampoo|conditioner|barber|salon)/i, icon: Sparkles },
+
+  // Health
+  { test: /(medicine|vitamin|pain|supplement|pharmacy|healthcare)/i, icon: HeartPulse },
+  { test: /(doctor|clinic|hospital|dentist|therapy)/i, icon: HeartPulse },
+
+  // Fitness
+  { test: /(gym|fitness|protein|workout|sport|exercise)/i, icon: Dumbbell },
+
+  // Utilities
+  { test: /(electricity|internet|water|bill|utility|gas[_ ]?bill)/i, icon: Plug },
+  { test: /(fuel|gas|diesel|petrol)/i, icon: Fuel },
+
+  // Shopping
+  { test: /(shoe|shirt|jean|dress|clothing|sock|apparel|fashion)/i, icon: Shirt },
+  { test: /(jewel|ring|necklace|bracelet|watch)/i, icon: Gem },
+  { test: /(toy|lego|board[_ ]?game|kids|baby)/i, icon: Gift },
+  { test: /(furniture|sofa|table|chair|bed|desk)/i, icon: Package },
+  { test: /(decor|home[_ ]?decor|frame|vase|art)/i, icon: Package },
+
+  // Electronics & Tech
+  { test: /(electronics|charger|laptop|mobile|battery|phone|tablet|computer)/i, icon: Cpu },
+  { test: /(software|subscription|cloud|saas|app)/i, icon: Cpu },
+
+  // Transport
+  { test: /(bus|train|taxi|uber|lyft|parking|transport|toll)/i, icon: Car },
+  { test: /(fuel|gas|diesel|petrol)/i, icon: Fuel }, // duplicate kept for clarity
+
+  // Travel
+  { test: /(flight|hotel|visa|tour|luggage|airbnb|travel)/i, icon: Plane },
+
+  // Office & Education
+  { test: /(pen|notebook|paper|folder|stationery)/i, icon: PenLine },
+  { test: /(book|course|tuition|school|education|class)/i, icon: GraduationCap },
+
+  // Finance
+  { test: /(bank|fee|insurance|loan|interest|tax|finance)/i, icon: Wallet },
+
+  // Entertainment
+  { test: /(movie|music|game|event|concert|stream|theater)/i, icon: Clapperboard },
+
+  // Pets
+  { test: /(pet|vet|groom|petfood|animal)/i, icon: PawPrint },
+
+  // Gifts & Charity
+  { test: /(gift|donation|charity|present)/i, icon: Gift },
+
+  // Home & Maintenance
+  { test: /(repair|maintenance|plumber|electrician|handyman)/i, icon: Wrench },
+  { test: /(garden|plants|soil|flowers|seed)/i, icon: Sprout },
+
+  // Miscellaneous
+  { test: /(subscription|membership|service)/i, icon: Wallet },
+  { test: /(shipping|delivery|courier)/i, icon: Package },
 ];
+
 
 const getSubcategoryIconComponent = (subCategory) => {
   if (!subCategory) return Tag;
@@ -509,7 +555,14 @@ const LineItemRow = React.memo(({
                 />
             </div>
 
-            <button onClick={() => removeLineItem(index)} className="text-red-500 hover:text-red-600 justify-self-center"><MinusCircle size={20} /></button>
+            <button
+              onClick={() => removeLineItem(index)}
+              className="text-red-500 hover:text-red-600 justify-self-center"
+              title="Remove this line"
+              aria-label="Remove line"
+            >
+              <Trash2 size={20} className="text-red-500" />
+            </button>
         </div>
     );
    });
@@ -681,9 +734,6 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
     useEffect(() => {
         const newTotal = (data.line_items || []).reduce((acc, item) => {
-            if (item.line_total !== undefined && item.line_total !== null) {
-                return acc + parseNumberValue(item.line_total);
-            }
             const price = parseNumberValue(item.price);
             const qty = parseNumberValue(item.quantity);
             return acc + price * (Number.isFinite(qty) ? qty : 0);
@@ -954,7 +1004,14 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             <div>
                 <div className="flex justify-between items-center mb-2">
                     <h4 className="font-semibold text-gray-700 dark:text-gray-300">Line Items</h4>
-                    <button onClick={addLineItem} className="text-green-500 hover:text-green-600"><PlusCircle size={22} /></button>
+                    <button
+                      onClick={addLineItem}
+                      className="text-green-500 hover:text-green-600"
+                      title="Add a new line item"
+                      aria-label="Add line item"
+                    >
+                      <PlusCircle size={22} className="text-green-500" />
+                    </button>
                 </div>
                 <div className="hidden md:grid grid-cols-7 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
                     <div className="col-span-2">Item Name</div>
@@ -1033,11 +1090,9 @@ export default function ScanReceipt() {
   const [saveSuccessPrompt, setSaveSuccessPrompt] = useState(false);
   const fileInputRef = useRef(null);
   const savedPreferencesRef = useRef(new Set());
-  const [manualText, setManualText] = useState('');
   const { user, userStoreOverrides, fetchWithAuth } = useAuth();
   const [loadingAnimation, setLoadingAnimation] = useState(null);
   const [leafsAnimation, setLeafsAnimation] = useState(null);
-  const [isMultiPage, setIsMultiPage] = useState(false);
   const [isHighAccuracy, setIsHighAccuracy] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const processingRef = useRef(null);
@@ -1258,14 +1313,6 @@ export default function ScanReceipt() {
     }
   };
 
-  const handleMultiPageToggle = (event) => {
-    const checked = event.target.checked;
-    setIsMultiPage(checked);
-    if (checked) {
-      navigate(createPageUrl('ScanReceiptMulti'));
-    }
-  };
-
   const handleUploadClick = () => {
     setMode('upload');
     fileInputRef.current.click();
@@ -1278,9 +1325,6 @@ export default function ScanReceipt() {
         return;
     }
     setMode(newMode);
-    if (newMode !== 'manual') {
-        setManualText('');
-    }
     if (newMode !== 'upload') {
         setFile(null);
     }
@@ -1304,41 +1348,6 @@ export default function ScanReceipt() {
     setIsCameraOpen(false);
     setMode('upload');
     processFile(capturedFile);
-  };
-
-  const handleManualSubmit = () => {
-    const text = (manualText || '').trim();
-    if (!text) {
-      alert('Please enter an item description.');
-      return;
-    }
-    const numbers = [...text.matchAll(/[-+]?[0-9]*\\.?[0-9]+/g)].map((m) => parseFloat(m[0])).filter((n) => Number.isFinite(n));
-    const quantity = numbers.length > 1 ? numbers[0] : 1;
-    const price = numbers.length > 0 ? numbers[numbers.length - 1] : 0;
-    const cleanedName = text
-      .replace(/[-+]?[0-9]*\\.?[0-9]+/g, '')
-      .replace(/\bpounds?\b/gi, '')
-      .replace(/\blbs?\b/gi, '')
-      .trim() || 'Manual item';
-    const merchantGuess = /tesco/i.test(text) ? 'Tesco' : (extractedData?.merchant_name || 'Manual');
-
-    const manualItem = {
-      item: cleanedName,
-      quantity: Number.isFinite(quantity) && quantity > 0 ? quantity : 1,
-      price: Number.isFinite(price) ? price : 0,
-      main_category: 'other',
-      sub_category: 'miscellaneous',
-    };
-
-    const payload = {
-      merchant_name: merchantGuess,
-      transaction_date: new Date().toISOString().split('T')[0],
-      total_amount: manualItem.price,
-      line_items: [manualItem],
-    };
-    setExtractedData(payload);
-    setManualText('');
-    setMode('upload');
   };
 
   const handleLoginRedirect = useCallback(() => {
@@ -1695,9 +1704,11 @@ export default function ScanReceipt() {
                         <Lottie animationData={leafsAnimation} loop autoplay />
                       </div>
                     )}
-                    <ScanModeToggle mode={scanMode} setMode={setScanMode} />
-                    <h1 className="text-3xl md:text-4xl font-bold text-black mb-4">{pageTitle}</h1>
-                    <p className="text-md text-black/90 mb-8">Choose your input method to get started.</p>
+                    <div className="flex flex-col items-center gap-3">
+                      <ScanModeToggle mode={scanMode} setMode={setScanMode} />
+                      <h1 className="text-3xl md:text-4xl font-bold text-black">{pageTitle}</h1>
+                      <p className="text-md text-black/90">Choose your input method to get started.</p>
+                    </div>
 
                     {file ? (
                         <div className="bg-white/25 backdrop-blur-xl border border-white/30 shadow-xl p-6 rounded-2xl w-full text-left">
@@ -1730,7 +1741,7 @@ export default function ScanReceipt() {
                             )}
                         </div>
                     ) : (
-                        <div className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/25 backdrop-blur-2xl shadow-xl" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
+                        <div className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/25 backdrop-blur-2xl shadow-xl mt-6" onDragOver={handleDragOver} onDrop={handleDrop} onClick={handleUploadClick}>
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*,application/pdf"/>
                             <Upload size={48} className="text-gray-300 mb-4 mx-auto" />
                             <p className="text-lg font-semibold text-black">Drag & Drop or Click to Upload</p>
@@ -1738,16 +1749,14 @@ export default function ScanReceipt() {
                     )}
 
                     <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm">
-                      <label htmlFor="multi-page-toggle" className="flex items-center gap-2 cursor-pointer select-none">
-                        <input
-                          id="multi-page-toggle"
-                          type="checkbox"
-                          checked={isMultiPage}
-                          onChange={handleMultiPageToggle}
-                          className="h-4 w-4 rounded border-white/60 bg-transparent"
-                        />
-                        Multiple pages?
-                      </label>
+                      <button
+                        type="button"
+                        onClick={() => navigate(createPageUrl('ScanReceiptMulti'))}
+                        className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-500 hover:text-white"
+                      >
+                        <PlusCircle size={16} />
+                        Scan multiple pages
+                      </button>
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -1781,28 +1790,6 @@ export default function ScanReceipt() {
                             <ActionButton text="Manual" icon={Edit} onClick={() => handleModeChange('manual')} isActive={mode === 'manual'} />
                             <ActionButton text="Voice" icon={Mic} onClick={() => handleModeChange('voice')} isActive={mode === 'voice'} />
                         </div>
-                    )}
-                    {mode === 'manual' && (
-                      <div className="mt-6 bg-white text-black border border-emerald-100 shadow-2xl p-6 rounded-2xl w-full text-left">
-                        <h3 className="text-lg font-semibold mb-2">Manual entry</h3>
-                        <p className="text-sm text-gray-700 mb-3">Type one item per line, e.g. “4 bananas 1.50 Tesco”. We’ll use the last number as the line total.</p>
-                        <textarea
-                          value={manualText}
-                          onChange={(e) => setManualText(e.target.value)}
-                          rows={4}
-                          className="w-full rounded-xl border border-emerald-100 bg-white text-black p-3 font-playfair focus:outline-none focus:ring-2 focus:ring-emerald-400/60"
-                          placeholder="e.g. 4 bananas 1.50 Tesco"
-                        />
-                        <div className="mt-4 flex justify-end">
-                          <button
-                            type="button"
-                            onClick={handleManualSubmit}
-                            className="rounded-xl bg-emerald-500 px-4 py-2 text-white font-semibold shadow hover:bg-emerald-600 transition-colors"
-                          >
-                            Submit
-                          </button>
-                        </div>
-                      </div>
                     )}
                 </div>
             </div>

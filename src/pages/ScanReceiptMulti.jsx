@@ -13,6 +13,19 @@ const buildPreview = (file, index) => ({
   file,
 });
 
+const useIsMobile = (breakpoint = 768) => {
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(typeof window !== 'undefined' ? window.innerWidth <= breakpoint : false);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, [breakpoint]);
+
+  return isMobile;
+};
+
 export default function ScanReceiptMulti() {
   const [files, setFiles] = useState([]);
   const [error, setError] = useState('');
@@ -22,18 +35,48 @@ export default function ScanReceiptMulti() {
   const dragIndexRef = useRef(null);
   const navigate = useNavigate();
   const { fetchWithAuth } = useAuth();
+  const isMobile = useIsMobile();
+  const pageBackgroundStyle = useMemo(() => ({
+    backgroundImage: "url('/images/ScanPageBackgroundImage.svg')",
+    backgroundSize: 'cover',
+    backgroundRepeat: 'no-repeat',
+    backgroundPosition: 'center',
+  }), []);
+  const actionBaseClasses = "flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold shadow-lg transition-all duration-300 backdrop-blur-md border font-playfair";
+  const primaryActionClasses = `${actionBaseClasses} bg-emerald-500 text-white border-transparent hover:bg-emerald-600`;
+  const secondaryActionClasses = `${actionBaseClasses} bg-white/10 border-white/20 text-white hover:bg-white/30 hover:text-black hover:border-emerald-500`;
 
   const handleFileSelect = (event) => {
     const selected = Array.from(event.target.files || []);
-    selected.forEach((item) => item && item.size); // touch for lint
     if (!selected.length) return;
-    if (selected.length < MIN_FILES || selected.length > MAX_FILES) {
-      setError(`Please choose between ${MIN_FILES} and ${MAX_FILES} pages.`);
-      setFiles([]);
-      return;
-    }
-    setError('');
-    setFiles(selected.map((file, index) => buildPreview(file, index)));
+
+    setFiles((prev) => {
+      const baseFiles = isMobile ? prev : [];
+      const startIndex = baseFiles.length;
+      const nextFiles = selected.map((file, index) => buildPreview(file, startIndex + index));
+      const combined = [...baseFiles, ...nextFiles];
+
+      if (!isMobile && (selected.length < MIN_FILES || selected.length > MAX_FILES)) {
+        setError(`Please choose between ${MIN_FILES} and ${MAX_FILES} pages.`);
+        return [];
+      }
+
+      if (combined.length > MAX_FILES) {
+        setError(`You can only add up to ${MAX_FILES} pages.`);
+        return prev;
+      }
+
+      if (combined.length < MIN_FILES) {
+        setError(`Select at least ${MIN_FILES} pages (up to ${MAX_FILES}).`);
+      } else {
+        setError('');
+      }
+
+      return combined;
+    });
+
+    // Allow selecting the same file again after an interaction
+    event.target.value = '';
   };
 
   const handleReorder = (targetIndex) => {
@@ -58,6 +101,14 @@ export default function ScanReceiptMulti() {
       setError('');
       return [...prev, buildPreview(capturedFile, prev.length)];
     });
+  };
+
+  const handleCameraClick = () => {
+    if (isMobile) {
+      fileInputRef.current?.click();
+      return;
+    }
+    setIsCameraOpen(true);
   };
 
   const handleProcess = async () => {
@@ -94,31 +145,30 @@ export default function ScanReceiptMulti() {
   return (
     <>
     <div
-      className="min-h-screen flex items-start justify-center pt-16 font-playfair"
-      style={{
-        backgroundImage: "url('/images/ScanPageBackgroundImage.svg')",
-        backgroundSize: 'cover',
-        backgroundRepeat: 'no-repeat',
-        backgroundPosition: 'center',
-      }}
+      className="scan-scope pt-8 md:pt-12 pb-12 min-h-screen overflow-y-auto font-playfair"
+      style={pageBackgroundStyle}
     >
-      <div className="w-full px-4 pb-16" style={{ maxWidth: 'min(1100px, 90vw)' }}>
-        <div className="relative rounded-[32px] border border-emerald-500/20 bg-emerald-500/5 p-6 md:p-10 shadow-[0_35px_120px_rgba(0,0,0,0.12)] backdrop-blur-[18px] text-black">
+      <div className="p-6 md:p-8 lg:p-10 flex flex-col items-center text-center min-h-[calc(100vh-8rem)] justify-start w-full">
+        <div className="relative max-w-xl w-full min-h-[520px] bg-white/20 backdrop-blur-2xl border border-white/30 shadow-2xl p-8 rounded-3xl overflow-hidden text-black">
           <div className="flex flex-col items-center text-center gap-3 font-playfair">
-            <span className="inline-flex items-center gap-2 rounded-full bg-black/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.3em] text-black/70">
-              Multi-page
-            </span>
-            <h1 className="text-3xl md:text-4xl font-semibold text-black">Scan multi-page receipts</h1>
-            <p className="text-sm md:text-base text-black/70 max-w-2xl">
-              Upload or capture 2–10 pages, reorder them, then process to continue in the standard scan flow.
-            </p>
+            <div className="flex justify-center">
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full bg-green-500 px-4 py-2 text-sm font-semibold text-black shadow-sm"
+                aria-label="Multi-page scan"
+              >
+                Multi-page
+              </button>
+            </div>
+            <h1 className="text-3xl md:text-4xl font-bold text-black mt-1">Scan Multi-page Receipts</h1>
           </div>
 
           <input
             ref={fileInputRef}
             type="file"
             accept="image/*,application/pdf"
-            multiple
+            multiple={!isMobile}
+            capture={isMobile ? 'environment' : undefined}
             className="hidden"
             onChange={handleFileSelect}
           />
@@ -129,17 +179,28 @@ export default function ScanReceiptMulti() {
               </p>
             )}
 
-            <div className="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-[1.2fr_0.8fr]" style={{ maxWidth: '900px', margin: '0 auto' }}>
+            <div className="mt-8 grid grid-cols-1 gap-8 max-w-xl w-full mx-auto">
               <div>
-              <div className="border-2 border-dashed border-emerald-500/30 rounded-3xl p-10 min-h-[260px] flex items-center justify-center text-center bg-emerald-500/5 backdrop-blur-md shadow-2xl shadow-black/10">
+              <div
+                className="rounded-2xl p-10 text-center cursor-pointer transition-colors bg-white/25 backdrop-blur-2xl shadow-xl mt-6"
+              >
                   {files.length === 0 ? (
                     <div
                       onClick={() => fileInputRef.current?.click()}
-                    className="flex flex-col items-center justify-center text-center cursor-pointer text-black/80 gap-3"
+                      className="flex flex-col items-center justify-center text-center cursor-pointer text-black/80 gap-3"
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          fileInputRef.current?.click();
+                        }
+                      }}
                   >
                     <Upload size={40} className="text-emerald-500" />
-                    <p className="text-lg font-semibold text-black">Drag & drop pages or click to choose files</p>
-                    <p className="text-sm text-black/60">Supports images or PDF · between {MIN_FILES} and {MAX_FILES} pages</p>
+                    <p className="text-lg font-semibold text-black drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
+                      Drag & Drop or Click to Upload
+                    </p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
@@ -172,25 +233,36 @@ export default function ScanReceiptMulti() {
                     </div>
                   )}
                 </div>
+                <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm">
+                  <button
+                    type="button"
+                    onClick={() => navigate(createPageUrl('ScanReceipt'))}
+                    className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-500 hover:text-white"
+                  >
+                    Switch to single-page scan
+                  </button>
+                </div>
                 <div className="mt-6 flex flex-col gap-4 text-sm">
                   <div className="flex flex-col gap-3 items-center text-center">
                   <p className="text-black/70">
                     Selected {files.length || 0} page{files.length === 1 ? '' : 's'} (min {MIN_FILES}).
                   </p>
-                  <div className="flex flex-wrap gap-3 justify-center">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="inline-flex items-center gap-2 rounded-full bg-emerald-500/10 px-4 py-2 text-xs font-semibold text-black transition hover:bg-emerald-500/80 hover:text-black"
-                    >
-                      <Upload size={14} /> Choose images
-                    </button>
-                    <button
-                      onClick={() => setIsCameraOpen(true)}
-                      className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 px-4 py-2 text-xs font-semibold text-black/70 transition hover:bg-emerald-500 hover:border-emerald-500 hover:text-white"
-                    >
-                      <Camera size={14} /> Use camera
-                    </button>
-                  </div>
+                  {!isMobile && (
+                    <div className="flex flex-wrap gap-3 justify-center">
+                      <button
+                        onClick={() => fileInputRef.current?.click()}
+                        className={primaryActionClasses}
+                      >
+                        <Upload size={14} /> Choose images
+                      </button>
+                      <button
+                        onClick={handleCameraClick}
+                        className={secondaryActionClasses}
+                      >
+                        <Camera size={14} /> Use camera
+                      </button>
+                    </div>
+                  )}
                 </div>
                   {files.length > 0 && (
                     <div className="flex justify-center">
@@ -206,15 +278,6 @@ export default function ScanReceiptMulti() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-emerald-500/25 bg-emerald-500/5 p-5 text-black/80 shadow-lg shadow-black/10 backdrop-blur-md text-center">
-              <h2 className="text-lg font-semibold text-black">How it works</h2>
-              <ol className="mt-3 space-y-2 text-sm text-black/70 list-decimal list-inside text-left inline-block">
-                <li>Upload the pages in the order you want them read.</li>
-                <li>Drag any card to reorder before submitting.</li>
-                <li>Hit “Process” and we’ll open the preview in the standard scan flow.</li>
-              </ol>
-              <p className="mt-4 text-xs text-black/60">Once processed, you’ll edit and save the receipt from the usual screen.</p>
-            </div>
             </div>
           </div>
         </div>

@@ -273,6 +273,15 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
   const [familyNameInput, setFamilyNameInput] = useState('');
   const [familyActionMode, setFamilyActionMode] = useState('create'); // 'create' | 'join'
   const [familySectionOpen, setFamilySectionOpen] = useState(true);
+  const avatarUrl = useMemo(
+    () => user?.avatar || user?.picture || user?.photoURL || user?.photo || user?.image || user?.avatar_url,
+    [user]
+  );
+  const displayName = useMemo(
+    () => user?.displayName || user?.name || user?.email || 'Account',
+    [user]
+  );
+  const avatarInitial = displayName?.[0]?.toUpperCase() || 'A';
 
   // Menu items configuration
   const menuItems = useMemo(() => {
@@ -543,8 +552,14 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 onClick={() => setIsProfileOpen(true)}
                 className="flex items-center gap-2 rounded-full border border-white/20 bg-white/60 px-3 py-1 shadow-sm dark:bg-slate-800/80"
               >
-                <img src={user.avatar} alt={user.displayName} className="h-8 w-8 rounded-full object-cover" />
-                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{user.displayName}</span>
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="h-8 w-8 rounded-full object-cover" />
+                ) : (
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-500/20 text-sm font-semibold text-emerald-800">
+                    {avatarInitial}
+                  </div>
+                )}
+                <span className="text-sm font-medium text-slate-700 dark:text-slate-200">{displayName}</span>
               </button>
             </motion.div>
           ) : (
@@ -673,10 +688,16 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
             >
               <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-3 font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
-                  <img src={user.avatar} alt={user.displayName} className="h-12 w-12 rounded-full object-cover" />
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="h-12 w-12 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500/20 text-lg font-semibold text-emerald-800">
+                      {avatarInitial}
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-slate-500 dark:text-white/60">Signed in</p>
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{user.displayName}</p>
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{displayName}</p>
                     <p className="text-xs text-slate-500 dark:text-white/60">{user.email}</p>
                   </div>
                 </div>
