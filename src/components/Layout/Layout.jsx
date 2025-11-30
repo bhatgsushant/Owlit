@@ -20,13 +20,10 @@ export default function Layout({ children, currentPageName }) {
     fontLink.rel = 'stylesheet';
     document.head.appendChild(fontLink);
 
-    // Check if user has a saved theme preference
-    const savedTheme = localStorage.getItem('receiptwise-theme');
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    const shouldUseDark = savedTheme === 'dark' || (!savedTheme && prefersDark);
-    setIsDarkMode(shouldUseDark);
-    applyTheme(shouldUseDark);
+    // Force light mode everywhere
+    setIsDarkMode(false);
+    applyTheme(false);
+    localStorage.setItem('receiptwise-theme', 'light');
   }, [isLandingPage]);
 
   const applyTheme = (dark) => {
@@ -108,10 +105,9 @@ export default function Layout({ children, currentPageName }) {
   };
 
   const toggleTheme = () => {
-    const newTheme = !isDarkMode;
-    setIsDarkMode(newTheme);
-    applyTheme(newTheme);
-    localStorage.setItem('receiptwise-theme', newTheme ? 'dark' : 'light');
+    setIsDarkMode(false);
+    applyTheme(false);
+    localStorage.setItem('receiptwise-theme', 'light');
   };
   
   if (isLandingPage) {

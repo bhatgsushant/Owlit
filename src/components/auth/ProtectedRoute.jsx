@@ -6,8 +6,7 @@ const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
   if (loading) {
-    // You can add a loading spinner here
-    return <div>Loading...</div>;
+    return null; // avoid flashing unstyled content while auth state resolves
   }
 
   if (!user) {

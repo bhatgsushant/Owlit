@@ -6,7 +6,7 @@ import { useAuth } from '../context/AuthContext';
 const ProtectedRoute = ({ children }) => {
   const { user, loading } = useAuth();
 
-  if (loading) return <div>Loading...</div>; // optional spinner
+  if (loading) return null; // avoid flashing unstyled content while auth state resolves
 
   if (!user) return <Navigate to="/login" replace />;
 
