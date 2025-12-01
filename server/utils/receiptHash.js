@@ -5,9 +5,10 @@ function normalizeMerchantName(name = '') {
     .toLowerCase()
     .normalize('NFKD')
     .replace(/&/g, ' and ')
-    .replace(/[^a-z0-9 ]+/g, ' ')
+    .replace(/[^a-z0-9 -]+/g, ' ')
     .replace(/\s+/g, ' ')
-    .trim();
+    .trim()
+    .replace(/(?:^|[\s])\w/g, c => c.toUpperCase());
 }
 
 function normalizeLineItemsForHash(lineItems = []) {

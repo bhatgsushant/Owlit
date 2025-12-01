@@ -324,8 +324,8 @@ const authenticateRequest = (req, res, next) => {
     console.log('✅ JWT verified for user:', decoded.email || decoded.id);
     return next();
   } catch (err) {
-   console.error('❌ JWT verification failed:', {
-     message: err.message,
+    console.error('❌ JWT verification failed:', {
+      message: err.message,
       name: err.name,
     });
     // (Optional) log decoded payload without verifying signature, to inspect exp etc.
@@ -378,9 +378,9 @@ if (isProduction) {
 // --- OpenAI Setup ---
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 if (!OPENAI_API_KEY) {
-    console.error('❌ Missing OPENAI_API_KEY in your .env file!');
+  console.error('❌ Missing OPENAI_API_KEY in your .env file!');
 } else {
-    console.log('✅ Loaded OpenAI API Key');
+  console.log('✅ Loaded OpenAI API Key');
 }
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 const ASK_AI_INTERPRETER_MODEL = process.env.ASK_AI_MODEL || 'gpt-4o-mini';
@@ -487,48 +487,48 @@ let masterItems = {}; // In-memory cache now fed from Supabase only
 
 
 async function loadMasterItems() {
-    console.log("🔄 Loading master items from Supabase...");
-    const { data, error } = await supabase
-        .from('master_items')
-        .select('item_name, main_category, sub_category');
+  console.log("🔄 Loading master items from Supabase...");
+  const { data, error } = await supabase
+    .from('master_items')
+    .select('item_name, main_category, sub_category');
 
-    if (error) {
-        console.error('❌ Error loading master items from Supabase:', error);
-        masterItems = {};
-        return;
-    }
-
+  if (error) {
+    console.error('❌ Error loading master items from Supabase:', error);
     masterItems = {};
+    return;
+  }
 
-    for (const row of data) {
-        masterItems[row.item_name.toLowerCase().trim()] = {
-            main_category: row.main_category,
-            sub_category: row.sub_category,
-            Item_Name: row.item_name,
-            receipt_ItemNames: [row.item_name]
-        };
-    }
+  masterItems = {};
 
-    console.log(`✅ Loaded ${Object.keys(masterItems).length} items from Supabase.`);
+  for (const row of data) {
+    masterItems[row.item_name.toLowerCase().trim()] = {
+      main_category: row.main_category,
+      sub_category: row.sub_category,
+      Item_Name: row.item_name,
+      receipt_ItemNames: [row.item_name]
+    };
+  }
+
+  console.log(`✅ Loaded ${Object.keys(masterItems).length} items from Supabase.`);
 }
 
 
 async function saveMasterItem(itemName, main_category, sub_category) {
-    await supabase
-        .from('master_items')
-        .upsert(
-            { item_name: itemName, main_category, sub_category },
-            { onConflict: 'item_name' }
-        );
+  await supabase
+    .from('master_items')
+    .upsert(
+      { item_name: itemName, main_category, sub_category },
+      { onConflict: 'item_name' }
+    );
 
-    masterItems[itemName.toLowerCase().trim()] = {
-        main_category,
-        sub_category,
-        Item_Name: itemName,
-        receipt_ItemNames: [itemName]
-    };
+  masterItems[itemName.toLowerCase().trim()] = {
+    main_category,
+    sub_category,
+    Item_Name: itemName,
+    receipt_ItemNames: [itemName]
+  };
 
-    console.log(`💾 Saved to Supabase master_items: ${itemName}`);
+  console.log(`💾 Saved to Supabase master_items: ${itemName}`);
 }
 
 
@@ -543,13 +543,13 @@ const allowedOrigins = [
 const vercelPreview = /^https:\/\/owlit(-git-[a-z0-9-]+)?-bhatgsushants-projects\.vercel\.app$/i;
 
 app.use(cors({
-  origin: function(origin, callback) {
+  origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-    if (allowedOrigins.includes(origin) || vercelPreview.test(origin)) {return callback(null, true);}
+    if (allowedOrigins.includes(origin) || vercelPreview.test(origin)) { return callback(null, true); }
 
     if (/\.vercel\.app$/.test(origin)) return callback(null, true); // ✅ Allow all Vercel previews
 
-     console.log("❌ Blocked by CORS:", origin);
+    console.log("❌ Blocked by CORS:", origin);
     return callback(new Error(`Not allowed by CORS: ${origin}`));
 
   },
@@ -562,9 +562,9 @@ app.use(cookieParser());
 // Required for proper secure cookies on Render
 //app.set("trust proxy", 1);
 app.use(session({
-    secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false,
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: true,           // Always true in production HTTPS
@@ -576,10 +576,10 @@ app.use(passport.initialize());
 
 // --- Debug route to check cookies + session ---
 app.get('/api/debug-session', (req, res) => {
-  res.cookie('rw_test', '1', { 
-    httpOnly: true, 
-    secure: true, 
-    sameSite: 'none' 
+  res.cookie('rw_test', '1', {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none'
   });
 
   res.json({
@@ -595,110 +595,110 @@ app.get('/api/debug-session', (req, res) => {
 
 const MAX_UPLOAD_SIZE_BYTES = Number(process.env.MAX_UPLOAD_SIZE_BYTES || 10 * 1024 * 1024);
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
-    fileFilter: (req, file, cb) => {
-        if (isSupportedUpload(file.mimetype)) {
-            return cb(null, true);
-        }
-        cb(new ValidationError('Unsupported file type. Please upload a PDF or image.'));
-    },
+  storage: multer.memoryStorage(),
+  limits: { fileSize: MAX_UPLOAD_SIZE_BYTES },
+  fileFilter: (req, file, cb) => {
+    if (isSupportedUpload(file.mimetype)) {
+      return cb(null, true);
+    }
+    cb(new ValidationError('Unsupported file type. Please upload a PDF or image.'));
+  },
 });
 
 // --- Helper Functions ---
 async function preprocessImage(imageBuffer) {
-    console.log('🔧 Preprocessing image...');
-    return await sharp(imageBuffer).grayscale().linear(1.5, -128).sharpen().toBuffer();
+  console.log('🔧 Preprocessing image...');
+  return await sharp(imageBuffer).grayscale().linear(1.5, -128).sharpen().toBuffer();
 }
 
 async function runTesseract(imageBuffer) {
-    console.log('🏃 Running Tesseract.js OCR prepass...');
-    const worker = await createWorker('eng');
-    const { data: { text } } = await worker.recognize(imageBuffer);
-    await worker.terminate();
-    console.log('✅ Tesseract prepass complete.');
-    return text;
+  console.log('🏃 Running Tesseract.js OCR prepass...');
+  const worker = await createWorker('eng');
+  const { data: { text } } = await worker.recognize(imageBuffer);
+  await worker.terminate();
+  console.log('✅ Tesseract prepass complete.');
+  return text;
 }
 
 function formatDate(dateString) {
-    if (!dateString) return '';
-    try {
-        // Attempt to parse DD/MM/YYYY
-        const parts = dateString.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
-        if (parts) {
-            // parts[1] = DD, parts[2] = MM, parts[3] = YYYY
-            const date = new Date(`${parts[3]}-${parts[2]}-${parts[1]}`);
-            if (!isNaN(date)) {
-                return date.toISOString().split('T')[0];
-            }
-        }
-
-        // Fallback for other formats like YYYY-MM-DD or ISO strings
-        const date = new Date(dateString);
-        if (isNaN(date)) throw new Error('Invalid date');
+  if (!dateString) return '';
+  try {
+    // Attempt to parse DD/MM/YYYY
+    const parts = dateString.match(/^(\d{1,2})[\/\-\.](\d{1,2})[\/\-\.](\d{4})$/);
+    if (parts) {
+      // parts[1] = DD, parts[2] = MM, parts[3] = YYYY
+      const date = new Date(`${parts[3]}-${parts[2]}-${parts[1]}`);
+      if (!isNaN(date)) {
         return date.toISOString().split('T')[0];
-    } catch (e) {
-        return dateString;
+      }
     }
+
+    // Fallback for other formats like YYYY-MM-DD or ISO strings
+    const date = new Date(dateString);
+    if (isNaN(date)) throw new Error('Invalid date');
+    return date.toISOString().split('T')[0];
+  } catch (e) {
+    return dateString;
+  }
 }
 
 // Icon key helpers
 const CATEGORY_ICON_KEYS = new Set([
-    'fruit', 'vegetable', 'meat', 'poultry', 'seafood', 'dairy', 'bakery', 'beverages', 'snacks', 'frozen', 'canned_goods',
-    'personal_care', 'health', 'fitness', 'household', 'electronics', 'utilities', 'clothing', 'jewelry', 'transport',
-    'travel', 'stationery', 'education', 'finance', 'entertainment', 'pets', 'gifts', 'dining', 'other'
+  'fruit', 'vegetable', 'meat', 'poultry', 'seafood', 'dairy', 'bakery', 'beverages', 'snacks', 'frozen', 'canned_goods',
+  'personal_care', 'health', 'fitness', 'household', 'electronics', 'utilities', 'clothing', 'jewelry', 'transport',
+  'travel', 'stationery', 'education', 'finance', 'entertainment', 'pets', 'gifts', 'dining', 'other'
 ]);
 
 const SUBCATEGORY_ICON_MATCHERS = [
-    { key: 'coffee', test: /(coffee|tea|drink)/ },
-    { key: 'beer_wine', test: /(beer|wine|spirits)/ },
-    { key: 'fuel', test: /(fuel|gas|diesel)/ },
-    { key: 'bread', test: /(bread|pastr|cake|cookie|muffin)/ },
-    { key: 'dairy', test: /(milk|cheese|yogurt|butter|cream|egg)/ },
-    { key: 'fish', test: /(fish|seafood|prawn|shrimp)/ },
-    { key: 'fruit', test: /(fruit|apple|banana|grape|melon)/ },
-    { key: 'vegetable', test: /(vegetable|greens|onion|tomato|pepper)/ },
-    { key: 'meat', test: /(meat|beef|pork|lamb)/ },
-    { key: 'chicken', test: /(chicken|turkey|duck)/ },
-    { key: 'cleaning', test: /(laundry|cleaning|detergent)/ },
-    { key: 'medicine', test: /(medicine|vitamin|pain|supplement)/ },
-    { key: 'fitness', test: /(gym|fitness|protein)/ },
-    { key: 'electronics', test: /(electronics|charger|laptop|mobile|battery)/ },
-    { key: 'utilities', test: /(electricity|internet|water|bill)/ },
-    { key: 'clothing', test: /(shoe|shirt|jean|dress|clothing|sock)/ },
-    { key: 'jewelry', test: /(jewel|ring|necklace|bracelet)/ },
-    { key: 'transport', test: /(bus|train|taxi|uber|parking)/ },
-    { key: 'travel', test: /(flight|hotel|visa|tour|luggage)/ },
-    { key: 'stationery', test: /(pen|notebook|paper|folder)/ },
-    { key: 'education', test: /(book|course|tuition|school)/ },
-    { key: 'finance', test: /(bank|fee|insurance|loan|interest)/ },
-    { key: 'entertainment', test: /(movie|music|game|event|stream)/ },
-    { key: 'pets', test: /(pet|vet|groom)/ },
-    { key: 'gifts', test: /(gift|donation|charity)/ },
-    { key: 'dining', test: /(restaurant|takeaway|fast_food|pub|bar)/ },
+  { key: 'coffee', test: /(coffee|tea|drink)/ },
+  { key: 'beer_wine', test: /(beer|wine|spirits)/ },
+  { key: 'fuel', test: /(fuel|gas|diesel)/ },
+  { key: 'bread', test: /(bread|pastr|cake|cookie|muffin)/ },
+  { key: 'dairy', test: /(milk|cheese|yogurt|butter|cream|egg)/ },
+  { key: 'fish', test: /(fish|seafood|prawn|shrimp)/ },
+  { key: 'fruit', test: /(fruit|apple|banana|grape|melon)/ },
+  { key: 'vegetable', test: /(vegetable|greens|onion|tomato|pepper)/ },
+  { key: 'meat', test: /(meat|beef|pork|lamb)/ },
+  { key: 'chicken', test: /(chicken|turkey|duck)/ },
+  { key: 'cleaning', test: /(laundry|cleaning|detergent)/ },
+  { key: 'medicine', test: /(medicine|vitamin|pain|supplement)/ },
+  { key: 'fitness', test: /(gym|fitness|protein)/ },
+  { key: 'electronics', test: /(electronics|charger|laptop|mobile|battery)/ },
+  { key: 'utilities', test: /(electricity|internet|water|bill)/ },
+  { key: 'clothing', test: /(shoe|shirt|jean|dress|clothing|sock)/ },
+  { key: 'jewelry', test: /(jewel|ring|necklace|bracelet)/ },
+  { key: 'transport', test: /(bus|train|taxi|uber|parking)/ },
+  { key: 'travel', test: /(flight|hotel|visa|tour|luggage)/ },
+  { key: 'stationery', test: /(pen|notebook|paper|folder)/ },
+  { key: 'education', test: /(book|course|tuition|school)/ },
+  { key: 'finance', test: /(bank|fee|insurance|loan|interest)/ },
+  { key: 'entertainment', test: /(movie|music|game|event|stream)/ },
+  { key: 'pets', test: /(pet|vet|groom)/ },
+  { key: 'gifts', test: /(gift|donation|charity)/ },
+  { key: 'dining', test: /(restaurant|takeaway|fast_food|pub|bar)/ },
 ];
 
 const SUBCATEGORY_ICON_KEYS = new Set(SUBCATEGORY_ICON_MATCHERS.map((m) => m.key));
 
 const normalizeCategoryIconKey = (key) => {
-    if (!key) return null;
-    const normalized = String(key).toLowerCase();
-    return CATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
+  if (!key) return null;
+  const normalized = String(key).toLowerCase();
+  return CATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
 };
 
 const normalizeSubcategoryIconKey = (key) => {
-    if (!key) return null;
-    const normalized = String(key).toLowerCase();
-    return SUBCATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
+  if (!key) return null;
+  const normalized = String(key).toLowerCase();
+  return SUBCATEGORY_ICON_KEYS.has(normalized) ? normalized : null;
 };
 
 const inferSubcategoryIconKey = (subCategory) => {
-    if (!subCategory) return null;
-    const value = String(subCategory).toLowerCase();
-    for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
-        if (matcher.test.test(value)) return matcher.key;
-    }
-    return null;
+  if (!subCategory) return null;
+  const value = String(subCategory).toLowerCase();
+  for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
+    if (matcher.test.test(value)) return matcher.key;
+  }
+  return null;
 };
 
 const CATEGORY_PROMPT_TEXT = `
@@ -739,11 +739,11 @@ const CATEGORY_PROMPT_TEXT = `
 `;
 
 async function processWithOpenAI(imageBase64, tesseractText = '') {
-    const MAX_RETRIES = 2;
-    for (let i = 0; i <= MAX_RETRIES; i++) {
-        try {
-            console.log(`🤖 Calling OpenAI API (Attempt ${i + 1}/${MAX_RETRIES + 1})...`);
-            const prompt = `
+  const MAX_RETRIES = 2;
+  for (let i = 0; i <= MAX_RETRIES; i++) {
+    try {
+      console.log(`🤖 Calling OpenAI API (Attempt ${i + 1}/${MAX_RETRIES + 1})...`);
+      const prompt = `
 
 
 You are an OCR correction and structuring expert. 
@@ -777,216 +777,217 @@ Output clean structured JSON in this format. The date should be in DD/MM/YYYY fo
 For CategoryIconKey pick from the allowed category icon keys. For SubCategoryIconKey pick from the allowed subcategory icon keys. If unsure, choose the closest match.
 Return **only JSON**, no explanations.
 `;
-            const response = await openai.chat.completions.create({
-                model: 'gpt-4o',
-                messages: [
-                    {
-                        role: 'user',
-                        content: [
-                            { type: 'text', text: prompt },
-                            {
-                                type: 'image_url',
-                                image_url: { url: 
-`data:image/jpeg;base64,${imageBase64}` 
-},
-                            },
-                        ],
-                    },
-                ],
-                temperature: 0,
-                max_tokens: 4000,
-                response_format: { type: "json_object" },
-            });
-            const content = response.choices[0]?.message?.content;
-            if (!content) throw new Error('No content returned from OpenAI');
-            const jsonData = JSON.parse(content);
-            console.log('✅ Successfully parsed JSON from OpenAI response');
-            return jsonData;
-        } catch (error) {
-            console.error(`❌ OpenAI API error on attempt ${i + 1}:`, error.message);
-            if (i === MAX_RETRIES) {
-                throw new Error('Failed to get a valid response from OpenAI after multiple retries.');
-            }
-            console.log('Retrying...');
-        }
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              {
+                type: 'image_url',
+                image_url: {
+                  url:
+                    `data:image/jpeg;base64,${imageBase64}`
+                },
+              },
+            ],
+          },
+        ],
+        temperature: 0,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      });
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No content returned from OpenAI');
+      const jsonData = JSON.parse(content);
+      console.log('✅ Successfully parsed JSON from OpenAI response');
+      return jsonData;
+    } catch (error) {
+      console.error(`❌ OpenAI API error on attempt ${i + 1}:`, error.message);
+      if (i === MAX_RETRIES) {
+        throw new Error('Failed to get a valid response from OpenAI after multiple retries.');
+      }
+      console.log('Retrying...');
     }
+  }
 }
 
 async function generateUserInsightFromSupabase(userId) {
-    if (!userId) return null;
-    try {
-        const { data: receipts, error } = await supabase
-            .from('receipts')
-            .select('merchant_name, transaction_date, total_amount, line_items')
-            .eq('user_id', userId)
-            .order('transaction_date', { ascending: false })
-            .limit(500);
+  if (!userId) return null;
+  try {
+    const { data: receipts, error } = await supabase
+      .from('receipts')
+      .select('merchant_name, transaction_date, total_amount, line_items')
+      .eq('user_id', userId)
+      .order('transaction_date', { ascending: false })
+      .limit(500);
 
-        if (error || !receipts || receipts.length === 0) return null;
+    if (error || !receipts || receipts.length === 0) return null;
 
-        // Largest receipt
-        let largest = receipts.reduce((acc, r) => {
-            const total = Number(r.total_amount) || 0;
-            if (!acc || total > acc.total) return { total, merchant: r.merchant_name, date: r.transaction_date };
-            return acc;
-        }, null);
+    // Largest receipt
+    let largest = receipts.reduce((acc, r) => {
+      const total = Number(r.total_amount) || 0;
+      if (!acc || total > acc.total) return { total, merchant: r.merchant_name, date: r.transaction_date };
+      return acc;
+    }, null);
 
-        // Top merchant by total
-        const merchantTotals = {};
-        receipts.forEach((r) => {
-            const total = Number(r.total_amount) || 0;
-            const key = (r.merchant_name || 'Unknown').trim();
-            merchantTotals[key] = (merchantTotals[key] || 0) + total;
-        });
-        const topMerchant = Object.entries(merchantTotals)
-            .sort((a, b) => b[1] - a[1])
-            .map(([merchant, total]) => ({ merchant, total }))[0];
+    // Top merchant by total
+    const merchantTotals = {};
+    receipts.forEach((r) => {
+      const total = Number(r.total_amount) || 0;
+      const key = (r.merchant_name || 'Unknown').trim();
+      merchantTotals[key] = (merchantTotals[key] || 0) + total;
+    });
+    const topMerchant = Object.entries(merchantTotals)
+      .sort((a, b) => b[1] - a[1])
+      .map(([merchant, total]) => ({ merchant, total }))[0];
 
-        const templates = [];
-        if (largest) {
-            templates.push(
-                `Your largest recent receipt was £${largest.total.toFixed(2)} at ${largest.merchant || 'a store'} on ${largest.date || 'a recent date'}.`
-            );
-        }
-        if (topMerchant) {
-            templates.push(
-                `Across your history, you spent about £${topMerchant.total.toFixed(2)} at ${topMerchant.merchant || 'your top merchant'}.`
-            );
-        }
-        if (!templates.length) return null;
-        const insight = templates[Math.floor(Math.random() * templates.length)];
-        console.log('🧠 User insight generated:', { userId, insight });
-        return insight;
-    } catch (err) {
-        console.error('Failed to generate user insight:', err.message);
-        return null;
+    const templates = [];
+    if (largest) {
+      templates.push(
+        `Your largest recent receipt was £${largest.total.toFixed(2)} at ${largest.merchant || 'a store'} on ${largest.date || 'a recent date'}.`
+      );
     }
+    if (topMerchant) {
+      templates.push(
+        `Across your history, you spent about £${topMerchant.total.toFixed(2)} at ${topMerchant.merchant || 'your top merchant'}.`
+      );
+    }
+    if (!templates.length) return null;
+    const insight = templates[Math.floor(Math.random() * templates.length)];
+    console.log('🧠 User insight generated:', { userId, insight });
+    return insight;
+  } catch (err) {
+    console.error('Failed to generate user insight:', err.message);
+    return null;
+  }
 }
 
 async function generateScanInsight({ merchant_name, total_amount, line_items }) {
-    try {
-        const total = Number(total_amount) || 0;
-        const items = Array.isArray(line_items) ? line_items : [];
-        const topCategories = Array.from(
-            items.reduce((acc, item) => {
-                const key = (item.main_category || item.category || '').toString().trim();
-                if (key) acc.add(key);
-                return acc;
-            }, new Set())
-        ).slice(0, 3);
+  try {
+    const total = Number(total_amount) || 0;
+    const items = Array.isArray(line_items) ? line_items : [];
+    const topCategories = Array.from(
+      items.reduce((acc, item) => {
+        const key = (item.main_category || item.category || '').toString().trim();
+        if (key) acc.add(key);
+        return acc;
+      }, new Set())
+    ).slice(0, 3);
 
-        const templates = [
-            `Give two short sentences about a receipt from ${merchant_name || 'this store'} totaling £${total.toFixed(2)}.`,
-            `In two sentences, highlight anything notable in this receipt from ${merchant_name || 'the merchant'}. Total: £${total.toFixed(2)}.`,
-            `Provide two concise sentences on this purchase (merchant: ${merchant_name || 'unknown'}, total £${total.toFixed(2)}, categories: ${topCategories.join(', ') || 'n/a'}).`,
-            `Give two brief lines of insight about this receipt (total £${total.toFixed(2)}, merchant ${merchant_name || 'unknown'}).`,
-        ];
-        const prompt = templates[Math.floor(Math.random() * templates.length)];
+    const templates = [
+      `Give two short sentences about a receipt from ${merchant_name || 'this store'} totaling £${total.toFixed(2)}.`,
+      `In two sentences, highlight anything notable in this receipt from ${merchant_name || 'the merchant'}. Total: £${total.toFixed(2)}.`,
+      `Provide two concise sentences on this purchase (merchant: ${merchant_name || 'unknown'}, total £${total.toFixed(2)}, categories: ${topCategories.join(', ') || 'n/a'}).`,
+      `Give two brief lines of insight about this receipt (total £${total.toFixed(2)}, merchant ${merchant_name || 'unknown'}).`,
+    ];
+    const prompt = templates[Math.floor(Math.random() * templates.length)];
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                {
-                    role: 'system',
-                    content:
-                        'Return exactly two short sentences. Be neutral and concise. Keep under 220 characters total.',
-                },
-                {
-                    role: 'user',
-                    content: prompt,
-                },
-            ],
-            temperature: 0.3,
-            max_tokens: 120,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        {
+          role: 'system',
+          content:
+            'Return exactly two short sentences. Be neutral and concise. Keep under 220 characters total.',
+        },
+        {
+          role: 'user',
+          content: prompt,
+        },
+      ],
+      temperature: 0.3,
+      max_tokens: 120,
+    });
 
-        const content = response.choices[0]?.message?.content?.trim();
-        if (!content) return null;
-        console.log('🧠 Scan insight generated (OpenAI):', content);
-        return content;
-    } catch (err) {
-        console.error('Failed to generate AI insight for scan:', err.message);
-        return null;
-    }
+    const content = response.choices[0]?.message?.content?.trim();
+    if (!content) return null;
+    console.log('🧠 Scan insight generated (OpenAI):', content);
+    return content;
+  } catch (err) {
+    console.error('Failed to generate AI insight for scan:', err.message);
+    return null;
+  }
 }
 
 // --- Embedding Ingestion for Receipt Line Items ---
 async function ingestReceiptItems(receipt, userId) {
-    if (!receipt || !Array.isArray(receipt.line_items) || !userId) return;
+  if (!receipt || !Array.isArray(receipt.line_items) || !userId) return;
 
-    const receiptId = receipt.id;
-    const merchantName = receipt.merchant_name || '';
-    const canonicalMerchantId = receipt.canonical_merchant_id || null;
-    const transactionDate = receipt.transaction_date || null;
+  const receiptId = receipt.id;
+  const merchantName = receipt.merchant_name || '';
+  const canonicalMerchantId = receipt.canonical_merchant_id || null;
+  const transactionDate = receipt.transaction_date || null;
 
-    for (const rawItem of receipt.line_items) {
-        try {
-            const itemName = rawItem.item || rawItem.Item_Name || rawItem.name || rawItem.Name || '';
-            const mainCategory = rawItem.main_category || rawItem.category || '';
-            const subCategory = rawItem.sub_category || rawItem.SubCategory || '';
-            const quantity = Number(rawItem.quantity || rawItem.Quantity || 1) || 1;
-            const unitPrice = Number(rawItem.price || rawItem.Price || 0) || 0;
-            const totalPrice = Number(rawItem.total_price || quantity * unitPrice) || 0;
+  for (const rawItem of receipt.line_items) {
+    try {
+      const itemName = rawItem.item || rawItem.Item_Name || rawItem.name || rawItem.Name || '';
+      const mainCategory = rawItem.main_category || rawItem.category || '';
+      const subCategory = rawItem.sub_category || rawItem.SubCategory || '';
+      const quantity = Number(rawItem.quantity || rawItem.Quantity || 1) || 1;
+      const unitPrice = Number(rawItem.price || rawItem.Price || 0) || 0;
+      const totalPrice = Number(rawItem.total_price || quantity * unitPrice) || 0;
 
-            const descriptor = [
-                `Item: ${itemName}`,
-                mainCategory ? `Main category: ${mainCategory}` : null,
-                subCategory ? `Sub category: ${subCategory}` : null,
-                merchantName ? `Merchant: ${merchantName}` : null,
-                transactionDate ? `Date: ${transactionDate}` : null,
-                `Price: £${unitPrice.toFixed(2)} x ${quantity} = £${totalPrice.toFixed(2)}`
-            ]
-                .filter(Boolean)
-                .join('. ');
+      const descriptor = [
+        `Item: ${itemName}`,
+        mainCategory ? `Main category: ${mainCategory}` : null,
+        subCategory ? `Sub category: ${subCategory}` : null,
+        merchantName ? `Merchant: ${merchantName}` : null,
+        transactionDate ? `Date: ${transactionDate}` : null,
+        `Price: £${unitPrice.toFixed(2)} x ${quantity} = £${totalPrice.toFixed(2)}`
+      ]
+        .filter(Boolean)
+        .join('. ');
 
-            const embeddingResp = await openai.embeddings.create({
-                model: 'text-embedding-3-small',
-                input: descriptor,
-            });
+      const embeddingResp = await openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: descriptor,
+      });
 
-            const embedding = embeddingResp.data?.[0]?.embedding;
-            if (!embedding) {
-                console.warn('No embedding returned for line item', { itemName, receiptId });
-                continue;
-            }
+      const embedding = embeddingResp.data?.[0]?.embedding;
+      if (!embedding) {
+        console.warn('No embedding returned for line item', { itemName, receiptId });
+        continue;
+      }
 
-            const { error } = await supabase
-                .from('receipt_item_embeddings')
-                .upsert(
-                    {
-                        user_id: userId,
-                        receipt_id: receiptId,
-                        item_name: itemName,
-                        main_category: mainCategory,
-                        sub_category: subCategory,
-                        quantity,
-                        unit_price: unitPrice,
-                        total_price: totalPrice,
-                        merchant_name: merchantName,
-                        canonical_merchant_id: canonicalMerchantId,
-                        transaction_date: transactionDate,
-                        embedding,
-                    },
-                    { onConflict: 'receipt_id,item_name,total_price' }
-                );
+      const { error } = await supabase
+        .from('receipt_item_embeddings')
+        .upsert(
+          {
+            user_id: userId,
+            receipt_id: receiptId,
+            item_name: itemName,
+            main_category: mainCategory,
+            sub_category: subCategory,
+            quantity,
+            unit_price: unitPrice,
+            total_price: totalPrice,
+            merchant_name: merchantName,
+            canonical_merchant_id: canonicalMerchantId,
+            transaction_date: transactionDate,
+            embedding,
+          },
+          { onConflict: 'receipt_id,item_name,total_price' }
+        );
 
-            if (error) {
-                console.error('Failed to upsert receipt_item_embedding', { receiptId, itemName, error });
-            }
-        } catch (err) {
-            console.error('Error ingesting line item embedding', err.message);
-        }
+      if (error) {
+        console.error('Failed to upsert receipt_item_embedding', { receiptId, itemName, error });
+      }
+    } catch (err) {
+      console.error('Error ingesting line item embedding', err.message);
     }
+  }
 }
 
 module.exports.ingestReceiptItems = ingestReceiptItems;
 
 // --- Query Parser (GPT-4o-mini) ---
 async function parseUserQuery(question) {
-    if (!question || typeof question !== 'string') {
-        throw new Error('Question is required');
-    }
-    const prompt = `
+  if (!question || typeof question !== 'string') {
+    throw new Error('Question is required');
+  }
+  const prompt = `
 You are a query parser. Fix spelling. Return strict JSON only, no extra text.
 Fields:
 - task: string (e.g., "spend_summary", "top_merchants", "find_receipts")
@@ -1013,183 +1014,183 @@ Return JSON only:
 }
 `;
 
-    const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-            { role: 'system', content: 'You return strict JSON only.' },
-            { role: 'user', content: prompt },
-        ],
-        temperature: 0,
-        max_tokens: 300,
-        response_format: { type: 'json_object' },
-    });
+  const response = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [
+      { role: 'system', content: 'You return strict JSON only.' },
+      { role: 'user', content: prompt },
+    ],
+    temperature: 0,
+    max_tokens: 300,
+    response_format: { type: 'json_object' },
+  });
 
-    const content = response.choices[0]?.message?.content;
-    if (!content) throw new Error('No content returned from OpenAI');
-    return JSON.parse(content);
+  const content = response.choices[0]?.message?.content;
+  if (!content) throw new Error('No content returned from OpenAI');
+  return JSON.parse(content);
 }
 
 module.exports.parseUserQuery = parseUserQuery;
 
 // --- SQL-based item search (no vectors) ---
 async function searchItemsSQL(parsed, userId) {
-    if (!userId) return [];
-    const {
-        keywords = [],
-        merchant = null,
-        category = null,
-        date_range = null,
-        start_date = null,
-        end_date = null,
-    } = parsed || {};
+  if (!userId) return [];
+  const {
+    keywords = [],
+    merchant = null,
+    category = null,
+    date_range = null,
+    start_date = null,
+    end_date = null,
+  } = parsed || {};
 
-    // Build base query with receipt-level filters
-    let query = supabase
-        .from('receipts')
-        .select('id, merchant_name, transaction_date, canonical_merchant_id, line_items')
-        .eq('user_id', userId)
-        .order('transaction_date', { ascending: false });
+  // Build base query with receipt-level filters
+  let query = supabase
+    .from('receipts')
+    .select('id, merchant_name, transaction_date, canonical_merchant_id, line_items')
+    .eq('user_id', userId)
+    .order('transaction_date', { ascending: false });
 
-    // Date range filter
-    const today = new Date();
-    const iso = (d) => d.toISOString().split('T')[0];
-    const applyBetween = (from, to) => {
-        query = query.gte('transaction_date', from).lte('transaction_date', to);
-    };
+  // Date range filter
+  const today = new Date();
+  const iso = (d) => d.toISOString().split('T')[0];
+  const applyBetween = (from, to) => {
+    query = query.gte('transaction_date', from).lte('transaction_date', to);
+  };
 
-    if (start_date && end_date) {
-        applyBetween(start_date, end_date);
-    } else if (date_range) {
-        const range = date_range.toLowerCase();
-        if (range === 'last_7_days') {
-            const d = new Date(today);
-            d.setDate(d.getDate() - 7);
-            applyBetween(iso(d), iso(today));
-        } else if (range === 'last_30_days' || range === 'last_30') {
-            const d = new Date(today);
-            d.setDate(d.getDate() - 30);
-            applyBetween(iso(d), iso(today));
-        } else if (range === 'last_90_days' || range === 'last_90') {
-            const d = new Date(today);
-            d.setDate(d.getDate() - 90);
-            applyBetween(iso(d), iso(today));
-        } else if (range === 'last_month') {
-            const firstDayThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-            const lastDayLastMonth = new Date(firstDayThisMonth.getTime() - 1);
-            const firstDayLastMonth = new Date(lastDayLastMonth.getFullYear(), lastDayLastMonth.getMonth(), 1);
-            applyBetween(iso(firstDayLastMonth), iso(lastDayLastMonth));
-        } else if (range === 'this_month') {
-            const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
-            applyBetween(iso(firstDay), iso(today));
-        } else if (range === 'ytd') {
-            const firstDay = new Date(today.getFullYear(), 0, 1);
-            applyBetween(iso(firstDay), iso(today));
-        }
+  if (start_date && end_date) {
+    applyBetween(start_date, end_date);
+  } else if (date_range) {
+    const range = date_range.toLowerCase();
+    if (range === 'last_7_days') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 7);
+      applyBetween(iso(d), iso(today));
+    } else if (range === 'last_30_days' || range === 'last_30') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 30);
+      applyBetween(iso(d), iso(today));
+    } else if (range === 'last_90_days' || range === 'last_90') {
+      const d = new Date(today);
+      d.setDate(d.getDate() - 90);
+      applyBetween(iso(d), iso(today));
+    } else if (range === 'last_month') {
+      const firstDayThisMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+      const lastDayLastMonth = new Date(firstDayThisMonth.getTime() - 1);
+      const firstDayLastMonth = new Date(lastDayLastMonth.getFullYear(), lastDayLastMonth.getMonth(), 1);
+      applyBetween(iso(firstDayLastMonth), iso(lastDayLastMonth));
+    } else if (range === 'this_month') {
+      const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+      applyBetween(iso(firstDay), iso(today));
+    } else if (range === 'ytd') {
+      const firstDay = new Date(today.getFullYear(), 0, 1);
+      applyBetween(iso(firstDay), iso(today));
     }
+  }
 
-    // Merchant filter (receipt-level)
-    if (merchant) {
-        query = query.ilike('merchant_name', `%${merchant}%`);
+  // Merchant filter (receipt-level)
+  if (merchant) {
+    query = query.ilike('merchant_name', `%${merchant}%`);
+  }
+
+  const { data: receipts, error } = await query.limit(200); // limit rows before flattening
+  if (error) {
+    console.error('searchItemsSQL error:', error.message);
+    return [];
+  }
+  if (!receipts || receipts.length === 0) return [];
+
+  // Flatten line items and apply item-level filters
+  const keywordList = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
+  const results = [];
+  for (const receipt of receipts) {
+    const lineItems = Array.isArray(receipt.line_items) ? receipt.line_items : [];
+    for (const li of lineItems) {
+      const itemName = li.item || li.Item_Name || li.name || li.Name || '';
+      const mainCat = li.main_category || li.category || '';
+      const subCat = li.sub_category || li.SubCategory || '';
+      const quantity = Number(li.quantity || li.Quantity || 1) || 1;
+      const price = Number(li.price || li.Price || 0) || 0;
+
+      // Item-level filters
+      if (keywordList.length) {
+        const nameLower = itemName.toLowerCase();
+        const pass = keywordList.some((kw) => nameLower.includes(String(kw).toLowerCase()));
+        if (!pass) continue;
+      }
+      if (category) {
+        const catLower = String(category).toLowerCase();
+        if (String(mainCat || '').toLowerCase() !== catLower) continue;
+      }
+
+      results.push({
+        item_name: itemName,
+        main_category: mainCat,
+        sub_category: subCat,
+        price,
+        quantity,
+        merchant_name: receipt.merchant_name,
+        transaction_date: receipt.transaction_date,
+        receipt_id: receipt.id,
+      });
+
+      if (results.length >= 50) break;
     }
+    if (results.length >= 50) break;
+  }
 
-    const { data: receipts, error } = await query.limit(200); // limit rows before flattening
-    if (error) {
-        console.error('searchItemsSQL error:', error.message);
-        return [];
-    }
-    if (!receipts || receipts.length === 0) return [];
-
-    // Flatten line items and apply item-level filters
-    const keywordList = Array.isArray(keywords) ? keywords.filter(Boolean) : [];
-    const results = [];
-    for (const receipt of receipts) {
-        const lineItems = Array.isArray(receipt.line_items) ? receipt.line_items : [];
-        for (const li of lineItems) {
-            const itemName = li.item || li.Item_Name || li.name || li.Name || '';
-            const mainCat = li.main_category || li.category || '';
-            const subCat = li.sub_category || li.SubCategory || '';
-            const quantity = Number(li.quantity || li.Quantity || 1) || 1;
-            const price = Number(li.price || li.Price || 0) || 0;
-
-            // Item-level filters
-            if (keywordList.length) {
-                const nameLower = itemName.toLowerCase();
-                const pass = keywordList.some((kw) => nameLower.includes(String(kw).toLowerCase()));
-                if (!pass) continue;
-            }
-            if (category) {
-                const catLower = String(category).toLowerCase();
-                if (String(mainCat || '').toLowerCase() !== catLower) continue;
-            }
-
-            results.push({
-                item_name: itemName,
-                main_category: mainCat,
-                sub_category: subCat,
-                price,
-                quantity,
-                merchant_name: receipt.merchant_name,
-                transaction_date: receipt.transaction_date,
-                receipt_id: receipt.id,
-            });
-
-            if (results.length >= 50) break;
-        }
-        if (results.length >= 50) break;
-    }
-
-    return results;
+  return results;
 }
 
 module.exports.searchItemsSQL = searchItemsSQL;
 
 // --- Vector search for items ---
 async function searchItemsVector(question, userId, limit = 20) {
-    try {
-        if (!question || !userId) return [];
-        const embeddingResp = await openai.embeddings.create({
-            model: 'text-embedding-3-small',
-            input: question,
-        });
-        const embedding = embeddingResp.data?.[0]?.embedding;
-        if (!embedding) return [];
+  try {
+    if (!question || !userId) return [];
+    const embeddingResp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: question,
+    });
+    const embedding = embeddingResp.data?.[0]?.embedding;
+    if (!embedding) return [];
 
-        const { data, error } = await supabase.rpc('match_receipt_items', {
-            query_embedding: embedding,
-            match_count: limit,
-            _user_id: userId,
-        });
+    const { data, error } = await supabase.rpc('match_receipt_items', {
+      query_embedding: embedding,
+      match_count: limit,
+      _user_id: userId,
+    });
 
-        if (error) {
-            console.error('searchItemsVector RPC error:', error.message);
-            return [];
-        }
-        if (!data || !Array.isArray(data)) return [];
-
-        return data
-            .map((row) => ({
-                receipt_id: row.receipt_id,
-                item_name: row.item_name,
-                main_category: row.main_category,
-                sub_category: row.sub_category,
-                price: row.total_price,
-                merchant_name: row.merchant_name,
-                transaction_date: row.transaction_date,
-                similarity: row.similarity,
-            }))
-            .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
-    } catch (err) {
-        console.error('searchItemsVector error:', err.message);
-        return [];
+    if (error) {
+      console.error('searchItemsVector RPC error:', error.message);
+      return [];
     }
+    if (!data || !Array.isArray(data)) return [];
+
+    return data
+      .map((row) => ({
+        receipt_id: row.receipt_id,
+        item_name: row.item_name,
+        main_category: row.main_category,
+        sub_category: row.sub_category,
+        price: row.total_price,
+        merchant_name: row.merchant_name,
+        transaction_date: row.transaction_date,
+        similarity: row.similarity,
+      }))
+      .sort((a, b) => (b.similarity || 0) - (a.similarity || 0));
+  } catch (err) {
+    console.error('searchItemsVector error:', err.message);
+    return [];
+  }
 }
 
 module.exports.searchItemsVector = searchItemsVector;
 
 // --- Final answer generation ---
 async function generateFinalAnswer(question, items, parsed) {
-    try {
-        const sysPrompt = `You are Owlit, a personal finance assistant. 
+  try {
+    const sysPrompt = `You are Owlit, a personal finance assistant. 
     Your job is to answer the user's question using ONLY the provided receipt item JSON.
     If there are no items, reply: 'No matching purchases found.'
     Keep answers short, clear, and friendly.
@@ -1202,54 +1203,92 @@ async function generateFinalAnswer(question, items, parsed) {
       - trend → describe simple patterns
     NEVER invent items. NEVER use knowledge outside the JSON.`;
 
-        const userContent = `User question: ${question}
+    const userContent = `User question: ${question}
 Parsed filters: ${JSON.stringify(parsed || {})}
 Matching items: ${JSON.stringify(items || [])}`;
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            messages: [
-                { role: 'system', content: sysPrompt },
-                { role: 'user', content: userContent },
-            ],
-            temperature: 0.2,
-            max_tokens: 200,
-        });
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: sysPrompt },
+        { role: 'user', content: userContent },
+      ],
+      temperature: 0.2,
+      max_tokens: 200,
+    });
 
-        const content = response.choices[0]?.message?.content?.trim();
-        return content || "Sorry, I couldn't process that.";
-    } catch (err) {
-        console.error('generateFinalAnswer error:', err.message);
-        return "Sorry, I couldn't process that.";
-    }
+    const content = response.choices[0]?.message?.content?.trim();
+    return content || "Sorry, I couldn't process that.";
+  } catch (err) {
+    console.error('generateFinalAnswer error:', err.message);
+    return "Sorry, I couldn't process that.";
+  }
 }
+
 
 module.exports.generateFinalAnswer = generateFinalAnswer;
 
-async function processDocumentWithDocAI(buffer, mimeType) {
-    console.log('🚀 Starting Document AI Processing...');
-    const name = `projects/${DOCAI_PROJECT_ID}/locations/${DOCAI_LOCATION}/processors/${DOCAI_PROCESSOR_ID}`;
-    const request = {
-        name,
-        rawDocument: {
-            content: buffer.toString('base64'),
-            mimeType: mimeType,
-        },
-    };
-    try {
-        const [result] = await docAIClient.processDocument(request);
-        console.log('✅ Document AI processing complete.');
-        return result.document.text;
-    } catch (error) {
-        console.error('❌ Google Document AI API error:', error);
-        throw new Error('Failed to process document with Google Document AI.');
+async function getNormalizedItemName(itemName) {
+  try {
+    const prompt = `You are a data normalization expert. Your task is to provide a concise, standardized name for a given grocery item. For example, if the item is "WBTN Toast Slice White", the normalized name should be "Bread".
+
+Item: ${itemName}
+Normalized Name:`;
+
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: 'You are a data normalization expert.' },
+        { role: 'user', content: prompt },
+      ],
+      temperature: 0,
+      max_tokens: 60,
+    });
+
+    const normalizedName = response.choices[0]?.message?.content?.trim();
+    if (!normalizedName) return itemName;
+
+    // Save the normalized name to the database
+    const { error } = await supabase
+      .from('Item_Table')
+      .insert([{ item_name: itemName, normalized_name: normalizedName }]);
+
+    if (error) {
+      console.error('Error saving normalized item name:', error);
     }
+
+    return normalizedName;
+  } catch (error) {
+    console.error('Error getting normalized item name:', error);
+    return itemName;
+  }
+}
+
+
+async function processDocumentWithDocAI(buffer, mimeType) {
+  console.log('🚀 Starting Document AI Processing...');
+  const name = `projects/${DOCAI_PROJECT_ID}/locations/${DOCAI_LOCATION}/processors/${DOCAI_PROCESSOR_ID}`;
+  const request = {
+    name,
+    rawDocument: {
+      content: buffer.toString('base64'),
+      mimeType: mimeType,
+    },
+  };
+  try {
+    const [result] = await docAIClient.processDocument(request);
+    console.log('✅ Document AI processing complete.');
+    return result.document.text;
+  } catch (error) {
+    console.error('❌ Google Document AI API error:', error);
+    throw new Error('Failed to process document with Google Document AI.');
+  }
 }
 
 async function structureTextWithOpenAI(text, tesseractHint = '') {
-    console.log('🤖 Structuring text with OpenAI...');
-    const MAX_RETRIES = 2;
-    const jsonPrompt = `
+  console.log('🤖 Structuring text with OpenAI...');
+  const MAX_RETRIES = 2;
+  const jsonPrompt = `
 Convert the OCR text from a receipt into structured JSON.
 
 **OCR Text from Google Document AI:**
@@ -1289,34 +1328,34 @@ ${CATEGORY_PROMPT_TEXT}
 6. The date should be in DD/MM/YYYY format.
 7. Return **JSON only**, no explanations.
 `;
-    for (let i = 0; i <= MAX_RETRIES; i++) {
-        try {
-            const response = await openai.chat.completions.create({
-                model: 'gpt-4o',
-                messages: [{ role: 'user', content: jsonPrompt }],
-                temperature: 0,
-                max_tokens: 4000,
-                response_format: { type: "json_object" },
-            });
-            const content = response.choices[0]?.message?.content;
-            if (!content) throw new Error('No JSON content returned from OpenAI');
-            const jsonData = JSON.parse(content);
-            console.log('✅ OpenAI structuring complete.');
-            return jsonData;
-        } catch (error) {
-            console.error(`❌ OpenAI API error on attempt ${i + 1}:`, error.message);
-            if (i === MAX_RETRIES) {
-                throw new Error('Failed to get a valid response from OpenAI for structuring after multiple retries.');
-            }
-            console.log('Retrying structuring...');
-        }
+  for (let i = 0; i <= MAX_RETRIES; i++) {
+    try {
+      const response = await openai.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [{ role: 'user', content: jsonPrompt }],
+        temperature: 0,
+        max_tokens: 4000,
+        response_format: { type: "json_object" },
+      });
+      const content = response.choices[0]?.message?.content;
+      if (!content) throw new Error('No JSON content returned from OpenAI');
+      const jsonData = JSON.parse(content);
+      console.log('✅ OpenAI structuring complete.');
+      return jsonData;
+    } catch (error) {
+      console.error(`❌ OpenAI API error on attempt ${i + 1}:`, error.message);
+      if (i === MAX_RETRIES) {
+        throw new Error('Failed to get a valid response from OpenAI for structuring after multiple retries.');
+      }
+      console.log('Retrying structuring...');
     }
+  }
 }
 
 // New function to convert markdown to JSON
 async function convertMarkdownToJSON(markdown) {
-    console.log('🤖 Converting Markdown to JSON with OpenAI...');
-    const prompt = `
+  console.log('🤖 Converting Markdown to JSON with OpenAI...');
+  const prompt = `
         Convert this markdown document into a structured JSON format.
         Preserve the hierarchy and meaning of the document.
         Use clear, descriptive field names.
@@ -1327,26 +1366,26 @@ async function convertMarkdownToJSON(markdown) {
         **Output:**
         Return only the structured JSON object.
     `;
-    try {
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.2,
-            max_tokens: 4000,
-            response_format: { type: "json_object" },
-        });
-        const content = response.choices[0]?.message?.content;
-        if (!content) throw new Error('No JSON content returned from OpenAI');
-        console.log('✅ OpenAI Markdown-to-JSON conversion complete.');
-        return JSON.parse(content);
-    } catch (error) {
-        console.error('❌ OpenAI Markdown-to-JSON conversion error:', error.message);
-        throw new Error('Failed to convert markdown to JSON with OpenAI.');
-    }
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.2,
+      max_tokens: 4000,
+      response_format: { type: "json_object" },
+    });
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('No JSON content returned from OpenAI');
+    console.log('✅ OpenAI Markdown-to-JSON conversion complete.');
+    return JSON.parse(content);
+  } catch (error) {
+    console.error('❌ OpenAI Markdown-to-JSON conversion error:', error.message);
+    throw new Error('Failed to convert markdown to JSON with OpenAI.');
+  }
 }
 
 async function extractIntent(question = '') {
-    const prompt = `You are an intent extraction assistant for a receipt management app. Read the user question and return strict JSON with the following shape:
+  const prompt = `You are an intent extraction assistant for a receipt management app. Read the user question and return strict JSON with the following shape:
 {
   "time_range": "this_month" | "last_month" | "this_week" | "last_7_days" | "all_time",
   "item_terms": [string],
@@ -1362,121 +1401,121 @@ Rules:
 
 Question: ${question}`;
 
-    try {
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o-mini',
-            temperature: 0,
-            response_format: { type: 'json_object' },
-            messages: [
-                { role: 'system', content: 'Extract structured intent without guessing.' },
-                { role: 'user', content: prompt },
-            ],
-        });
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0,
+      response_format: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: 'Extract structured intent without guessing.' },
+        { role: 'user', content: prompt },
+      ],
+    });
 
-        const content = response.choices[0]?.message?.content;
-        if (!content) throw new Error('No intent returned');
-        const parsed = JSON.parse(content);
-        return {
-            time_range: parsed.time_range || 'all_time',
-            item_terms: Array.isArray(parsed.item_terms) ? parsed.item_terms : [],
-            categories: Array.isArray(parsed.categories) ? parsed.categories : [],
-            subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
-            merchants: Array.isArray(parsed.merchants) ? parsed.merchants : [],
-        };
-    } catch (error) {
-        console.error('extractIntent error:', error);
-        return {
-            time_range: 'all_time',
-            item_terms: [],
-            categories: [],
-            subcategories: [],
-            merchants: [],
-        };
-    }
+    const content = response.choices[0]?.message?.content;
+    if (!content) throw new Error('No intent returned');
+    const parsed = JSON.parse(content);
+    return {
+      time_range: parsed.time_range || 'all_time',
+      item_terms: Array.isArray(parsed.item_terms) ? parsed.item_terms : [],
+      categories: Array.isArray(parsed.categories) ? parsed.categories : [],
+      subcategories: Array.isArray(parsed.subcategories) ? parsed.subcategories : [],
+      merchants: Array.isArray(parsed.merchants) ? parsed.merchants : [],
+    };
+  } catch (error) {
+    console.error('extractIntent error:', error);
+    return {
+      time_range: 'all_time',
+      item_terms: [],
+      categories: [],
+      subcategories: [],
+      merchants: [],
+    };
+  }
 }
 
 const makeQueryKey = (intent) => JSON.stringify(intent || {});
 
 async function fetchFacts(intent, userId) {
-    if (!userId) {
-        throw new ValidationError('User session is required to fetch facts.');
-    }
-
-    const { from, to } = getDateRangeForIntent(intent.time_range || 'all_time');
-
-    let query = supabase
-        .from('v_receipt_line_items_enriched')
-        .select('*')
-        .eq('user_id', userId);
-
-    if (from) {
-        query = query.gte('transaction_date', from);
-    }
-    if (to && intent.time_range === 'last_month') {
-        query = query.lt('transaction_date', to);
-    } else if (to && intent.time_range !== 'last_month') {
-        query = query.lte('transaction_date', to);
-    }
-
-    if (intent.merchants && intent.merchants.length > 0) {
-        query = query.in('merchant_name', intent.merchants);
-    }
-
-    const { data, error } = await query;
-    if (error) {
-        console.error('fetchFacts supabase error:', error);
-        throw new Error('Failed to fetch receipt facts.');
-    }
-
-    const categories = (intent.categories || []).map((c) => c.toLowerCase());
-    const subcategories = (intent.subcategories || []).map((c) => c.toLowerCase());
-    const itemTerms = (intent.item_terms || []).map((t) => t.toLowerCase());
-
-    const filtered = (data || []).filter((row) => {
-        if (categories.length && (!row.main_category || !categories.includes(row.main_category.toLowerCase()))) {
-            return false;
-        }
-        if (subcategories.length && (!row.sub_category || !subcategories.includes(row.sub_category.toLowerCase()))) {
-            return false;
-        }
-       if (itemTerms.length) {
-  const item = (row.item || '').toLowerCase();
-
-  // Expand item terms with synonyms
-  const expandedTerms = itemTerms.flatMap(term => ITEM_SYNONYMS[term] || [term]);
-
-  if (!expandedTerms.some((term) => item.includes(term))) {
-    return false;
+  if (!userId) {
+    throw new ValidationError('User session is required to fetch facts.');
   }
-}
-        return true;
-    });
 
-    const totalsByMerchant = {};
-    let totalSpend = 0;
-    const receiptIds = new Set();
+  const { from, to } = getDateRangeForIntent(intent.time_range || 'all_time');
 
-    filtered.forEach((row) => {
-        const price = Number(row.price) || 0;
-        const quantity = Number(row.quantity) || 0;
-        const spend = price * quantity;
-        totalSpend += spend;
-        const merchant = row.merchant_name || 'Unknown';
-        totalsByMerchant[merchant] = (totalsByMerchant[merchant] || 0) + spend;
-        if (row.receipt_id) {
-            receiptIds.add(row.receipt_id);
-        }
-    });
+  let query = supabase
+    .from('v_receipt_line_items_enriched')
+    .select('*')
+    .eq('user_id', userId);
 
-    const merchant_breakdown = Object.entries(totalsByMerchant)
-        .map(([merchant, spend]) => ({ merchant, spend }))
-        .sort((a, b) => b.spend - a.spend);
+  if (from) {
+    query = query.gte('transaction_date', from);
+  }
+  if (to && intent.time_range === 'last_month') {
+    query = query.lt('transaction_date', to);
+  } else if (to && intent.time_range !== 'last_month') {
+    query = query.lte('transaction_date', to);
+  }
 
-    return {
-        total_spend: Number(totalSpend.toFixed(2)),
-        merchant_breakdown,
-        receipt_ids: Array.from(receiptIds),
-    };
+  if (intent.merchants && intent.merchants.length > 0) {
+    query = query.in('merchant_name', intent.merchants);
+  }
+
+  const { data, error } = await query;
+  if (error) {
+    console.error('fetchFacts supabase error:', error);
+    throw new Error('Failed to fetch receipt facts.');
+  }
+
+  const categories = (intent.categories || []).map((c) => c.toLowerCase());
+  const subcategories = (intent.subcategories || []).map((c) => c.toLowerCase());
+  const itemTerms = (intent.item_terms || []).map((t) => t.toLowerCase());
+
+  const filtered = (data || []).filter((row) => {
+    if (categories.length && (!row.main_category || !categories.includes(row.main_category.toLowerCase()))) {
+      return false;
+    }
+    if (subcategories.length && (!row.sub_category || !subcategories.includes(row.sub_category.toLowerCase()))) {
+      return false;
+    }
+    if (itemTerms.length) {
+      const item = (row.item || '').toLowerCase();
+
+      // Expand item terms with synonyms
+      const expandedTerms = itemTerms.flatMap(term => ITEM_SYNONYMS[term] || [term]);
+
+      if (!expandedTerms.some((term) => item.includes(term))) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  const totalsByMerchant = {};
+  let totalSpend = 0;
+  const receiptIds = new Set();
+
+  filtered.forEach((row) => {
+    const price = Number(row.price) || 0;
+    const quantity = Number(row.quantity) || 0;
+    const spend = price * quantity;
+    totalSpend += spend;
+    const merchant = row.merchant_name || 'Unknown';
+    totalsByMerchant[merchant] = (totalsByMerchant[merchant] || 0) + spend;
+    if (row.receipt_id) {
+      receiptIds.add(row.receipt_id);
+    }
+  });
+
+  const merchant_breakdown = Object.entries(totalsByMerchant)
+    .map(([merchant, spend]) => ({ merchant, spend }))
+    .sort((a, b) => b.spend - a.spend);
+
+  return {
+    total_spend: Number(totalSpend.toFixed(2)),
+    merchant_breakdown,
+    receipt_ids: Array.from(receiptIds),
+  };
 }
 
 const containsSQL = (text = '') => {
@@ -1561,554 +1600,558 @@ Never output SQL queries or code – reply in natural language only.
 
 // --- New Self-Learning Categorization Logic ---
 function findInMasterList(itemName) {
-    const lowercasedItem = itemName.toLowerCase().trim();
-    // First, check for an exact match on a canonical name
-    if (masterItems[lowercasedItem]) {
-        return { ...masterItems[lowercasedItem] };
+  const lowercasedItem = itemName.toLowerCase().trim();
+  // First, check for an exact match on a canonical name
+  if (masterItems[lowercasedItem]) {
+    return { ...masterItems[lowercasedItem] };
 
+  }
+  // Then, check all OCR variations
+  for (const canonicalName in masterItems) {
+    const itemData = masterItems[canonicalName];
+    if (itemData.receipt_ItemNames.some(name => name.toLowerCase().trim() === lowercasedItem)) {
+      return { ...itemData, Item_Name: canonicalName };
     }
-    // Then, check all OCR variations
-    for (const canonicalName in masterItems) {
-        const itemData = masterItems[canonicalName];
-        if (itemData.receipt_ItemNames.some(name => name.toLowerCase().trim() === lowercasedItem)) {
-            return { ...itemData, Item_Name: canonicalName };
-        }
-    }
-    return null;
+  }
+  return null;
 }
 
 function findInCategoryKeywords(itemName) {
-    const lowercasedItem = itemName.toLowerCase().trim();
-    for (const mainCategory in SUB_CATEGORIES) {
-        for (const subCategory of SUB_CATEGORIES[mainCategory]) {
-            if (lowercasedItem.includes(subCategory.replace('_', ' ')))
- {                return { main_category: mainCategory, sub_category: subCategory };
-            }
-        }
+  const lowercasedItem = itemName.toLowerCase().trim();
+  for (const mainCategory in SUB_CATEGORIES) {
+    for (const subCategory of SUB_CATEGORIES[mainCategory]) {
+      if (lowercasedItem.includes(subCategory.replace('_', ' '))) {
+        return { main_category: mainCategory, sub_category: subCategory };
+      }
     }
-    return null;
+  }
+  return null;
 }
 
 async function categorizeLineItems(lineItems, userId) {
 
-    let isMasterListUpdated = false;
-    const categorizedLineItems = [];
+  let isMasterListUpdated = false;
+  const categorizedLineItems = [];
 
-    for (const item of lineItems) {
-        const rawItemName = item.name || item.Name || '';
-        if (!rawItemName) continue;
-        const normalizedItemName = rawItemName.trim();
-        const canonicalItemName = normalizedItemName.toLowerCase();
+  for (const item of lineItems) {
+    const rawItemName = item.name || item.Name || '';
+    if (!rawItemName) continue;
+    const normalizedItemName = rawItemName.trim();
+    const canonicalItemName = normalizedItemName.toLowerCase();
 
-        const aiCategoryIconKey = normalizeCategoryIconKey(item.category_icon_key || item.CategoryIconKey);
-        const aiSubcategoryIconKey = normalizeSubcategoryIconKey(
-            item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key
-        );
-
-
-        // ✅ 1) Check user-specific category override *if* user is logged in
-        let userOverride = null;
-
-        if (userId) {
-            const exactMatch = await supabase
-                .from('user_categories')
-                .select('main_category, sub_category')
-                .eq('user_id', userId)
-                .eq('item_name', normalizedItemName)
-                .maybeSingle();
-
-            if (exactMatch.data) {
-                userOverride = exactMatch.data;
-            } else {
-                const normalizedMatch = await supabase
-                    .from('user_categories')
-                    .select('main_category, sub_category')
-                    .eq('user_id', userId)
-                    .eq('item_name', canonicalItemName)
-                    .maybeSingle();
-
-                userOverride = normalizedMatch.data;
-            }
-        }
-
-let masterListEntry;
-
-if (userOverride) {
-  masterListEntry = {
-    Item_Name: rawItemName,
-    main_category: userOverride.main_category,
-    sub_category: userOverride.sub_category
-  };
-  console.log(`🎨 Used USER-SPECIFIC category for "${rawItemName}"`);
-} else {
-  // ✅ Fallback to global master list
-  masterListEntry = findInMasterList(rawItemName);
-}
+    const aiCategoryIconKey = normalizeCategoryIconKey(item.category_icon_key || item.CategoryIconKey);
+    const aiSubcategoryIconKey = normalizeSubcategoryIconKey(
+      item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key
+    );
 
 
+    // ✅ 1) Check user-specific category override *if* user is logged in
+    let userOverride = null;
 
-        if (masterListEntry) { // Found in master list
-            const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
-            const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
-            categorizedLineItems.push({
-                item: rawItemName,
-                Item_Name: masterListEntry.Item_Name,
-                main_category: masterListEntry.main_category,
-                sub_category: masterListEntry.sub_category,
-                category_icon_key: categoryIconKey || null,
-                subcategory_icon_key: subcategoryIconKey || null,
-                price: parseFloat(item.price || item.Price) || 0,
-                quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
-            });
-            console.log(`🧠 Found "${rawItemName}" in master list as "${masterListEntry.Item_Name}".`);
+    if (userId) {
+      const exactMatch = await supabase
+        .from('user_categories')
+        .select('main_category, sub_category')
+        .eq('user_id', userId)
+        .eq('item_name', normalizedItemName)
+        .maybeSingle();
 
-            // Also check if this specific OCR variation is new and add it
-            const canonicalEntry = masterItems[masterListEntry.Item_Name];
-            const lowercasedRaw = rawItemName.toLowerCase().trim();
-            if (canonicalEntry && !canonicalEntry.receipt_ItemNames.some(n => n.toLowerCase().trim() === lowercasedRaw)) {
-                canonicalEntry.receipt_ItemNames.push(rawItemName);
-                isMasterListUpdated = true;
-                console.log(`🔄 Updated "${masterListEntry.Item_Name}" with new OCR variation: "${rawItemName}"`);
-            }
+      if (exactMatch.data) {
+        userOverride = exactMatch.data;
+      } else {
+        const normalizedMatch = await supabase
+          .from('user_categories')
+          .select('main_category, sub_category')
+          .eq('user_id', userId)
+          .eq('item_name', canonicalItemName)
+          .maybeSingle();
 
-        } else { // Not found in master list, needs to be added
-            let categoryInfo = findInCategoryKeywords(rawItemName);
-            const source = categoryInfo ? 'keywords' : 'openai';
-
-            if (!categoryInfo) {
-                categoryInfo = {
-                    main_category: item.category || item.Category || 'other',
-                    sub_category: item.sub_category || item.SubCategory || 'miscellaneous'
-                };
-            }
-
-            const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(categoryInfo.main_category);
-            const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(categoryInfo.sub_category);
-            const canonicalName = rawItemName; // Use the first seen name as canonical
-            
-            categorizedLineItems.push({
-                item: rawItemName,
-                Item_Name: canonicalName,
-                main_category: categoryInfo.main_category,
-                sub_category: categoryInfo.sub_category,
-                category_icon_key: categoryIconKey || null,
-                subcategory_icon_key: subcategoryIconKey || null,
-                price: parseFloat(item.price || item.Price) || 0,
-                quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
-            });
-
-            // Add the new item to the master list
-           await saveMasterItem(
-   canonicalName,
-   categoryInfo.main_category,
-   categoryInfo.sub_category
-);
-
-            console.log(`✨ Added "${canonicalName}" to master list from ${source}.`);
-        }
+        userOverride = normalizedMatch.data;
+      }
     }
 
-    
-    return categorizedLineItems;
+    let masterListEntry;
+
+    if (userOverride) {
+      masterListEntry = {
+        Item_Name: rawItemName,
+        main_category: userOverride.main_category,
+        sub_category: userOverride.sub_category
+      };
+      console.log(`🎨 Used USER-SPECIFIC category for "${rawItemName}"`);
+    } else {
+      // ✅ Fallback to global master list
+      masterListEntry = findInMasterList(rawItemName);
+    }
+
+
+
+    if (masterListEntry) { // Found in master list
+      const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
+      const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
+      const normalized_name = await getNormalizedItemName(rawItemName);
+      categorizedLineItems.push({
+        item: rawItemName,
+        Item_Name: masterListEntry.Item_Name,
+        main_category: masterListEntry.main_category,
+        sub_category: masterListEntry.sub_category,
+        category_icon_key: categoryIconKey || null,
+        subcategory_icon_key: subcategoryIconKey || null,
+        price: parseFloat(item.price || item.Price) || 0,
+        quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
+        normalized_name: normalized_name,
+      });
+      console.log(`🧠 Found "${rawItemName}" in master list as "${masterListEntry.Item_Name}".`);
+
+      // Also check if this specific OCR variation is new and add it
+      const canonicalEntry = masterItems[masterListEntry.Item_Name];
+      const lowercasedRaw = rawItemName.toLowerCase().trim();
+      if (canonicalEntry && !canonicalEntry.receipt_ItemNames.some(n => n.toLowerCase().trim() === lowercasedRaw)) {
+        canonicalEntry.receipt_ItemNames.push(rawItemName);
+        isMasterListUpdated = true;
+        console.log(`🔄 Updated "${masterListEntry.Item_Name}" with new OCR variation: "${rawItemName}"`);
+      }
+
+    } else { // Not found in master list, needs to be added
+      let categoryInfo = findInCategoryKeywords(rawItemName);
+      const source = categoryInfo ? 'keywords' : 'openai';
+
+      if (!categoryInfo) {
+        categoryInfo = {
+          main_category: item.category || item.Category || 'other',
+          sub_category: item.sub_category || item.SubCategory || 'miscellaneous'
+        };
+      }
+
+      const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(categoryInfo.main_category);
+      const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(categoryInfo.sub_category);
+      const canonicalName = rawItemName; // Use the first seen name as canonical
+      const normalized_name = await getNormalizedItemName(rawItemName);
+
+      categorizedLineItems.push({
+        item: rawItemName,
+        Item_Name: canonicalName,
+        main_category: categoryInfo.main_category,
+        sub_category: categoryInfo.sub_category,
+        category_icon_key: categoryIconKey || null,
+        subcategory_icon_key: subcategoryIconKey || null,
+        price: parseFloat(item.price || item.Price) || 0,
+        quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
+        normalized_name: normalized_name,
+      });
+
+      // Add the new item to the master list
+      await saveMasterItem(
+        canonicalName,
+        categoryInfo.main_category,
+        categoryInfo.sub_category
+      );
+
+      console.log(`✨ Added "${canonicalName}" to master list from ${source}.`);
+    }
+  }
+
+
+  return categorizedLineItems;
 }
 
 // --- API Routes ---
 app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, res) => {
-    try {
-        console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
-        if (!req.file) {
-            throw new ValidationError('A file upload is required.');
-        }
-
-        if (!isSupportedUpload(req.file.mimetype)) {
-            throw new ValidationError('Unsupported file type. Please upload a PDF or image.');
-        }
-
-        const scanMode = (req.body?.scanMode || 'receipt').toLowerCase();
-        const highAccuracy = String(req.body?.highAccuracy || 'false').toLowerCase() === 'true';
-        validateFields({ scanMode }, {
-            scanMode: {
-                type: 'string',
-                required: true,
-                allowed: ['receipt', 'document'],
-                message: 'scanMode must be either "receipt" or "document".'
-            }
-        });
-
-        if (scanMode === 'document') {
-            console.log('🚀 === STARTING DOCUMENT PROCESSING ===');
-            try {
-                const rawText = await processDocumentWithDocAI(req.file.buffer, req.file.mimetype);
-                const markdown = rawText.split('\n').join('  \n');
-                res.setHeader('Content-Type', 'text/plain');
-                return res.send(markdown);
-            } catch (error) {
-                return handleApiError(res, error, 'Failed to process document.');
-            }
-        }
-
-            console.log('🚀 === STARTING RECEIPT PROCESSING ===');
-            console.log(`🎯 High accuracy mode: ${highAccuracy ? 'ENABLED' : 'disabled'}`);
-            try {
-                console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
-
-                const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
-
-                let tesseractText = '';
-                if (highAccuracy) {
-                    console.log('🏃 Running Tesseract.js OCR prepass (high accuracy enabled)...');
-                    tesseractText = await runTesseract(preprocessedImageBuffer);
-                    console.log('✅ Tesseract prepass complete.');
-                } else {
-                    console.log('⏭️ Skipping Tesseract prepass (high accuracy disabled).');
-                }
-
-                const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-
-                const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
-            
-            const lineItems = processedData.items || processedData.Items || [];
-            const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
-
-            const rawMerchant = processedData.merchant || processedData.MerchantName || '';
-            const merchant_name = rawMerchant
-              .toLowerCase()
-              .replace(/[^a-z0-9 ]/gi, ' ')
-              .replace(/\s+/g, ' ')
-              .trim()
-              .replace(/\b\w/g, c => c.toUpperCase());
-
-        let store_type = 'Other';
-        let main_category = 'Other';
-        const userId = req.user?.id || null;
-        const merchantOverrideKey = normalizeMerchantKey(merchant_name);
-
-        if (userId && merchantOverrideKey) {
-            const { data: override } = await supabase
-                .from('user_store_type_overrides')
-                .select('store_type')
-                .eq('user_id', userId)
-                .ilike('merchant_name', merchantOverrideKey)
-                .maybeSingle();
-
-            if (override) {
-                store_type = override.store_type;
-                console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
-            }
-        }
-
-            if (store_type === 'Other') {
-                const { data: storeInfo, error: storeInfoError } = await supabase
-                    .from('store_info')
-                    .select('main_category, store_type')
-                    .eq('merchant_name', merchant_name)
-                    .maybeSingle();
-
-                if (storeInfoError) {
-                    console.error('Error fetching store info:', storeInfoError);
-                }
-
-                if (storeInfo) {
-                    main_category = storeInfo.main_category;
-                    store_type = storeInfo.store_type;
-                } else {
-                    main_category = processedData.main_category || 'Other';
-                    store_type = processedData.store_type || 'Other';
-                    if (store_type !== 'Other') {
-                        const { error: insertError } = await supabase
-                            .from('store_info')
-                            .insert({
-                                merchant_name,
-                                main_category,
-                                store_type,
-                            });
-                        if (insertError) {
-                            console.error('Error inserting new store type:', insertError);
-                        }
-                    }
-                }
-            }
-
-            const transformedData = {
-              merchant_name,
-              transaction_date: formatDate(processedData.transaction_date || processedData.Date),
-              line_items: categorizedLineItems,
-              total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
-              main_category,
-              store_type,
-              ai_insight:
-                await generateUserInsightFromSupabase(req.user?.id || null) ||
-                await generateScanInsight({
-                  merchant_name,
-                  total_amount: processedData.total_amount || processedData.TotalAmount || 0,
-                  line_items: categorizedLineItems,
-                }),
-            };
-
-            console.log(`🟢 Processed single receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
-            const responsePayload = { ...transformedData };
-            res.json(responsePayload);
-
-            // Fire-and-forget embedding ingestion
-            if (req.user?.id) {
-              setImmediate(async () => {
-                try {
-                  await ingestReceiptItems(
-                    {
-                      id: null,
-                      ...transformedData,
-                      receipt_url: null,
-                      canonical_merchant_id: null,
-                    },
-                    req.user.id
-                  );
-                } catch (err) {
-                  console.error('🔴 Failed to ingest receipt items (single receipt):', err.message);
-                }
-              });
-            }
-            return;
-
-        } catch (error) {
-            return handleApiError(res, error, 'Failed to process receipt.');
-        }
-    } catch (error) {
-        return handleApiError(res, error, 'Failed to process upload.');
+  try {
+    console.log("📥 Received file:", req.file ? req.file.originalname : "No file");
+    if (!req.file) {
+      throw new ValidationError('A file upload is required.');
     }
+
+    if (!isSupportedUpload(req.file.mimetype)) {
+      throw new ValidationError('Unsupported file type. Please upload a PDF or image.');
+    }
+
+    const scanMode = (req.body?.scanMode || 'receipt').toLowerCase();
+    const highAccuracy = String(req.body?.highAccuracy || 'false').toLowerCase() === 'true';
+    validateFields({ scanMode }, {
+      scanMode: {
+        type: 'string',
+        required: true,
+        allowed: ['receipt', 'document'],
+        message: 'scanMode must be either "receipt" or "document".'
+      }
+    });
+
+    if (scanMode === 'document') {
+      console.log('🚀 === STARTING DOCUMENT PROCESSING ===');
+      try {
+        const rawText = await processDocumentWithDocAI(req.file.buffer, req.file.mimetype);
+        const markdown = rawText.split('\n').join('  \n');
+        res.setHeader('Content-Type', 'text/plain');
+        return res.send(markdown);
+      } catch (error) {
+        return handleApiError(res, error, 'Failed to process document.');
+      }
+    }
+
+    console.log('🚀 === STARTING RECEIPT PROCESSING ===');
+    console.log(`🎯 High accuracy mode: ${highAccuracy ? 'ENABLED' : 'disabled'}`);
+    try {
+      console.log(`⚙️ Using Google Document AI pipeline with Tesseract pre-pass.`);
+
+      const preprocessedImageBuffer = await preprocessImage(req.file.buffer);
+
+      let tesseractText = '';
+      if (highAccuracy) {
+        console.log('🏃 Running Tesseract.js OCR prepass (high accuracy enabled)...');
+        tesseractText = await runTesseract(preprocessedImageBuffer);
+        console.log('✅ Tesseract prepass complete.');
+      } else {
+        console.log('⏭️ Skipping Tesseract prepass (high accuracy disabled).');
+      }
+
+      const extractedText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+
+      const processedData = await structureTextWithOpenAI(extractedText, tesseractText);
+
+      const lineItems = processedData.items || processedData.Items || [];
+      const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
+
+      const rawMerchant = processedData.merchant || processedData.MerchantName || '';
+      const merchant_name = rawMerchant
+        .toLowerCase()
+        .replace(/[^a-z0-9 -]/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim()
+        .replace(/(?:^|[\s])\w/g, c => c.toUpperCase());
+
+      let store_type = 'Other';
+      let main_category = 'Other';
+      const userId = req.user?.id || null;
+      const merchantOverrideKey = normalizeMerchantKey(merchant_name);
+
+      if (userId && merchantOverrideKey) {
+        const { data: override } = await supabase
+          .from('user_store_type_overrides')
+          .select('store_type')
+          .eq('user_id', userId)
+          .ilike('merchant_name', merchantOverrideKey)
+          .maybeSingle();
+
+        if (override) {
+          store_type = override.store_type;
+          console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
+        }
+      }
+
+      if (store_type === 'Other') {
+        const { data: storeInfo, error: storeInfoError } = await supabase
+          .from('store_info')
+          .select('main_category, store_type')
+          .eq('merchant_name', merchant_name)
+          .maybeSingle();
+
+        if (storeInfoError) {
+          console.error('Error fetching store info:', storeInfoError);
+        }
+
+        if (storeInfo) {
+          main_category = storeInfo.main_category;
+          store_type = storeInfo.store_type;
+        } else {
+          main_category = processedData.main_category || 'Other';
+          store_type = processedData.store_type || 'Other';
+          if (store_type !== 'Other') {
+            const { error: insertError } = await supabase
+              .from('store_info')
+              .insert({
+                merchant_name,
+                main_category,
+                store_type,
+              });
+            if (insertError) {
+              console.error('Error inserting new store type:', insertError);
+            }
+          }
+        }
+      }
+
+      const transformedData = {
+        merchant_name,
+        transaction_date: formatDate(processedData.transaction_date || processedData.Date),
+        line_items: categorizedLineItems,
+        total_amount: parseFloat(processedData.total_amount || processedData.TotalAmount) || 0,
+        main_category,
+        store_type,
+        ai_insight:
+          await generateUserInsightFromSupabase(req.user?.id || null) ||
+          await generateScanInsight({
+            merchant_name,
+            total_amount: processedData.total_amount || processedData.TotalAmount || 0,
+            line_items: categorizedLineItems,
+          }),
+      };
+
+      console.log(`🟢 Processed single receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
+      const responsePayload = { ...transformedData };
+      res.json(responsePayload);
+
+      // Fire-and-forget embedding ingestion
+      if (req.user?.id) {
+        setImmediate(async () => {
+          try {
+            await ingestReceiptItems(
+              {
+                id: null,
+                ...transformedData,
+                receipt_url: null,
+                canonical_merchant_id: null,
+              },
+              req.user.id
+            );
+          } catch (err) {
+            console.error('🔴 Failed to ingest receipt items (single receipt):', err.message);
+          }
+        });
+      }
+      return;
+
+    } catch (error) {
+      return handleApiError(res, error, 'Failed to process receipt.');
+    }
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to process upload.');
+  }
 });
 
 app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), async (req, res) => {
-    try {
-        if (!req.files || req.files.length < 2) {
-            throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
-        }
-
-        const files = req.files.slice(0, 10);
-        console.log(`🗂️ Processing ${files.length} pages for multi-page receipt`);
-
-        const combinedTexts = [];
-        const combinedHints = [];
-
-        for (const file of files) {
-            const preprocessedImageBuffer = await preprocessImage(file.buffer);
-            const tesseractText = await runTesseract(preprocessedImageBuffer);
-            if (tesseractText) {
-                combinedHints.push(tesseractText);
-            }
-            const docText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
-            if (docText) {
-                combinedTexts.push(docText);
-            }
-        }
-
-        if (!combinedTexts.length) {
-            throw new Error('Failed to extract text from uploaded images.');
-        }
-
-        const mergedText = combinedTexts.join('\n\n---- PAGE BREAK ----\n\n');
-        const mergedHints = combinedHints.join('\n');
-
-        const processedData = await structureTextWithOpenAI(mergedText, mergedHints);
-        const lineItems = processedData.items || processedData.Items || [];
-        const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
-
-        const rawMerchant = processedData.merchant || processedData.MerchantName || '';
-        const merchant_name = rawMerchant
-          .toLowerCase()
-          .replace(/[^a-z0-9 ]/gi, ' ')
-          .replace(/\s+/g, ' ')
-          .trim()
-          .replace(/\b\w/g, c => c.toUpperCase());
-
-        let store_type = 'Other';
-        let main_category = 'Other';
-        const userId = req.user?.id || null;
-        const merchantOverrideKey = normalizeMerchantKey(merchant_name);
-
-        if (userId && merchantOverrideKey) {
-            const { data: override } = await supabase
-                .from('user_store_type_overrides')
-                .select('store_type')
-                .eq('user_id', userId)
-                .ilike('merchant_name', merchantOverrideKey)
-                .maybeSingle();
-
-            if (override) {
-                store_type = override.store_type;
-                console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
-            }
-        }
-
-        if (store_type === 'Other') {
-            const { data: storeInfo, error: storeInfoError } = await supabase
-                .from('store_info')
-                .select('main_category, store_type')
-                .eq('merchant_name', merchant_name)
-                .maybeSingle();
-
-            if (storeInfoError) {
-                console.error('Error fetching store info:', storeInfoError);
-            }
-
-            if (storeInfo) {
-                main_category = storeInfo.main_category;
-                store_type = storeInfo.store_type;
-            } else {
-                main_category = processedData.main_category || 'Other';
-                store_type = processedData.store_type || 'Other';
-                if (store_type !== 'Other') {
-                    const { error: insertError } = await supabase
-                        .from('store_info')
-                        .insert({
-                            merchant_name,
-                            main_category,
-                            store_type,
-                        });
-                    if (insertError) {
-                        console.error('Error inserting new store type:', insertError);
-                    }
-                }
-            }
-        }
-
-        let receipt_url = null;
-        const firstFile = files[0];
-        if (firstFile) {
-            const receiptId = require('crypto').randomUUID();
-            const extension = path.extname(firstFile.originalname) || '.jpg';
-            const now = new Date();
-            const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
-            const fileName = `${merchant_name || 'receipt'}-${now.toISOString().split('T')[0]}-${time}-${receiptId}${extension}`;
-
-            const { error: uploadError } = await supabase.storage
-                .from('receipts')
-                .upload(fileName, firstFile.buffer, {
-                    contentType: firstFile.mimetype,
-                });
-
-            if (!uploadError) {
-                const { data: publicUrlData } = supabase.storage
-                    .from('receipts')
-                    .getPublicUrl(fileName);
-                receipt_url = publicUrlData?.publicUrl || null;
-            } else {
-                console.error('Error uploading multi-page preview:', uploadError);
-            }
-        }
-
-        const transaction_date = formatDate(processedData.transaction_date || processedData.Date);
-        const total_amount = parseFloat(processedData.total_amount || processedData.TotalAmount) || 0;
-
-        const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
-
-        const normalizedTransactionDate = transaction_date;
-        const normalizedTotalAmount = total_amount;
-        const familyId = req.user?.id ? await getUserFamilyId(req.user.id) : null;
-        const dedupeHash = buildReceiptHash(req.user?.id || 'multi', {
-            merchant_name,
-            transaction_date: normalizedTransactionDate,
-            total_amount: normalizedTotalAmount,
-            line_items: categorizedLineItems,
-        });
-        const receiptHashToStore = `${dedupeHash}:${crypto.randomUUID()}`;
-
-        if (req.user?.id) {
-            const { error: saveError } = await supabase
-              .from('receipts')
-              .insert({
-                  user_id: req.user.id,
-                  merchant_name,
-                  merchant_alias: merchantAlias,
-              canonical_merchant_id: canonicalMerchantId,
-              transaction_date: normalizedTransactionDate,
-              total_amount: normalizedTotalAmount,
-              line_items: categorizedLineItems,
-              receipt_url,
-              receipt_hash: receiptHashToStore,
-              family_id: familyId,
-          });
-
-        if (saveError) {
-            console.error('Error saving multi-page receipt:', saveError);
-        }
-        }
-
-        const transformedData = {
-          merchant_name,
-          transaction_date: normalizedTransactionDate,
-          line_items: categorizedLineItems,
-          total_amount: normalizedTotalAmount,
-          main_category,
-          store_type,
-          receipt_url,
-          ai_insight:
-            await generateUserInsightFromSupabase(req.user?.id || null) ||
-            await generateScanInsight({
-              merchant_name,
-              total_amount: normalizedTotalAmount,
-              line_items: categorizedLineItems,
-            }),
-        };
-
-        console.log(`🟢 Processed multi-page receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
-        res.json(transformedData);
-
-        if (req.user?.id) {
-            setImmediate(async () => {
-                try {
-                    await ingestReceiptItems(
-                        {
-                            id: null,
-                            ...transformedData,
-                            canonical_merchant_id,
-                        },
-                        req.user.id
-                    );
-                } catch (err) {
-                    console.error('🔴 Failed to ingest receipt items (multi-page):', err.message);
-                }
-            });
-        }
-        return;
-    } catch (error) {
-        return handleApiError(res, error, 'Failed to process multi-page receipt.');
+  try {
+    if (!req.files || req.files.length < 2) {
+      throw new ValidationError('Please upload between 2 and 10 pages to process a multi-page receipt.');
     }
+
+    const files = req.files.slice(0, 10);
+    console.log(`🗂️ Processing ${files.length} pages for multi-page receipt`);
+
+    const combinedTexts = [];
+    const combinedHints = [];
+
+    for (const file of files) {
+      const preprocessedImageBuffer = await preprocessImage(file.buffer);
+      const tesseractText = await runTesseract(preprocessedImageBuffer);
+      if (tesseractText) {
+        combinedHints.push(tesseractText);
+      }
+      const docText = await processDocumentWithDocAI(preprocessedImageBuffer, 'image/jpeg');
+      if (docText) {
+        combinedTexts.push(docText);
+      }
+    }
+
+    if (!combinedTexts.length) {
+      throw new Error('Failed to extract text from uploaded images.');
+    }
+
+    const mergedText = combinedTexts.join('\n\n---- PAGE BREAK ----\n\n');
+    const mergedHints = combinedHints.join('\n');
+
+    const processedData = await structureTextWithOpenAI(mergedText, mergedHints);
+    const lineItems = processedData.items || processedData.Items || [];
+    const categorizedLineItems = await categorizeLineItems(lineItems, req.user?.id || null);
+
+    const rawMerchant = processedData.merchant || processedData.MerchantName || '';
+    const merchant_name = rawMerchant
+      .toLowerCase()
+      .replace(/[^a-z0-9 ]/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\b\w/g, c => c.toUpperCase());
+
+    let store_type = 'Other';
+    let main_category = 'Other';
+    const userId = req.user?.id || null;
+    const merchantOverrideKey = normalizeMerchantKey(merchant_name);
+
+    if (userId && merchantOverrideKey) {
+      const { data: override } = await supabase
+        .from('user_store_type_overrides')
+        .select('store_type')
+        .eq('user_id', userId)
+        .ilike('merchant_name', merchantOverrideKey)
+        .maybeSingle();
+
+      if (override) {
+        store_type = override.store_type;
+        console.log(`🎨 Used USER-SPECIFIC store type for "${merchant_name}": ${store_type}`);
+      }
+    }
+
+    if (store_type === 'Other') {
+      const { data: storeInfo, error: storeInfoError } = await supabase
+        .from('store_info')
+        .select('main_category, store_type')
+        .eq('merchant_name', merchant_name)
+        .maybeSingle();
+
+      if (storeInfoError) {
+        console.error('Error fetching store info:', storeInfoError);
+      }
+
+      if (storeInfo) {
+        main_category = storeInfo.main_category;
+        store_type = storeInfo.store_type;
+      } else {
+        main_category = processedData.main_category || 'Other';
+        store_type = processedData.store_type || 'Other';
+        if (store_type !== 'Other') {
+          const { error: insertError } = await supabase
+            .from('store_info')
+            .insert({
+              merchant_name,
+              main_category,
+              store_type,
+            });
+          if (insertError) {
+            console.error('Error inserting new store type:', insertError);
+          }
+        }
+      }
+    }
+
+    let receipt_url = null;
+    const firstFile = files[0];
+    if (firstFile) {
+      const receiptId = require('crypto').randomUUID();
+      const extension = path.extname(firstFile.originalname) || '.jpg';
+      const now = new Date();
+      const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+      const fileName = `${merchant_name || 'receipt'}-${now.toISOString().split('T')[0]}-${time}-${receiptId}${extension}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('receipts')
+        .upload(fileName, firstFile.buffer, {
+          contentType: firstFile.mimetype,
+        });
+
+      if (!uploadError) {
+        const { data: publicUrlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+        receipt_url = publicUrlData?.publicUrl || null;
+      } else {
+        console.error('Error uploading multi-page preview:', uploadError);
+      }
+    }
+
+    const transaction_date = formatDate(processedData.transaction_date || processedData.Date);
+    const total_amount = parseFloat(processedData.total_amount || processedData.TotalAmount) || 0;
+
+    const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
+
+    const normalizedTransactionDate = transaction_date;
+    const normalizedTotalAmount = total_amount;
+    const familyId = req.user?.id ? await getUserFamilyId(req.user.id) : null;
+    const dedupeHash = buildReceiptHash(req.user?.id || 'multi', {
+      merchant_name,
+      transaction_date: normalizedTransactionDate,
+      total_amount: normalizedTotalAmount,
+      line_items: categorizedLineItems,
+    });
+    const receiptHashToStore = `${dedupeHash}:${crypto.randomUUID()}`;
+
+    if (req.user?.id) {
+      const { error: saveError } = await supabase
+        .from('receipts')
+        .insert({
+          user_id: req.user.id,
+          merchant_name,
+          merchant_alias: merchantAlias,
+          canonical_merchant_id: canonicalMerchantId,
+          transaction_date: normalizedTransactionDate,
+          total_amount: normalizedTotalAmount,
+          line_items: categorizedLineItems,
+          receipt_url,
+          receipt_hash: receiptHashToStore,
+          family_id: familyId,
+        });
+
+      if (saveError) {
+        console.error('Error saving multi-page receipt:', saveError);
+      }
+    }
+
+    const transformedData = {
+      merchant_name,
+      transaction_date: normalizedTransactionDate,
+      line_items: categorizedLineItems,
+      total_amount: normalizedTotalAmount,
+      main_category,
+      store_type,
+      receipt_url,
+      ai_insight:
+        await generateUserInsightFromSupabase(req.user?.id || null) ||
+        await generateScanInsight({
+          merchant_name,
+          total_amount: normalizedTotalAmount,
+          line_items: categorizedLineItems,
+        }),
+    };
+
+    console.log(`🟢 Processed multi-page receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
+    res.json(transformedData);
+
+    if (req.user?.id) {
+      setImmediate(async () => {
+        try {
+          await ingestReceiptItems(
+            {
+              id: null,
+              ...transformedData,
+              canonical_merchant_id,
+            },
+            req.user.id
+          );
+        } catch (err) {
+          console.error('🔴 Failed to ingest receipt items (multi-page):', err.message);
+        }
+      });
+    }
+    return;
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to process multi-page receipt.');
+  }
 });
 
 app.post('/api/process-document', authenticateRequest, async (req, res) => {
-    console.log('📥 Received markdown for processing');
-    try {
-        const { markdown } = req.body || {};
-        validateFields({ markdown }, {
-            markdown: {
-                type: 'string',
-                required: true,
-                trim: true,
-                maxLength: MAX_MARKDOWN_LENGTH,
-                message: 'markdown content is required.'
-            }
-        });
+  console.log('📥 Received markdown for processing');
+  try {
+    const { markdown } = req.body || {};
+    validateFields({ markdown }, {
+      markdown: {
+        type: 'string',
+        required: true,
+        trim: true,
+        maxLength: MAX_MARKDOWN_LENGTH,
+        message: 'markdown content is required.'
+      }
+    });
 
-        const structuredJson = await convertMarkdownToJSON(markdown);
-        return res.json(structuredJson);
-    } catch (error) {
-        return handleApiError(res, error, 'Failed to convert markdown to JSON.');
-    }
+    const structuredJson = await convertMarkdownToJSON(markdown);
+    return res.json(structuredJson);
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to convert markdown to JSON.');
+  }
 });
 
 app.post('/api/summarize-markdown', authenticateRequest, async (req, res) => {
-    console.log('📥 Received markdown for summarization');
-    try {
-        const { markdown } = req.body || {};
-        validateFields({ markdown }, {
-            markdown: {
-                type: 'string',
-                required: true,
-                trim: true,
-                maxLength: MAX_MARKDOWN_LENGTH,
-                message: 'markdown content is required.'
-            }
-        });
+  console.log('📥 Received markdown for summarization');
+  try {
+    const { markdown } = req.body || {};
+    validateFields({ markdown }, {
+      markdown: {
+        type: 'string',
+        required: true,
+        trim: true,
+        maxLength: MAX_MARKDOWN_LENGTH,
+        message: 'markdown content is required.'
+      }
+    });
 
     const prompt = `
         You are a document summarization expert specializing in creating clean, card-style layouts from raw text. Your task is to transform the following unstructured text into a well-organized Markdown summary.
@@ -2126,70 +2169,70 @@ app.post('/api/summarize-markdown', authenticateRequest, async (req, res) => {
         **Formatted Card-Style Markdown Output:**
     `;
 
-        const response = await openai.chat.completions.create({
-            model: 'gpt-4o',
-            messages: [{ role: 'user', content: prompt }],
-            temperature: 0.3,
-            max_tokens: 1500,
-        });
-        const structuredMarkdown = response.choices[0]?.message?.content;
-        if (!structuredMarkdown) throw new Error('No content returned from OpenAI for summarization');
-        
-        console.log('✅ OpenAI summarization complete.');
-        res.setHeader('Content-Type', 'text/plain');
-        return res.send(structuredMarkdown);
-    } catch (error) {
-        return handleApiError(res, error, 'Failed to summarize markdown.');
-    }
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+      max_tokens: 1500,
+    });
+    const structuredMarkdown = response.choices[0]?.message?.content;
+    if (!structuredMarkdown) throw new Error('No content returned from OpenAI for summarization');
+
+    console.log('✅ OpenAI summarization complete.');
+    res.setHeader('Content-Type', 'text/plain');
+    return res.send(structuredMarkdown);
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to summarize markdown.');
+  }
 });
 
 app.post('/api/ask', authenticateRequest, async (req, res) => {
-    try {
-        const { question } = req.body || {};
-        const userId = req.user?.id;
-        validateFields({ question }, {
-            question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' }
-        });
+  try {
+    const { question } = req.body || {};
+    const userId = req.user?.id;
+    validateFields({ question }, {
+      question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' }
+    });
 
-        if (!userId) {
-            throw new ValidationError('User session is required.');
-        }
-
-        const intent = await extractIntent(question);
-        const key = makeQueryKey(intent);
-
-        const { data: cachedRows, error: cacheError } = await supabase
-            .from('ai_cache')
-            .select('answer, facts')
-            .eq('user_id', userId)
-            .eq('query_key', key)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-        if (cacheError) {
-            console.error('Cache lookup error:', cacheError);
-        }
-
-        if (cachedRows && cachedRows.length > 0) {
-            const cached = cachedRows[0];
-            return res.json({ answer: cached.answer, facts: cached.facts, cached: true });
-        }
-
-        const facts = await fetchFacts(intent, userId);
-        const answer = await generateAnswer(question, facts);
-
-        const { error: insertError } = await supabase
-            .from('ai_cache')
-            .insert({ user_id: userId, query_key: key, answer, facts });
-
-        if (insertError) {
-            console.error('Cache insert error:', insertError);
-        }
-
-        return res.json({ answer, facts, cached: false });
-    } catch (error) {
-        return handleApiError(res, error, 'Failed to process question.');
+    if (!userId) {
+      throw new ValidationError('User session is required.');
     }
+
+    const intent = await extractIntent(question);
+    const key = makeQueryKey(intent);
+
+    const { data: cachedRows, error: cacheError } = await supabase
+      .from('ai_cache')
+      .select('answer, facts')
+      .eq('user_id', userId)
+      .eq('query_key', key)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (cacheError) {
+      console.error('Cache lookup error:', cacheError);
+    }
+
+    if (cachedRows && cachedRows.length > 0) {
+      const cached = cachedRows[0];
+      return res.json({ answer: cached.answer, facts: cached.facts, cached: true });
+    }
+
+    const facts = await fetchFacts(intent, userId);
+    const answer = await generateAnswer(question, facts);
+
+    const { error: insertError } = await supabase
+      .from('ai_cache')
+      .insert({ user_id: userId, query_key: key, answer, facts });
+
+    if (insertError) {
+      console.error('Cache insert error:', insertError);
+    }
+
+    return res.json({ answer, facts, cached: false });
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to process question.');
+  }
 });
 
 // --- Auth Routes ---
@@ -2204,12 +2247,12 @@ app.get('/auth/google', (req, res, next) => {
   const redirect = req.query.redirect || '/scan';
   // Encode the platform and redirect in the 'state' parameter to survive the redirect
   const state = Buffer.from(JSON.stringify({ platform, redirect })).toString('base64');
-  
-  const authenticator = passport.authenticate('google', { 
+
+  const authenticator = passport.authenticate('google', {
     scope: ['profile', 'email'],
     state: state // Pass state to Google
   });
-  
+
   authenticator(req, res, next);
 });
 
@@ -2217,22 +2260,22 @@ app.get('/auth/google/callback',
   // Disable session creation for the callback, as we are using JWT tokens
   passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
-  try {
-    // Issue a JWT for the authenticated user
-    const token = issueJwtForUser(req.user);
+    try {
+      // Issue a JWT for the authenticated user
+      const token = issueJwtForUser(req.user);
 
-    let platform = 'web';
-    let redirectPath = '/scan';
-    // Decode the platform from the 'state' parameter returned by Google
-    if (req.query.state) {
-      try {
-        const decodedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('ascii'));
-        platform = decodedState.platform || 'web';
-        redirectPath = decodedState.redirect || '/scan';
-      } catch (e) {
-        console.error("Error decoding state:", e);
+      let platform = 'web';
+      let redirectPath = '/scan';
+      // Decode the platform from the 'state' parameter returned by Google
+      if (req.query.state) {
+        try {
+          const decodedState = JSON.parse(Buffer.from(req.query.state, 'base64').toString('ascii'));
+          platform = decodedState.platform || 'web';
+          redirectPath = decodedState.redirect || '/scan';
+        } catch (e) {
+          console.error("Error decoding state:", e);
+        }
       }
-    }
 
       // ---------------------------------------
       // 📱 iOS FLOW → deep link
@@ -2242,16 +2285,16 @@ app.get('/auth/google/callback',
         return res.redirect(`owlit://auth-callback?token=${token}`);
       }
 
-    // ---------------------------------------
-    // 💻 WEB FLOW → redirect to Vercel
-    // ---------------------------------------
-    console.log(`💻 Web platform detected. Redirecting to client URL.`);
-    const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
-    redirectUrl.searchParams.set('token', token);
-    redirectUrl.searchParams.set('redirect', redirectPath || '/scan'); // honor requested redirect
+      // ---------------------------------------
+      // 💻 WEB FLOW → redirect to Vercel
+      // ---------------------------------------
+      console.log(`💻 Web platform detected. Redirecting to client URL.`);
+      const redirectUrl = new URL(process.env.AUTH_CALLBACK_PATH || '/auth/callback', CLIENT_URL);
+      redirectUrl.searchParams.set('token', token);
+      redirectUrl.searchParams.set('redirect', redirectPath || '/scan'); // honor requested redirect
 
-    return res.redirect(redirectUrl.toString());
-  } catch (error) {
+      return res.redirect(redirectUrl.toString());
+    } catch (error) {
       console.error('Failed to issue JWT after Google OAuth:', error);
       return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
     }
@@ -2260,19 +2303,19 @@ app.get('/auth/google/callback',
 
 
 app.get('/api/user', authenticateRequest, (req, res) => {
-    res.json(req.user || null);
+  res.json(req.user || null);
 });
 
 app.post('/auth/logout', (req, res) => {
-    if (req.session) {
-        req.session.destroy(() => {});
-    }
-    res.json({ message: 'Logged out successfully' });
+  if (req.session) {
+    req.session.destroy(() => { });
+  }
+  res.json({ message: 'Logged out successfully' });
 });
 
 // --- Health Check ---
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'OK', message: 'ReceiptWise server running' });
+  res.json({ status: 'OK', message: 'ReceiptWise server running' });
 });
 
 app.get('/api/store-info', optionalAuthenticate, async (req, res) => {
@@ -3211,12 +3254,12 @@ app.post('/api/ask-ai', optionalAuthenticate, async (req, res) => {
 
 // --- Start Server ---
 app.listen(port, async () => {
-    console.log('🟢 Server starting...');
-    try {
-        await loadMasterItems();
-    } catch (err) {
-        console.error('❌ Failed to load master items:', err);
-    }
-    console.log(`🚀 Server listening at http://localhost:${port}`);
-    console.log('📦 Current Master Items:', masterItems);
+  console.log('🟢 Server starting...');
+  try {
+    await loadMasterItems();
+  } catch (err) {
+    console.error('❌ Failed to load master items:', err);
+  }
+  console.log(`🚀 Server listening at http://localhost:${port}`);
+  console.log('📦 Current Master Items:', masterItems);
 });

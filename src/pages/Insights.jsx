@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/context/AuthContext';
-import { getStoreInfo } from '@/utils/logo';
+import { getStoreInfo, normalizeMerchantKey } from '@/utils/logo';
 import * as echarts from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import AnimatedSection from '@/components/ui/AnimatedSection';
@@ -732,16 +732,13 @@ export default function Insights() {
 
     const resolveStoreType = (receipt) => {
       const name = (receipt.merchant_name || '').trim();
-      const match = storeInfoList.find(
-        (entry) => (entry.merchant_name || '').toLowerCase() === name.toLowerCase()
-      );
+      const normalizedName = normalizeMerchantKey(name);
+      const match = storeInfoList.find((entry) => {
+        const normalizedEntry = normalizeMerchantKey(entry.merchant_name || '');
+        return normalizedEntry === normalizedName || normalizedName.startsWith(normalizedEntry);
+      });
       const fallbackInfo = getStoreInfo(name, userStoreOverrides);
-      return (
-        match?.store_type ||
-        receipt.store_type ||
-        fallbackInfo?.StoreName_category ||
-        'Other'
-      );
+      return match?.store_type || fallbackInfo?.StoreName_category || receipt.store_type || 'Other';
     };
 
     return receipts.map((receipt) => {
