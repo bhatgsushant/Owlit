@@ -205,7 +205,7 @@ export default function Profile() {
       }}
     >
       <AnimatedSection>
-        <div className="relative max-w-3xl w-full mx-auto rounded-[36px] border border-white/20 bg-white/5 backdrop-blur-3xl shadow-[0_35px_120px_rgba(0,0,0,0.35)] overflow-hidden px-6 md:px-10 py-8 md:py-10 text-center">
+        <div className="relative max-w-3xl w-full mx-auto rounded-[36px] border border-white/20 backdrop-blur-3xl shadow-[0_35px_120px_rgba(0,0,0,0.35)] overflow-hidden px-6 md:px-10 py-8 md:py-10 text-center">
           <div className="absolute inset-0 pointer-events-none bg-white/10" />
           <div className="relative flex flex-col items-center gap-6">
             <div className="relative h-32 w-32 rounded-full border-4 border-white/60 overflow-hidden shadow-2xl">
@@ -226,6 +226,11 @@ export default function Profile() {
               <p className="text-base text-white/80 mt-1 drop-shadow-[0_1px_1px_rgba(0,0,0,0.4)]">{user?.email || '—'}</p>
             </div>
 
+            {hasFamily && (
+              <div className="text-center mb-4">
+                <p className="text-lg font-semibold">{familyStatus.family.name}</p>
+              </div>
+            )}
             <div className="grid grid-cols-3 w-full max-w-xl gap-4 text-center text-white">
               <div className="space-y-1">
                 <div className="text-xl font-bold">{membersCount}</div>
@@ -241,44 +246,48 @@ export default function Profile() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
-              <button
-                type="button"
-                onClick={() => setFamilyActionMode('join')}
-                className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
-                  isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
-                }`}
-              >
-                Join
-              </button>
-              <button
-                type="button"
-                onClick={() => setFamilyActionMode('create')}
-                className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
-                  !isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
-                }`}
-              >
-                Create
-              </button>
-            </div>
+            {!hasFamily && (
+              <>
+                <div className="grid grid-cols-2 gap-4 w-full max-w-xl">
+                  <button
+                    type="button"
+                    onClick={() => setFamilyActionMode('join')}
+                    className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
+                      isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
+                    }`}
+                  >
+                    Join
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFamilyActionMode('create')}
+                    className={`rounded-2xl border border-white/40 px-6 py-3 text-base font-semibold shadow-lg transition ${
+                      !isJoining ? 'bg-white/30 text-white' : 'bg-white/15 text-white/90 hover:bg-white/25'
+                    }`}
+                  >
+                    Create
+                  </button>
+                </div>
 
-            <div className="w-full max-w-2xl space-y-4">
-              <input
-                type="text"
-                value={isJoining ? joinCodeInput : familyNameInput}
-                onChange={(e) => (isJoining ? setJoinCodeInput(e.target.value) : setFamilyNameInput(e.target.value))}
-                placeholder={isJoining ? 'Invite code' : 'Family name'}
-                className="w-full rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-base text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-inner shadow-black/30"
-              />
-              <button
-                type="button"
-                disabled={familyActionLoading}
-                onClick={isJoining ? handleJoinFamily : handleCreateFamily}
-                className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-700 transition disabled:opacity-60"
-              >
-                {familyActionLoading ? (isJoining ? 'Joining…' : 'Creating…') : isJoining ? 'Join family' : 'Create family'}
-              </button>
-            </div>
+                <div className="w-full max-w-2xl space-y-4">
+                  <input
+                    type="text"
+                    value={isJoining ? joinCodeInput : familyNameInput}
+                    onChange={(e) => (isJoining ? setJoinCodeInput(e.target.value) : setFamilyNameInput(e.target.value))}
+                    placeholder={isJoining ? 'Invite code' : 'Family name'}
+                    className="w-full rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-base text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white/60 shadow-inner shadow-black/30"
+                  />
+                  <button
+                    type="button"
+                    disabled={familyActionLoading}
+                    onClick={isJoining ? handleJoinFamily : handleCreateFamily}
+                    className="w-full rounded-2xl bg-gradient-to-r from-emerald-400 to-emerald-600 px-6 py-3 text-base font-semibold text-white shadow-lg shadow-emerald-500/30 hover:from-emerald-500 hover:to-emerald-700 transition disabled:opacity-60"
+                  >
+                    {familyActionLoading ? (isJoining ? 'Joining…' : 'Creating…') : isJoining ? 'Join family' : 'Create family'}
+                  </button>
+                </div>
+              </>
+            )}
 
             {familyActionMessage && (
               <div className="text-sm font-semibold text-white/90">{familyActionMessage}</div>
@@ -292,6 +301,17 @@ export default function Profile() {
               >
                 Copy invite code: {currentInviteCode}
               </button>
+            )}
+
+            {hasFamily && familyStatus.membership?.role === 'admin' && (
+                <button
+                    type="button"
+                    onClick={handleGenerateInvite}
+                    disabled={familyActionLoading}
+                    className="mt-2 text-xs font-semibold text-white/80 underline underline-offset-4 disabled:opacity-60"
+                >
+                    Generate new invite code
+                </button>
             )}
 
             {hasFamily && (

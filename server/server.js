@@ -286,7 +286,7 @@ const buildUserPayload = (user = {}) => ({
   displayName: user.displayName,
   firstName: user.firstName,
   lastName: user.lastName,
-  avatar: user.avatar,
+  avatar: user.avatar_url || user.avatar,
   provider: user.provider,
 });
 
@@ -2053,7 +2053,7 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
       total_amount: normalizedTotalAmount,
       line_items: categorizedLineItems,
     });
-    const receiptHashToStore = `${dedupeHash}:${crypto.randomUUID()}`;
+    const receiptHashToStore = dedupeHash;
 
     if (req.user?.id) {
       const { error: saveError } = await supabase
@@ -2372,53 +2372,107 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
 
     const normalizedTransactionDate = new Date(transaction_date).toISOString().split('T')[0];
     const familyId = await getUserFamilyId(req.user.id);
+    const requestedReceiptId = req.body?.existingReceiptId;
+
+    // If an existing receipt ID is provided, handle it as an update.
+    if (requestedReceiptId) {
+      let receipt_url = null;
+      const { data: existingReceipt, error: fetchError } = await supabase
+        .from('receipts')
+        .select('id, receipt_url')
+        .eq('user_id', req.user.id)
+        .eq('id', requestedReceiptId)
+        .single();
+
+      if (fetchError || !existingReceipt) {
+        return res.status(404).json({ error: 'The receipt you are trying to edit does not exist.' });
+      }
+
+      if (req.file) {
+        if (!isSupportedUpload(req.file.mimetype)) {
+          throw new ValidationError('Unsupported receipt image type.');
+        }
+        const receiptId = crypto.randomUUID();
+        const extension = path.extname(req.file.originalname || '');
+        const now = new Date();
+        const time = now.toTimeString().split(' ')[0].replace(/:/g, '');
+        const safeMerchant = merchant_name.replace(/[^a-z0-9-_]/gi, '_');
+        const fileName = `${safeMerchant}-${normalizedTransactionDate}-${time}-${receiptId}${extension}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('receipts')
+          .upload(fileName, req.file.buffer, {
+            contentType: req.file.mimetype,
+          });
+
+        if (uploadError) {
+          throw uploadError;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('receipts')
+          .getPublicUrl(fileName);
+
+        receipt_url = publicUrlData.publicUrl;
+      }
+
+      const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
+      const finalReceiptUrl = receipt_url || existingReceipt.receipt_url;
+
+      const { data: updatedData, error: updateError } = await supabase
+        .from('receipts')
+        .update({
+          merchant_name,
+          merchant_alias: merchantAlias,
+          canonical_merchant_id: canonicalMerchantId,
+          transaction_date: normalizedTransactionDate,
+          total_amount: normalizedTotalAmount,
+          line_items,
+          receipt_url: finalReceiptUrl,
+          family_id: familyId,
+        })
+        .eq('id', requestedReceiptId)
+        .select()
+        .single();
+
+      if (updateError) {
+        throw updateError;
+      }
+
+      return res.status(200).json(updatedData);
+    }
+
+    // --- Logic for creating a new receipt ---
     const dedupeHash = buildReceiptHash(req.user.id, {
       merchant_name,
       transaction_date: normalizedTransactionDate,
       total_amount: normalizedTotalAmount,
       line_items,
     });
-    const duplicateActionRaw = req.body?.duplicateAction;
-    const duplicateAction = typeof duplicateActionRaw === 'string' ? duplicateActionRaw.toLowerCase() : null;
-    const requestedReceiptId = req.body?.existingReceiptId;
 
     const { data: duplicateMatches, error: duplicateLookupError } = await supabase
       .from('receipts')
-      .select('id, receipt_hash, receipt_url, created_at')
+      .select('id')
       .eq('user_id', req.user.id)
-      .like('receipt_hash', `${dedupeHash}%`)
-      .order('created_at', { ascending: false })
-      .limit(1);
+      .like('receipt_hash', `${dedupeHash}%`);
 
     if (duplicateLookupError) {
       throw duplicateLookupError;
     }
 
-    const existingReceipt = duplicateMatches?.[0] ?? null;
-    const duplicateTargetMatches = Boolean(existingReceipt && requestedReceiptId === existingReceipt.id);
-
-    let duplicateMode = 'insert'; // insert | keep | replace
-    if (existingReceipt) {
-      if (duplicateAction === 'replace' && duplicateTargetMatches) {
-        duplicateMode = 'replace';
-      } else if (duplicateAction === 'keep' && duplicateTargetMatches) {
-        duplicateMode = 'keep';
-      } else {
-        return res.status(409).json({
-          error: 'This receipt already exists.',
-          code: 'DUPLICATE_RECEIPT',
-          existingReceiptId: existingReceipt.id,
-        });
-      }
-    }
-
-    if (req.file && !isSupportedUpload(req.file.mimetype)) {
-      throw new ValidationError('Unsupported receipt image type.');
+    if (duplicateMatches && duplicateMatches.length > 0) {
+      return res.status(409).json({
+        error: 'This receipt already exists.',
+        code: 'DUPLICATE_RECEIPT',
+        existingReceiptId: duplicateMatches[0].id,
+      });
     }
 
     let receipt_url = null;
-
     if (req.file) {
+      if (!isSupportedUpload(req.file.mimetype)) {
+        throw new ValidationError('Unsupported receipt image type.');
+      }
       const receiptId = crypto.randomUUID();
       const extension = path.extname(req.file.originalname || '');
       const now = new Date();
@@ -2444,36 +2498,6 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
     }
 
     const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
-    const finalReceiptUrl = receipt_url ?? (duplicateMode === 'replace' ? existingReceipt?.receipt_url ?? null : null);
-
-    if (duplicateMode === 'replace' && existingReceipt) {
-      const { data: updatedData, error: updateError } = await supabase
-        .from('receipts')
-        .update({
-          merchant_name,
-          merchant_alias: merchantAlias,
-          canonical_merchant_id: canonicalMerchantId,
-          transaction_date: normalizedTransactionDate,
-          total_amount: normalizedTotalAmount,
-          line_items,
-          receipt_url: finalReceiptUrl,
-          family_id: familyId,
-        })
-        .eq('id', existingReceipt.id)
-        .eq('user_id', req.user.id)
-        .select();
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      return res.status(200).json(updatedData?.[0] || null);
-    }
-
-    const receiptHashToStore =
-      duplicateMode === 'keep'
-        ? `${dedupeHash}:${crypto.randomUUID()}`
-        : dedupeHash;
 
     const { data, error } = await supabase
       .from('receipts')
@@ -2486,18 +2510,19 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
         total_amount: normalizedTotalAmount,
         line_items,
         receipt_url,
-        receipt_hash: receiptHashToStore,
+        receipt_hash: dedupeHash,
         family_id: familyId,
       })
-      .select();
+      .select()
+      .single();
 
     if (error) {
-      if (error.code === '23505') {
+      if (error.code === '23505') { // unique constraint violation
         throw new ValidationError('Duplicate receipt detected for this account.', 409);
       }
       throw error;
     }
-    res.status(201).json(data[0]);
+    res.status(201).json(data);
   } catch (error) {
     return handleApiError(res, error, 'Failed to save receipt');
   }

@@ -49,7 +49,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import CameraView from '../components/CameraView';
-import { SUB_CATEGORIES } from '../utils/categorize';
+
 import SearchableDropdown from '../components/ui/SearchableDropdown';
 import MerchantLogo from '../components/ui/MerchantLogo';
 import VoiceInput from '../components/ui/VoiceInput';
@@ -83,224 +83,7 @@ const useIsMobile = (breakpoint = 768) => {
   return isMobile;
 };
 
-const DEFAULT_CATEGORY_KEYS = Object.keys(SUB_CATEGORIES);
-const DEFAULT_CATEGORY_SET = new Set(DEFAULT_CATEGORY_KEYS.map((c) => c.toLowerCase()));
-const DEFAULT_SUBCATEGORY_SET = Object.fromEntries(
-  Object.entries(SUB_CATEGORIES).map(([cat, subs]) => [cat.toLowerCase(), new Set(subs.map((s) => s.toLowerCase()))])
-);
 
-const parseNumberValue = (value) => {
-  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
-  if (typeof value !== 'string') return 0;
-  const sanitized = value.replace(/,/g, '').replace(/[^\d.-]/g, '');
-  const parsed = parseFloat(sanitized);
-  return Number.isFinite(parsed) ? parsed : 0;
-};
-
-const CATEGORY_ICON_MAP = {
-  fruit: Apple,
-  vegetable: Sprout,
-  meat: Drumstick,
-  poultry: Drumstick,
-  seafood: Fish,
-  dairy: Droplet,
-  bakery: Package,
-  beverages: CupSoda,
-  snacks: Package,
-  frozen: Snowflake,
-  canned_goods: Package,
-  personal_care: Sparkles,
-  health: HeartPulse,
-  fitness: Dumbbell,
-  household: Home,
-  electronics: Cpu,
-  utilities: Plug,
-  clothing: Shirt,
-  jewelry: Gem,
-  transport: Car,
-  travel: Plane,
-  stationery: PenLine,
-  education: GraduationCap,
-  finance: Wallet,
-  entertainment: Clapperboard,
-  pets: PawPrint,
-  gifts: Gift,
-  dining: UtensilsCrossed,
-  other: CircleEllipsis,
-};
-
-const getCategoryIconComponent = (category) => {
-  if (!category) return Tag;
-  const key = String(category).toLowerCase();
-  return CATEGORY_ICON_MAP[key] || Tag;
-};
-
-const CATEGORY_COLOR_MAP = {
-  fruit: '#f97316',
-  vegetable: '#22c55e',
-  meat: '#ef4444',
-  poultry: '#f97316',
-  seafood: '#0ea5e9',
-  dairy: '#a855f7',
-  bakery: '#f59e0b',
-  beverages: '#0ea5e9',
-  snacks: '#f59e0b',
-  frozen: '#6366f1',
-  canned_goods: '#22c55e',
-  personal_care: '#ec4899',
-  health: '#06b6d4',
-  fitness: '#22c55e',
-  household: '#94a3b8',
-  electronics: '#3b82f6',
-  utilities: '#14b8a6',
-  clothing: '#f472b6',
-  jewelry: '#facc15',
-  transport: '#64748b',
-  travel: '#22c55e',
-  stationery: '#06b6d4',
-  education: '#8b5cf6',
-  finance: '#10b981',
-  entertainment: '#f43f5e',
-  pets: '#22c55e',
-  gifts: '#f472b6',
-  dining: '#f97316',
-  other: '#22c55e',
-};
-
-const getCategoryColor = (category) => CATEGORY_COLOR_MAP[String(category || '').toLowerCase()] || '#10b981';
-
-const SUBCATEGORY_ICON_MATCHERS = [
-  // Food & Drinks
-  { test: /(coffee|tea|drink|juice|smoothie)/i, icon: Coffee },
-  { test: /(beer|wine|spirits|vodka|whiskey|liquor|alcohol)/i, icon: CupSoda },
-  { test: /(restaurant|takeaway|fast[_ ]?food|pub|bar|diner|cafe)/i, icon: UtensilsCrossed },
-  { test: /(bread|pastr|cake|cookie|muffin|bakery)/i, icon: Package },
-  { test: /(milk|cheese|yogurt|butter|cream|egg|dairy)/i, icon: Droplet },
-  { test: /(fish|seafood|prawn|shrimp|salmon|tuna)/i, icon: Fish },
-  { test: /(fruit|apple|banana|grape|melon|berry|citrus)/i, icon: Apple },
-  { test: /(vegetable|greens|onion|tomato|pepper|carrot|broccoli)/i, icon: Sprout },
-  { test: /(meat|beef|pork|lamb|steak)/i, icon: Drumstick },
-  { test: /(chicken|turkey|duck|poultry)/i, icon: Drumstick },
-
-  // Groceries & Household
-  { test: /(laundry|cleaning|detergent|soap|bleach|dish)/i, icon: Sparkles },
-  { test: /(toilet|tissue|paper[_ ]?towel|napkin)/i, icon: Package },
-  { test: /(beauty|cosmetic|makeup|skincare|lotion)/i, icon: Sparkles },
-  { test: /(hair|shampoo|conditioner|barber|salon)/i, icon: Sparkles },
-
-  // Health
-  { test: /(medicine|vitamin|pain|supplement|pharmacy|healthcare)/i, icon: HeartPulse },
-  { test: /(doctor|clinic|hospital|dentist|therapy)/i, icon: HeartPulse },
-
-  // Fitness
-  { test: /(gym|fitness|protein|workout|sport|exercise)/i, icon: Dumbbell },
-
-  // Utilities
-  { test: /(electricity|internet|water|bill|utility|gas[_ ]?bill)/i, icon: Plug },
-  { test: /(fuel|gas|diesel|petrol)/i, icon: Fuel },
-
-  // Shopping
-  { test: /(shoe|shirt|jean|dress|clothing|sock|apparel|fashion)/i, icon: Shirt },
-  { test: /(jewel|ring|necklace|bracelet|watch)/i, icon: Gem },
-  { test: /(toy|lego|board[_ ]?game|kids|baby)/i, icon: Gift },
-  { test: /(furniture|sofa|table|chair|bed|desk)/i, icon: Package },
-  { test: /(decor|home[_ ]?decor|frame|vase|art)/i, icon: Package },
-
-  // Electronics & Tech
-  { test: /(electronics|charger|laptop|mobile|battery|phone|tablet|computer)/i, icon: Cpu },
-  { test: /(software|subscription|cloud|saas|app)/i, icon: Cpu },
-
-  // Transport
-  { test: /(bus|train|taxi|uber|lyft|parking|transport|toll)/i, icon: Car },
-  { test: /(fuel|gas|diesel|petrol)/i, icon: Fuel }, // duplicate kept for clarity
-
-  // Travel
-  { test: /(flight|hotel|visa|tour|luggage|airbnb|travel)/i, icon: Plane },
-
-  // Office & Education
-  { test: /(pen|notebook|paper|folder|stationery)/i, icon: PenLine },
-  { test: /(book|course|tuition|school|education|class)/i, icon: GraduationCap },
-
-  // Finance
-  { test: /(bank|fee|insurance|loan|interest|tax|finance)/i, icon: Wallet },
-
-  // Entertainment
-  { test: /(movie|music|game|event|concert|stream|theater)/i, icon: Clapperboard },
-
-  // Pets
-  { test: /(pet|vet|groom|petfood|animal)/i, icon: PawPrint },
-
-  // Gifts & Charity
-  { test: /(gift|donation|charity|present)/i, icon: Gift },
-
-  // Home & Maintenance
-  { test: /(repair|maintenance|plumber|electrician|handyman)/i, icon: Wrench },
-  { test: /(garden|plants|soil|flowers|seed)/i, icon: Sprout },
-
-  // Miscellaneous
-  { test: /(subscription|membership|service)/i, icon: Wallet },
-  { test: /(shipping|delivery|courier)/i, icon: Package },
-];
-
-
-const getSubcategoryIconComponent = (subCategory) => {
-  if (!subCategory) return Tag;
-  const key = String(subCategory).toLowerCase();
-  for (const matcher of SUBCATEGORY_ICON_MATCHERS) {
-    if (matcher.test instanceof RegExp) {
-      if (matcher.test.test(key)) {
-        return matcher.icon;
-      }
-    } else if (typeof matcher.test === 'function') {
-      if (matcher.test(key)) {
-        return matcher.icon;
-      }
-    }
-  }
-  return Tag;
-};
-
-const SUBCATEGORY_COLOR_MAP = {
-  coffee: '#f97316',
-  tea: '#f59e0b',
-  drink: '#0ea5e9',
-  beer: '#f59e0b',
-  wine: '#a855f7',
-  spirits: '#7c3aed',
-  fuel: '#ef4444',
-  gas: '#ef4444',
-  diesel: '#ef4444',
-  bread: '#f97316',
-  milk: '#22c55e',
-  cheese: '#facc15',
-  fish: '#0ea5e9',
-  seafood: '#0ea5e9',
-  vegetable: '#22c55e',
-  meat: '#ef4444',
-  chicken: '#f97316',
-  laundry: '#38bdf8',
-  medicine: '#ec4899',
-  gym: '#22c55e',
-  electronics: '#3b82f6',
-  electricity: '#facc15',
-  shoe: '#f472b6',
-  jewel: '#facc15',
-  bus: '#64748b',
-  flight: '#22c55e',
-  pen: '#06b6d4',
-  book: '#8b5cf6',
-  bank: '#10b981',
-  movie: '#f43f5e',
-  pet: '#22c55e',
-  gift: '#f472b6',
-  restaurant: '#f97316',
-};
-
-const getSubcategoryColor = (subCategory) => {
-  const key = String(subCategory || '').toLowerCase();
-  const entry = Object.entries(SUBCATEGORY_COLOR_MAP).find(([slug]) => key.includes(slug));
-  return entry ? entry[1] : '#38bdf8';
-};
 
 const formatLineItemsForEditor = (lineItems = []) =>
   lineItems.map((entry) => ({
@@ -408,94 +191,12 @@ const InputWithIcon = ({
 const LineItemRow = React.memo(({
   item,
   index,
-  mainCategoryOptions,
-  subCategoryOptionsMap,
   handleLineItemChange,
   removeLineItem,
-  setMainCategoryOptions,
-  setSubCategoryOptionsMap,
-  saveUserCategoryPreference,
-  userMainSet,
-  masterMainSet,
-  userSubMap,
-  masterSubMap,
 }) => {
-  const mainKey = String(item.main_category || '');
-  const lowerKey = mainKey.toLowerCase();
-  const subCategoryOptions =
-    subCategoryOptionsMap[mainKey] ||
-    subCategoryOptionsMap[lowerKey] ||
-    [];
-  const CategoryIconComponent = getCategoryIconComponent(item.main_category);
-  const SubcategoryIconComponent = getSubcategoryIconComponent(item.sub_category);
-  const categoryColor = getCategoryColor(item.main_category);
-  const subcategoryColor = getSubcategoryColor(item.sub_category);
-
-  const orderedMainCategories = useMemo(() => {
-    const userMains = Array.from(userMainSet || []);
-    const masterMains = Array.from(masterMainSet || []);
-    const defaults = DEFAULT_CATEGORY_KEYS;
-    const customs = (mainCategoryOptions || []).filter(
-      (c) => !DEFAULT_CATEGORY_SET.has(String(c || '').toLowerCase())
-    );
-    const combined = [...userMains, ...masterMains, ...defaults, ...customs];
-    return combined.filter(
-      (c, idx) => combined.findIndex((x) => String(x || '').toLowerCase() === String(c || '').toLowerCase()) === idx
-    );
-  }, [mainCategoryOptions, userMainSet, masterMainSet]);
-
-  const orderedSubcategories = useMemo(() => {
-    const key = String(item.main_category || '').toLowerCase();
-    const userSubs = Array.from((userSubMap && userSubMap[key]) || []);
-    const masterSubs = Array.from((masterSubMap && masterSubMap[key]) || []);
-    const defaults = Array.from(DEFAULT_SUBCATEGORY_SET[key] || []);
-    const customs = (subCategoryOptions || []).filter(
-      (s) => !(DEFAULT_SUBCATEGORY_SET[key] || new Set()).has(String(s || '').toLowerCase())
-    );
-    const combined = [...userSubs, ...masterSubs, ...defaults, ...customs];
-    return combined.filter(
-      (s, idx) => combined.findIndex((x) => String(x || '').toLowerCase() === String(s || '').toLowerCase()) === idx
-    );
-  }, [subCategoryOptions, item.main_category, userSubMap, masterSubMap]);
-
-  const onSubCategoryCreate = (newSub) => {
-    const trimmed = newSub.trim();
-    if (!trimmed) return;
-
-    setSubCategoryOptionsMap(prev => ({
-      ...prev,
-      [item.main_category]: (() => {
-        const current = prev[item.main_category] || [];
-        if (current.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
-          return current;
-        }
-        return [...current, trimmed];
-      })(),
-    }));
-
-    saveUserCategoryPreference(item.item, item.main_category, trimmed);
-  };
-
-  const onMainCategoryCreate = (newCategory) => {
-    const trimmed = newCategory.trim();
-    if (!trimmed) return;
-
-    setMainCategoryOptions(prev => {
-      if (prev.some(option => option.toLowerCase() === trimmed.toLowerCase())) {
-        return prev;
-      }
-      return [...prev, trimmed];
-    });
-    setSubCategoryOptionsMap(prev => {
-      if (prev[trimmed]) {
-        return prev;
-      }
-      return { ...prev, [trimmed]: [] };
-    });
-  };
 
   return (
-    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-7 gap-3 items-center">
+    <div className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg grid grid-cols-1 md:grid-cols-4 gap-3 items-center">
 
       <input type="text" value={item.item} onChange={(e) => handleLineItemChange(index, 'item', e.target.value)} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm md:col-span-2" />
 
@@ -514,48 +215,6 @@ const LineItemRow = React.memo(({
 
       <input type="number" value={item.quantity} onChange={(e) => handleLineItemChange(index, 'quantity', parseInt(e.target.value))} className="w-full p-2 rounded-lg bg-white dark:bg-gray-600 border border-transparent focus:border-green-500 text-sm font-ubuntu" />
 
-      <div className="flex items-center gap-2">
-        <CategoryIconComponent
-          className="h-4 w-4"
-          color={categoryColor}
-          stroke={categoryColor}
-          strokeWidth={2}
-          fill={categoryColor}
-        />
-        <SearchableDropdown
-          options={orderedMainCategories}
-          value={item.main_category}
-          onChange={(value) => handleLineItemChange(index, 'main_category', value)}
-          placeholder="Select Category"
-          allowCreate
-          pill
-          labelClassName="text-xs md:text-sm"
-          className="flex-1"
-          onCreateOption={onMainCategoryCreate}
-        />
-      </div>
-
-      <div className="flex items-center gap-2">
-        <SubcategoryIconComponent
-          className="h-4 w-4"
-          color={subcategoryColor}
-          stroke={subcategoryColor}
-          strokeWidth={2}
-          fill={subcategoryColor}
-        />
-        <SearchableDropdown
-          options={orderedSubcategories}
-          value={item.sub_category}
-          onChange={(value) => handleLineItemChange(index, 'sub_category', value)}
-          placeholder="Select Subcategory"
-          allowCreate
-          pill
-          labelClassName="text-xs md:text-sm"
-          className="flex-1"
-          onCreateOption={onSubCategoryCreate}
-        />
-      </div>
-
       <button
         onClick={() => removeLineItem(index)}
         className="text-red-500 hover:text-red-600 justify-self-center"
@@ -569,19 +228,9 @@ const LineItemRow = React.memo(({
 });
 LineItemRow.displayName = 'LineItemRow';
 
-function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, file, userStoreOverrides, isSaving }) {
+function EditableReceipt({ data, setData, onSave, file, userStoreOverrides, isSaving }) {
   const { fetchWithAuth, user } = useAuth();
-  const [mainCategoryOptions, setMainCategoryOptions] = useState(() => Object.keys(SUB_CATEGORIES));
-  const [subCategoryOptionsMap, setSubCategoryOptionsMap] = useState(() =>
-    Object.entries(SUB_CATEGORIES).reduce((acc, [key, values]) => {
-      acc[key] = [...values];
-      return acc;
-    }, {})
-  );
-  const [userMainSet, setUserMainSet] = useState(new Set());
-  const [masterMainSet, setMasterMainSet] = useState(new Set());
-  const [userSubMap, setUserSubMap] = useState({});
-  const [masterSubMap, setMasterSubMap] = useState({});
+  
   const [storeTypeOptions, setStoreTypeOptions] = useState(() => {
     const base = new Set(
       Object.values(STORE_DATA).map((entry) => entry.StoreName_category)
@@ -591,26 +240,13 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
   });
   const [storeList, setStoreList] = useState([]);
   const storeTypeManualRef = useRef(false);
-  const [userCategoryRows, setUserCategoryRows] = useState([]);
+  
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const merchantOptions = useMemo(() => {
     const trimmed = (data.merchant_name || '').trim().toLowerCase();
     const matches = [];
     const others = [];
     const seen = new Set();
-
-    if (userStoreOverrides) {
-        Object.keys(userStoreOverrides).forEach((merchantName) => {
-            const lower = merchantName.toLowerCase();
-            if(seen.has(lower)) return;
-            seen.add(lower);
-            if(!trimmed || lower.includes(trimmed)){
-                matches.push(merchantName)
-            } else {
-                others.push(merchantName)
-            }
-        });
-    }
 
     storeList.forEach(({ merchant_name }) => {
       if (!merchant_name) return;
@@ -633,7 +269,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
       }
     }
     return combined;
-  }, [storeList, data.merchant_name, userStoreOverrides]);
+  }, [storeList, data.merchant_name]);
 
   useEffect(() => {
     if (file) {
@@ -666,85 +302,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     };
   }, [fetchWithAuth]);
 
-  useEffect(() => {
-    let isMounted = true;
-    async function loadCategoryOptions() {
-      try {
-        const fetcher = fetchWithAuth || fetch;
-        const resp = await fetcher('/api/category-options');
-        if (!resp.ok) return;
-        const payload = await resp.json();
-        if (!isMounted) return;
-
-        const userRows = Array.isArray(payload?.userCategories) ? payload.userCategories : [];
-        const masterRows = Array.isArray(payload?.masterCategories) ? payload.masterCategories : [];
-
-        setUserCategoryRows(userRows);
-
-        const nextUserMain = new Set();
-        const nextMasterMain = new Set();
-        const nextUserSubs = {};
-        const nextMasterSubs = {};
-
-        userRows.forEach((row) => {
-          const main = (row.main_category || '').trim();
-          const sub = (row.sub_category || '').trim();
-          if (!main) return;
-          nextUserMain.add(main);
-          if (sub) {
-            const key = main.toLowerCase();
-            if (!nextUserSubs[key]) nextUserSubs[key] = new Set();
-            nextUserSubs[key].add(sub);
-          }
-        });
-
-        masterRows.forEach((row) => {
-          const main = (row.main_category || '').trim();
-          const sub = (row.sub_category || '').trim();
-          if (!main) return;
-          nextMasterMain.add(main);
-          if (sub) {
-            const key = main.toLowerCase();
-            if (!nextMasterSubs[key]) nextMasterSubs[key] = new Set();
-            nextMasterSubs[key].add(sub);
-          }
-        });
-
-        setUserMainSet(nextUserMain);
-        setMasterMainSet(nextMasterMain);
-        setUserSubMap(Object.fromEntries(Object.entries(nextUserSubs).map(([k, v]) => [k, Array.from(v)])));
-        setMasterSubMap(Object.fromEntries(Object.entries(nextMasterSubs).map(([k, v]) => [k, Array.from(v)])));
-
-        setMainCategoryOptions((prev) => {
-          const combined = new Set(prev);
-          nextUserMain.forEach((m) => combined.add(m));
-          nextMasterMain.forEach((m) => combined.add(m));
-          return Array.from(combined);
-        });
-
-        setSubCategoryOptionsMap((prev) => {
-          const next = { ...prev };
-          const mergeSubs = (targetMap, source) => {
-            Object.entries(source).forEach(([mainLower, subs]) => {
-              const existing = new Set(next[mainLower] || next[Object.keys(next).find(k => k.toLowerCase() === mainLower)] || []);
-              subs.forEach((s) => existing.add(s));
-              const mainKey = Object.keys(next).find((k) => k.toLowerCase() === mainLower) || mainLower;
-              next[mainKey] = Array.from(existing);
-            });
-          };
-          mergeSubs(next, Object.fromEntries(Object.entries(nextUserSubs).map(([k, set]) => [k, Array.from(set)])));
-          mergeSubs(next, Object.fromEntries(Object.entries(nextMasterSubs).map(([k, set]) => [k, Array.from(set)])));
-          return next;
-        });
-      } catch (error) {
-        console.error('Failed to load category options', error);
-      }
-    }
-    loadCategoryOptions();
-    return () => {
-      isMounted = false;
-    };
-  }, [fetchWithAuth]);
+  
 
   useEffect(() => {
     const newTotal = (data.line_items || []).reduce((acc, item) => {
@@ -901,30 +459,13 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
 
       if (field === 'price') {
         updatedItem.price = normalizedValue;
-      } else if (field === 'main_category') {
-        updatedItem.sub_category = ''; // reset subcategory on main category change
       }
 
       currentItems[index] = updatedItem;
 
-      if (field === 'sub_category') {
-        const preference = {
-          itemName: (updatedItem.item || updatedItem.Item_Name || '').trim(),
-          mainCategory: (updatedItem.main_category || '').trim(),
-          subCategory: (updatedItem.sub_category || '').trim(),
-        };
-        if (preference.itemName && preference.mainCategory && preference.subCategory) {
-          saveUserCategoryPreference(
-            preference.itemName,
-            preference.mainCategory,
-            preference.subCategory
-          );
-        }
-      }
-
       return { ...prev, line_items: currentItems };
     });
-  }, [saveUserCategoryPreference]);
+  }, []);
 
   const addLineItem = () => {
     setData(prev => ({
@@ -1015,7 +556,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
         </div>
       </div>
 
-      <div>
+      <div className="bg-emerald-50/50 dark:bg-emerald-900/10 border border-emerald-100/50 dark:border-emerald-800/30 rounded-3xl p-4 md:p-5">
         <div className="flex justify-between items-center mb-2">
           <h4 className="font-semibold text-gray-700 dark:text-gray-300">Line Items</h4>
           <button
@@ -1027,12 +568,10 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
             <PlusCircle size={22} className="text-green-500" />
           </button>
         </div>
-        <div className="hidden md:grid grid-cols-7 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
+        <div className="hidden md:grid grid-cols-4 gap-3 px-3 py-2 text-sm font-semibold text-gray-500 dark:text-gray-400">
           <div className="col-span-2">Item Name</div>
           <div>Price</div>
           <div>Qty</div>
-          <div>Category</div>
-          <div>Subcategory</div>
           <div></div>
         </div>
         <div className="space-y-4">
@@ -1041,17 +580,8 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
               key={index}
               item={item}
               index={index}
-              mainCategoryOptions={mainCategoryOptions}
-              subCategoryOptionsMap={subCategoryOptionsMap}
               handleLineItemChange={handleLineItemChange}
               removeLineItem={removeLineItem}
-              setMainCategoryOptions={setMainCategoryOptions}
-              setSubCategoryOptionsMap={setSubCategoryOptionsMap}
-              saveUserCategoryPreference={saveUserCategoryPreference}
-              userMainSet={userMainSet}
-              masterMainSet={masterMainSet}
-              userSubMap={userSubMap}
-              masterSubMap={masterSubMap}
             />
           ))}
         </div>
@@ -1080,7 +610,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
   );
 }
 
-export default function ScanReceipt() {
+export default function ScanR() {
   const [file, setFile] = useState(null);
   const [isCameraOpen, setIsCameraOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1184,25 +714,7 @@ export default function ScanReceipt() {
     }
   }, [isProcessing]);
 
-  useEffect(() => {
-    const prefilled = sessionStorage.getItem('multi-scan-result');
-    if (prefilled) {
-      try {
-        const parsed = JSON.parse(prefilled);
-        if (parsed) {
-          setExtractedData(parsed);
-          setMarkdownPreview(null);
-          setFile(null);
-          setMode('upload');
-          setScanMode('receipt');
-        }
-      } catch (err) {
-        console.error('Failed to load multi scan result', err);
-      } finally {
-        sessionStorage.removeItem('multi-scan-result');
-      }
-    }
-  }, []);
+  
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -1236,35 +748,7 @@ export default function ScanReceipt() {
     }
   }, [location.pathname, location.search, navigate, clearPendingPreview]);
 
-  const saveUserCategoryPreference = useCallback(async (itemName, mainCategory, subCategory) => {
-    const trimmedName = (itemName || '').trim();
-    const trimmedMain = (mainCategory || '').trim();
-    const trimmedSub = (subCategory || '').trim();
-
-    if (!trimmedName || !trimmedMain || !trimmedSub) return;
-
-    const normalizedName = trimmedName.toLowerCase();
-    const cacheKey = `${normalizedName}__${trimmedMain.toLowerCase()}__${trimmedSub.toLowerCase()}`;
-    if (savedPreferencesRef.current.has(cacheKey)) return;
-
-    try {
-      const response = await fetchWithAuth('/api/update-user-category', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          item_name: normalizedName,
-          main_category: trimmedMain,
-          sub_category: trimmedSub,
-        }),
-      });
-
-      if (response.ok) {
-        savedPreferencesRef.current.add(cacheKey);
-      }
-    } catch (err) {
-      console.error('Failed to save user category preference', err);
-    }
-  }, [fetchWithAuth]);
+  
 
 
   const processFile = async (fileToProcess) => {
@@ -1384,7 +868,7 @@ export default function ScanReceipt() {
     setDuplicatePrompt(null);
     setSaveSuccessPrompt(false);
     clearPendingPreview();
-    navigate('/scan');
+    navigate('/scanr');
     if (!skipReload) {
       window.location.reload();
     }
@@ -1506,7 +990,7 @@ export default function ScanReceipt() {
     handleSave(payload);
   };
 
-  const pageTitle = 'Scan Receipt';
+  const pageTitle = 'ScanR';
 
   return (
     <>
@@ -1699,7 +1183,6 @@ export default function ScanReceipt() {
                 data={extractedData}
                 setData={setExtractedData}
                 onSave={handleSave}
-                saveUserCategoryPreference={saveUserCategoryPreference}
                 file={file}
                 userStoreOverrides={userStoreOverrides}
                 isSaving={isSaving}
@@ -1766,14 +1249,7 @@ export default function ScanReceipt() {
               )}
 
               <div className="mt-4 flex flex-col sm:flex-row items-center justify-center gap-6 text-sm">
-                <button
-                  type="button"
-                  onClick={() => navigate(createPageUrl('ScanReceiptMulti'))}
-                  className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-500 hover:text-white"
-                >
-                  <PlusCircle size={16} />
-                  Scan multiple pages
-                </button>
+                
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
