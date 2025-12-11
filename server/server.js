@@ -2250,7 +2250,8 @@ app.get('/auth/google', (req, res, next) => {
 
   const authenticator = passport.authenticate('google', {
     scope: ['profile', 'email'],
-    state: state // Pass state to Google
+    state: state, // Pass state to Google
+    session: false // Disable session for the handshake to avoid cross-domain cookie blocks
   });
 
   authenticator(req, res, next);
