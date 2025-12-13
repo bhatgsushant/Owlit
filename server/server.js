@@ -2942,65 +2942,7 @@ app.get('/api/family/receipts', authenticateRequest, async (req, res) => {
   }
 });
 
-app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
-  try {
-    const question = (req.body?.question || '').trim();
-    if (!question) {
-      throw new ValidationError('A question is required to use Ask AI.');
-    }
 
-    const interpretation = await interpretSpendingQuestion(question);
-    interpretation.operation = (interpretation.operation || 'total_spend').toLowerCase();
-
-    if (interpretation.needs_clarification || interpretation.operation === 'clarify') {
-      return res.json({
-        sql_query: '',
-        final_answer:
-          interpretation.clarification_prompt ||
-          'Could you clarify what time range or category you would like me to inspect?',
-        follow_ups: [
-          'How much did I spend on groceries last month?',
-          'Show me receipts that mention coffee this week.',
-        ],
-      });
-    }
-
-    if (!ASK_AI_SUPPORTED_OPERATIONS.has(interpretation.operation)) {
-      interpretation.operation = 'total_spend';
-    }
-
-    const dateRange = resolveAiDateRange(interpretation.date_range || {});
-
-    let receiptsQuery = supabase
-      .from('receipts')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .order('transaction_date', { ascending: false })
-      .limit(500);
-
-    if (dateRange.start) {
-      receiptsQuery = receiptsQuery.gte('transaction_date', dateRange.start);
-    }
-    if (dateRange.end) {
-      receiptsQuery = receiptsQuery.lte('transaction_date', dateRange.end);
-    }
-
-    const { data: receipts, error } = await receiptsQuery;
-    if (error) {
-      throw error;
-    }
-
-    const analysis = analyzeSpendingResults({
-      receipts: Array.isArray(receipts) ? receipts : [],
-      interpretation,
-      dateRange,
-    });
-
-    res.json(analysis);
-  } catch (error) {
-    return handleApiError(res, error, 'Failed to answer Ask AI question');
-  }
-});
 
 app.post('/api/merchant-aliases', authenticateRequest, async (req, res) => {
   try {
@@ -3189,6 +3131,7 @@ app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) 
 });
 
 // --- Ask AI endpoint ---
+// --- Ask AI endpoint (RAG Version) ---
 app.post('/api/ask-ai', optionalAuthenticate, async (req, res) => {
   try {
     const question = req.body?.question;
@@ -3201,78 +3144,80 @@ app.post('/api/ask-ai', optionalAuthenticate, async (req, res) => {
       return res.status(401).json({ error: 'Unauthorized.' });
     }
 
-    const query_key = crypto.createHash('sha256').update(`${userId}:${question}`).digest('hex');
+    console.log(`🤖 Ask AI (RAG) Question: "${question}"`);
 
-    // Cache lookup
-    const { data: cachedRows, error: cacheErr } = await supabase
-      .from('ai_cache')
-      .select('answer, facts')
-      .eq('user_id', userId)
-      .eq('query_key', query_key)
-      .order('created_at', { ascending: false })
-      .limit(1);
+    // 1. Generate Embedding (using local Transformers.js to match Python script)
+    // Dynamic import because @xenova/transformers is ESM
+    const { pipeline } = await import('@xenova/transformers');
+    const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
 
-    if (!cacheErr && cachedRows && cachedRows.length > 0) {
-      const cached = cachedRows[0];
-      return res.json({
-        answer: cached.answer,
-        items_used: cached.facts || [],
-        filters: 'cached',
-      });
-    }
+    // Generate embedding (returns a Tensor, need to convert to array)
+    const output = await extractor(question, { pooling: 'mean', normalize: true });
+    const query_embedding = Array.from(output.data);
 
-    // Parse question
-    let parsed = {};
-    try {
-      parsed = await parseUserQuery(question);
-    } catch (err) {
-      console.error('parseUserQuery failed:', err.message);
-      parsed = {};
-    }
-
-    // Retrieve items (SQL then vector fallback)
-    const useVectorFlag = parsed && typeof parsed.use_vector !== 'undefined'
-      ? Boolean(parsed.use_vector)
-      : false;
-
-    let items = await searchItemsSQL(parsed, userId);
-    if (!Array.isArray(items) || items.length === 0 || useVectorFlag) {
-      items = await searchItemsVector(question, userId, 20);
-    }
-
-    // Context items
-    const contextItems = (items || []).map((i) => ({
-      item_name: i.item_name,
-      main_category: i.main_category,
-      sub_category: i.sub_category,
-      merchant_name: i.merchant_name,
-      price: i.price || i.total_price,
-      date: i.transaction_date,
-      receipt_id: i.receipt_id,
-    }));
-
-    // Final answer
-    const answer = await generateFinalAnswer(question, contextItems, parsed);
-
-    // Cache the result (best effort)
-    try {
-      await supabase.from('ai_cache').insert({
-        user_id: userId,
-        query_key,
-        answer,
-        facts: contextItems,
-      });
-    } catch (err) {
-      console.error('Failed to cache AskAI result:', err.message);
-    }
-
-    return res.json({
-      answer,
-      items_used: contextItems,
-      filters: parsed,
+    // 2. Search Supabase (match_documents RPC)
+    const { data: documents, error: searchError } = await supabase.rpc('match_documents', {
+      query_embedding,
+      match_threshold: 0.01,
+      match_count: 100, // Retrieve top 100 items (GPT-4o-mini has a large context, this improves "total" accuracy)
+      filter: { user_id: userId } // ISOLATION: Only search this user's data
     });
+
+    if (searchError) {
+      console.error('RAG Search Error:', searchError);
+      throw new Error('Failed to search database.');
+    }
+
+    // 3. Construct Context
+    const contextText = documents?.map(doc => doc.content).join('\n---\n') || "";
+
+    // Fallback if no context found
+    if (!contextText) {
+      return res.json({
+        answer: "I couldn't find any relevant receipts to answer your question.",
+        items_used: []
+      });
+    }
+
+    // 4. Generate Answer with OpenAI
+    const systemPrompt = "You are a friendly financial assistant. Your goal is to answer questions about the user's spending based on their receipt data. Summarize the information and provide clear, concise answers. Do not just list transactions. Be conversational. IMPORTANT: ALWAYS use GBP (£) for currency symbols, never use Dollars ($).";
+
+    const userPrompt = `Based on the following receipt information, please provide a conversational answer to my question.
+
+If I ask for a total, calculate it from the items provided.
+
+**Receipt Data:**
+${contextText}
+
+**My Question:**
+${question}`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.2,
+    });
+
+    const answer = completion.choices[0]?.message?.content || "Sorry, I couldn't generate an answer.";
+
+    // 5. Return Response
+    // We map retrieved docs to 'items_used' format expected by frontend
+    // Note: The Python script stores raw text content. If `match_documents` returns structured data 
+    // inside the `metadata` column or if we can parse it, we can populate this better. 
+    // For now, we return empty items or raw content if feasible.
+    // The frontend expects `items_used` to be an array of objects.
+
+    res.json({
+      answer,
+      items_used: [], // RAG raw text doesn't map easily to the old structured item format, sending empty for now to avoid frontend crash
+      filters: { mode: 'RAG' }
+    });
+
   } catch (err) {
-    console.error('AskAI failed:', err);
+    console.error('AskAI (RAG) failed:', err);
     return res.status(500).json({ error: 'AskAI failed. Please try again.' });
   }
 });

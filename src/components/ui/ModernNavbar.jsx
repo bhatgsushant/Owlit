@@ -222,6 +222,48 @@ const DrawerMultiScanIcon = () => (
   </svg>
 );
 
+const DrawerAskAIIcon = () => (
+  <svg
+    width="20"
+    height="20"
+    viewBox="0 0 64 64"
+    fill="none"
+    xmlns="http://www.w3.org/2000/svg"
+    aria-hidden="true"
+    className="h-5 w-5 shrink-0"
+  >
+    <defs>
+      <linearGradient id="ai-gradient" x1="0" y1="0" x2="64" y2="64">
+        <stop stopColor="#22d3ee" /> {/* Cyan-400 */}
+        <stop offset="0.5" stopColor="#3b82f6" /> {/* Blue-500 */}
+        <stop offset="1" stopColor="#a855f7" /> {/* Purple-500 */}
+      </linearGradient>
+      <filter id="ai-glow">
+        <feGaussianBlur stdDeviation="3" result="blur" />
+        <feMerge>
+          <feMergeNode in="blur" />
+          <feMergeNode in="SourceGraphic" />
+        </feMerge>
+      </filter>
+    </defs>
+    <g filter="url(#ai-glow)">
+      <path
+        d="M32 14C22.0589 14 14 21.1634 14 30C14 34.9392 17.5878 39.3516 23.3642 42.1386L20 50L30.2222 46.5418C30.8066 46.6015 31.4003 46.6364 32 46.6364C41.9411 46.6364 50 39.473 50 30.6364C50 21.7997 41.9411 14 32 14Z"
+        stroke="url(#ai-gradient)"
+        strokeWidth="3.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* Sparkle inside */}
+      <path
+        d="M32 23L34 28L39 30L34 32L32 37L30 32L25 30L30 28L32 23Z"
+        fill="url(#ai-gradient)"
+        opacity="0.9"
+      />
+    </g>
+  </svg>
+);
+
 // Shared brand mark to mirror the home page styling
 function BrandMark() {
   return (
@@ -231,16 +273,16 @@ function BrandMark() {
         transition={{ type: 'spring', stiffness: 280, damping: 18 }}
         className="flex h-10 w-10 items-center justify-center rounded-xl bg-black text-white shadow-lg shadow-black/30"
       >
-       <svg viewBox="0 0 128 128" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
-  <path fill="white" d="
+        <svg viewBox="0 0 128 128" width="128" height="128" xmlns="http://www.w3.org/2000/svg">
+          <path fill="white" d="
     M28 34 64 16 100 34 100 92
     C100 108 84 116 64 116
     C44 116 28 108 28 92
     Z"/>
-  <circle cx="48" cy="60" r="9" fill="black"/>
-  <circle cx="80" cy="60" r="9" fill="black"/>
-  <polygon points="64,72 56,86 72,86" fill="black"/>
-</svg>
+          <circle cx="48" cy="60" r="9" fill="black" />
+          <circle cx="80" cy="60" r="9" fill="black" />
+          <polygon points="64,72 56,86 72,86" fill="black" />
+        </svg>
 
       </motion.div>
       <span className="text-xl font-bold text-black font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)]">
@@ -291,6 +333,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
     ];
     if (user) {
       items.splice(1, 0, { name: 'Insights', href: createPageUrl('Insights') });
+      items.splice(2, 0, { name: 'Ask AI', href: '/ask-ai' });
       items.push({ name: 'Account', href: createPageUrl('Account') });
     }
     return items;
@@ -527,7 +570,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 <Link
                   to={item.href}
                   onClick={() => setIsOpen(false)}
-                    className={`
+                  className={`
                     relative flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold font-playfair drop-shadow-[0_1px_1px_rgba(34,197,94,0.5)] transition-colors
                     ${isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-300'}
                   `}
@@ -627,6 +670,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                       Account: DrawerAccountIcon,
                       Login: LogIn,
                       'Scan Multiple Pages': DrawerMultiScanIcon,
+                      'Ask AI': DrawerAskAIIcon,
                     };
                     const baseLinks = [...menuItems, { name: 'Scan Multiple Pages', href: createPageUrl('ScanReceiptMulti') }];
                     const authLink = user
@@ -768,21 +812,19 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                     <div className="inline-flex rounded-full border border-slate-200 bg-white p-1 dark:border-white/15 dark:bg-white/10">
                       <button
                         onClick={() => setFamilyActionMode('create')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                          familyActionMode === 'create'
-                            ? 'bg-emerald-500 text-black'
-                            : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
-                        }`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${familyActionMode === 'create'
+                          ? 'bg-emerald-500 text-black'
+                          : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
+                          }`}
                       >
                         Create a family
                       </button>
                       <button
                         onClick={() => setFamilyActionMode('join')}
-                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                          familyActionMode === 'join'
-                            ? 'bg-emerald-500 text-black'
-                            : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
-                        }`}
+                        className={`px-3 py-1 text-xs font-semibold rounded-full transition ${familyActionMode === 'join'
+                          ? 'bg-emerald-500 text-black'
+                          : 'text-slate-700 hover:text-slate-900 dark:text-white/80 dark:hover:text-white'
+                          }`}
                       >
                         Join a family
                       </button>
@@ -798,14 +840,14 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                           placeholder="Family name"
                           className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-emerald-400/60 dark:border-white/15 dark:bg-white/10 dark:text-white"
                         />
-                          <button
-                            onClick={handleCreateFamily}
-                            disabled={familyActionLoading || !familyNameInput.trim()}
-                            className="w-full rounded-lg bg-emerald-500 text-black font-semibold px-3 py-2 hover:bg-emerald-400 disabled:opacity-60"
-                          >
-                            {familyActionLoading ? 'Creating…' : 'Create family'}
-                          </button>
-                        </div>
+                        <button
+                          onClick={handleCreateFamily}
+                          disabled={familyActionLoading || !familyNameInput.trim()}
+                          className="w-full rounded-lg bg-emerald-500 text-black font-semibold px-3 py-2 hover:bg-emerald-400 disabled:opacity-60"
+                        >
+                          {familyActionLoading ? 'Creating…' : 'Create family'}
+                        </button>
+                      </div>
                     ) : (
                       <div className="space-y-2">
                         <p className="text-sm font-semibold text-slate-900 dark:text-white">Join a family</p>
