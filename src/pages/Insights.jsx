@@ -185,12 +185,12 @@ const ChartCard = ({
   const shellClasses = 'w-full h-full rounded-2xl border border-white/10 bg-white/5 p-4';
   const normalizedOption = hasOption
     ? {
-        ...option,
-        textStyle: {
-          color: '#ffffff',
-          ...(option.textStyle || {}),
-        },
-      }
+      ...option,
+      textStyle: {
+        color: '#ffffff',
+        ...(option.textStyle || {}),
+      },
+    }
     : null;
 
   return (
@@ -242,11 +242,10 @@ const DrilldownControls = ({ segments = [], onBack, canGoBack }) => (
       type="button"
       onClick={onBack}
       disabled={!canGoBack}
-      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 transition ${
-        canGoBack
-          ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
-          : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
-      }`}
+      className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 transition ${canGoBack
+        ? 'border-white/20 bg-white/10 text-white hover:bg-white/20'
+        : 'border-white/5 bg-white/5 text-white/40 cursor-not-allowed'
+        }`}
     >
       <ArrowLeft size={12} />
       Back
@@ -258,13 +257,12 @@ const DrilldownControls = ({ segments = [], onBack, canGoBack }) => (
             type="button"
             onClick={segment.onClick}
             disabled={segment.active || !segment.onClick}
-            className={`rounded-full px-2 py-0.5 transition ${
-              segment.active
-                ? 'bg-white/20 text-white cursor-default'
-                : segment.onClick
+            className={`rounded-full px-2 py-0.5 transition ${segment.active
+              ? 'bg-white/20 text-white cursor-default'
+              : segment.onClick
                 ? 'text-gray-300 hover:text-white'
                 : 'text-gray-500 cursor-default'
-            }`}
+              }`}
           >
             {segment.label}
           </button>
@@ -354,10 +352,10 @@ const TimeframeCard = ({ label, current = 0, previous = 0 }) => {
     delta === 0
       ? 'text-gray-400'
       : delta === Infinity
-      ? 'text-emerald-300'
-      : delta > 0
-      ? 'text-emerald-300'
-      : 'text-rose-300';
+        ? 'text-emerald-300'
+        : delta > 0
+          ? 'text-emerald-300'
+          : 'text-rose-300';
 
   const animatedCurrent = useAnimatedNumber(current);
   const animatedPrevious = useAnimatedNumber(previous);
@@ -369,13 +367,12 @@ const TimeframeCard = ({ label, current = 0, previous = 0 }) => {
       <div className="flex items-start justify-between gap-2">
         <span className="text-xs uppercase tracking-[0.32em] text-gray-300 font-semibold">{label}</span>
         {showIndicator && (
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${
-            delta === Infinity
-              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-              : delta > 0
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${delta === Infinity
+            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+            : delta > 0
               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
               : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-          }`}>
+            }`}>
             {delta === Infinity ? (
               <>
                 <ChevronUp size={10} />
@@ -438,11 +435,10 @@ const TimeGranularityToggle = ({ value, onChange, options = granularityOptionsNo
           key={key}
           type="button"
           onClick={() => onChange(key)}
-          className={`relative rounded-full px-2.5 sm:px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${
-            active
-              ? 'bg-emerald-500/25 text-emerald-200 shadow-md shadow-emerald-500/20'
-              : 'hover:bg-white/10 hover:text-slate-100'
-          }`}
+          className={`relative rounded-full px-2.5 sm:px-3 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/60 ${active
+            ? 'bg-emerald-500/25 text-emerald-200 shadow-md shadow-emerald-500/20'
+            : 'hover:bg-white/10 hover:text-slate-100'
+            }`}
         >
           {granularityLabels[key]}
         </button>
@@ -625,11 +621,11 @@ export default function Insights() {
 
   const handleDelete = async (receiptId) => {
     if (activeScope === 'family') {
-        alert('Switch to "Me" view to delete your own receipts.');
-        return;
+      alert('Switch to "Me" view to delete your own receipts.');
+      return;
     }
     if (!window.confirm('Are you sure you want to delete this receipt?')) {
-        return;
+      return;
     }
     try {
       const response = await fetchWithAuth('/api/receipts', {
@@ -649,16 +645,16 @@ export default function Insights() {
   };
 
   const handleEdit = (receipt) => {
-      if (activeScope === 'family') {
-        alert('Switch to \"Me\" view to edit your receipts.');
-        return;
-      }
-      const payload = {
-        ...receipt,
-        image_url: receipt.receipt_url || receipt.file_url || receipt.image_url || null,
-      };
-      sessionStorage.setItem('edit-receipt-data', JSON.stringify(payload));
-      navigate('/scan?edit=true');
+    if (activeScope === 'family') {
+      alert('Switch to \"Me\" view to edit your receipts.');
+      return;
+    }
+    const payload = {
+      ...receipt,
+      image_url: receipt.receipt_url || receipt.file_url || receipt.image_url || null,
+    };
+    sessionStorage.setItem('edit-receipt-data', JSON.stringify(payload));
+    navigate('/scan?edit=true');
   };
 
   useEffect(() => {
@@ -789,7 +785,7 @@ export default function Insights() {
   const clearDateRange = () => setDateRange({ start: null, end: null });
 
 
-const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
+  const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const now = referenceDate ?? new Date();
     const currentYearStart = startOfYear(now);
     const previousYearStart = startOfYear(subYears(now, 1));
@@ -1574,22 +1570,22 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const monthOverMonth =
       monthlySeries.length >= 2
         ? (() => {
-            const last = monthlySeries[monthlySeries.length - 1];
-            const prev = monthlySeries[monthlySeries.length - 2];
-            return last.total - prev.total;
-          })()
+          const last = monthlySeries[monthlySeries.length - 1];
+          const prev = monthlySeries[monthlySeries.length - 2];
+          return last.total - prev.total;
+        })()
         : null;
-    
+
     // Calculate month-over-month percentage for display
     const monthOverMonthPercent =
       monthlySeries.length >= 2
         ? (() => {
-            const last = monthlySeries[monthlySeries.length - 1];
-            const prev = monthlySeries[monthlySeries.length - 2];
-            if (prev.total === 0 && last.total > 0) return Infinity;
-            if (prev.total === 0) return 0;
-            return ((last.total - prev.total) / prev.total) * 100;
-          })()
+          const last = monthlySeries[monthlySeries.length - 1];
+          const prev = monthlySeries[monthlySeries.length - 2];
+          if (prev.total === 0 && last.total > 0) return Infinity;
+          if (prev.total === 0) return 0;
+          return ((last.total - prev.total) / prev.total) * 100;
+        })()
         : null;
 
     const busiestDay = weekdaySeries.reduce((best, current) => {
@@ -1638,8 +1634,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
         highestReceipt,
       },
     };
-  
-};
+
+  };
 
   const referenceDate = useMemo(() => new Date(), []);
 
@@ -1779,12 +1775,12 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
     const subCategories =
       categoryPieCategory && analytics.categoryDetails?.[categoryPieCategory]
         ? (analytics.categoryDetails[categoryPieCategory].subCategories || [])
-            .map((sub) => ({
-              name: sub.name,
-              value: roundToTwo(sub.total || 0),
-            }))
-            .filter((entry) => entry.value > 0)
-            .sort((a, b) => b.value - a.value)
+          .map((sub) => ({
+            name: sub.name,
+            value: roundToTwo(sub.total || 0),
+          }))
+          .filter((entry) => entry.value > 0)
+          .sort((a, b) => b.value - a.value)
         : [];
 
     return { categories, subCategories };
@@ -2086,6 +2082,13 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           symbol: 'circle',
           symbolSize: 8,
           data: filteredData.map((item) => item.total),
+          label: {
+            show: true,
+            position: 'top',
+            color: '#ffffff',
+            fontSize: 11,
+            formatter: (params) => formatCurrency(params.value),
+          },
           lineStyle: { width: 3, color: '#8B5CF6' },
           itemStyle: { color: '#8B5CF6', borderWidth: 2, borderColor: '#F8FAFC' },
           areaStyle: {
@@ -2583,10 +2586,10 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           drillLevel === 'main'
             ? undefined
             : () => {
-                setDrillLevel('main');
-                setSelectedCategory(null);
-                setSelectedSubCategory(null);
-              },
+              setDrillLevel('main');
+              setSelectedCategory(null);
+              setSelectedSubCategory(null);
+            },
       },
     ];
     if (drillLevel !== 'main' && selectedCategory) {
@@ -2597,9 +2600,9 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           drillLevel === 'sub'
             ? undefined
             : () => {
-                setDrillLevel('sub');
-                setSelectedSubCategory(null);
-              },
+              setDrillLevel('sub');
+              setSelectedSubCategory(null);
+            },
       });
     }
     if (drillLevel === 'item' && selectedSubCategory) {
@@ -2613,12 +2616,12 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
   const categoryDrillControls = (
     <div className="flex flex-wrap items-center gap-2">
-        <DrilldownControls
-          segments={categoryDrillSegments}
-          onBack={stepBack}
-          canGoBack={drillLevel !== 'main'}
-        />
-        <ViewToggle mode={categoryDrillViewMode} onChange={setCategoryDrillViewMode} />
+      <DrilldownControls
+        segments={categoryDrillSegments}
+        onBack={stepBack}
+        canGoBack={drillLevel !== 'main'}
+      />
+      <ViewToggle mode={categoryDrillViewMode} onChange={setCategoryDrillViewMode} />
     </div>
   );
 
@@ -2754,7 +2757,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
               <ReXAxis
                 type="number"
                 domain={merchantXAxisDomain}
-                tick={{ fill: '#E2E8F0', fontSize: 11 }}
+                tick={{ fill: '#E2E8F0', fontSize: 12, fontWeight: 500 }}
                 tickLine={false}
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.4)' }}
                 tickFormatter={merchantXAxisFormatter}
@@ -2763,7 +2766,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
                 type="category"
                 dataKey="name"
                 width={isMobile ? 64 : 120}
-                tick={{ fill: '#F8FAFC', fontSize: 11 }}
+                tick={{ fill: '#F8FAFC', fontSize: 12, fontWeight: 500 }}
                 tickLine={false}
                 axisLine={false}
               />
@@ -2961,8 +2964,7 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
 
     if (topMerchant) {
       highlights.push(
-        `Your highest spend with a single merchant is ${formatCurrency(topMerchant.value)} at ${
-          topMerchant.name
+        `Your highest spend with a single merchant is ${formatCurrency(topMerchant.value)} at ${topMerchant.name
         }.`
       );
     }
@@ -3010,18 +3012,16 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
           <div className="inline-flex rounded-full border border-white/10 bg-white/10 p-1 self-start">
             <button
               onClick={() => setInsightScope('me')}
-              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                activeScope === 'me' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
-              }`}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${activeScope === 'me' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                }`}
             >
               Me
             </button>
             <button
               onClick={() => hasFamily && setInsightScope('family')}
               disabled={!hasFamily || familyStatusLoading}
-              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${
-                activeScope === 'family' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
-              } ${(!hasFamily || familyStatusLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`px-3 py-1 text-xs font-semibold rounded-full transition ${activeScope === 'family' ? 'bg-white text-black' : 'text-white/80 hover:text-white'
+                } ${(!hasFamily || familyStatusLoading) ? 'opacity-50 cursor-not-allowed' : ''}`}
             >
               Family
             </button>
@@ -3067,9 +3067,8 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
                 analytics.stats.monthOverMonthPercent != null
                   ? analytics.stats.monthOverMonthPercent === Infinity
                     ? 'New spend this month'
-                    : `${
-                        analytics.stats.monthOverMonthPercent > 0 ? '+' : ''
-                      }${analytics.stats.monthOverMonthPercent.toFixed(1)}% vs previous month`
+                    : `${analytics.stats.monthOverMonthPercent > 0 ? '+' : ''
+                    }${analytics.stats.monthOverMonthPercent.toFixed(1)}% vs previous month`
                   : 'Change versus previous month'
               }
             />
@@ -3239,33 +3238,33 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
       <AnimatedSection delay={0.2}>
         <div className="mt-8 grid grid-cols-1 xl:grid-cols-2 gap-6 md:gap-8">
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white font-playfair">Item Price Trend</h3>
-                  <p className="text-xs text-white/70">
-                    Track how the unit price for a frequent item is changing over time.
-                  </p>
-                </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white font-playfair">Item Price Trend</h3>
+                <p className="text-xs text-white/70">
+                  Track how the unit price for a frequent item is changing over time.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
-              <TimeframeControls
-                timeGranularity={itemTrendGranularity}
-                onGranularityChange={handleChartGranularityChange('itemTrend')}
-                options={granularityOptionsNoDay}
-              >
-                {itemPriceTrendOptions.length > 1 && (
-                  <select
-                    value={selectedTrendItem ?? ''}
-                    onChange={(event) => setSelectedTrendItem(event.target.value || null)}
-                    className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
-                  >
-                    {itemPriceTrendOptions.map((option) => (
-                      <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
-                        {truncateLabel(option.itemName, 32)}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </TimeframeControls>
+                <TimeframeControls
+                  timeGranularity={itemTrendGranularity}
+                  onGranularityChange={handleChartGranularityChange('itemTrend')}
+                  options={granularityOptionsNoDay}
+                >
+                  {itemPriceTrendOptions.length > 1 && (
+                    <select
+                      value={selectedTrendItem ?? ''}
+                      onChange={(event) => setSelectedTrendItem(event.target.value || null)}
+                      className="rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-semibold text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-emerald-400/40"
+                    >
+                      {itemPriceTrendOptions.map((option) => (
+                        <option key={option.itemName} value={option.itemName} className="bg-slate-900 text-slate-100">
+                          {truncateLabel(option.itemName, 32)}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </TimeframeControls>
               </div>
             </div>
             <ItemPriceTrendChart
@@ -3274,19 +3273,19 @@ const buildAnalytics = (processedReceipts, referenceDate = new Date()) => {
             />
           </div>
           <div className="bg-white/5 dark:bg-gray-900/60 border border-white/10 rounded-3xl p-6 md:p-8 shadow-2xl backdrop-blur-md flex flex-col gap-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <h3 className="text-lg font-semibold text-white font-playfair">Basket Composition</h3>
-                  <p className="text-xs text-white/70 max-w-xs sm:max-w-sm leading-relaxed">
-                    See how healthy, snack, and alcohol purchases contribute to each basket over time.
-                  </p>
-                </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold text-white font-playfair">Basket Composition</h3>
+                <p className="text-xs text-white/70 max-w-xs sm:max-w-sm leading-relaxed">
+                  See how healthy, snack, and alcohol purchases contribute to each basket over time.
+                </p>
+              </div>
               <div className="flex items-center gap-2">
-              <TimeframeControls
-                timeGranularity={basketGranularity}
-                onGranularityChange={handleChartGranularityChange('basket')}
-                options={granularityOptionsNoDay}
-              />
+                <TimeframeControls
+                  timeGranularity={basketGranularity}
+                  onGranularityChange={handleChartGranularityChange('basket')}
+                  options={granularityOptionsNoDay}
+                />
               </div>
             </div>
             <BasketCompositionChart data={basketCompositionData} />

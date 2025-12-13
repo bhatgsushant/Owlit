@@ -2303,8 +2303,37 @@ app.get('/auth/google/callback',
 );
 
 
-app.get('/api/user', authenticateRequest, (req, res) => {
-  res.json(req.user || null);
+app.get('/api/user', authenticateRequest, async (req, res) => {
+  try {
+    // Basic user info from JWT
+    const jwtUser = req.user;
+    if (!jwtUser || !jwtUser.id) {
+      return res.json(null);
+    }
+
+    // Fetch rich profile from Supabase
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', jwtUser.id)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error("Error fetching user profile:", error);
+    }
+
+    // Merge JWT info with Profile info (Profile takes precedence)
+    const mergedUser = {
+      ...jwtUser,
+      ...(profile || {})
+    };
+
+    res.json(mergedUser);
+  } catch (err) {
+    console.error("Error in /api/user:", err);
+    // Fallback to minimal user if DB fails
+    res.json(req.user || null);
+  }
 });
 
 app.post('/auth/logout', (req, res) => {

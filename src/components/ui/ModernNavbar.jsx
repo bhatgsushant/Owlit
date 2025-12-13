@@ -320,7 +320,7 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
     [user]
   );
   const displayName = useMemo(
-    () => user?.displayName || user?.name || user?.email || 'Account',
+    () => user?.full_name || user?.displayName || user?.name || user?.email || 'Account',
     [user]
   );
   const avatarInitial = displayName?.[0]?.toUpperCase() || 'A';
@@ -697,6 +697,18 @@ export default function ModernNavbar({ isDarkMode, toggleTheme }) {
                 </div>
                 {user ? (
                   <div className="mt-auto w-full pb-6 pt-4">
+                    <div className="mb-3 px-2 flex items-center gap-2">
+                      {avatarUrl ? (
+                        <img src={avatarUrl} alt={displayName} className="h-6 w-6 rounded-full object-cover" />
+                      ) : (
+                        <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500/20 text-xs font-semibold text-emerald-800">
+                          {avatarInitial}
+                        </div>
+                      )}
+                      <p className="text-sm font-semibold text-emerald-600 font-playfair">
+                        Hi, {displayName}
+                      </p>
+                    </div>
                     <button
                       onClick={logout}
                       className="inline-flex w-full items-center gap-3 rounded-xl px-2 py-2 text-sm font-semibold text-red-600 hover:text-red-500"
