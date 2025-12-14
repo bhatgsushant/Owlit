@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles } from 'lucide-react';
+import { Send, Loader2, Plus, Sparkles } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/ui/AnimatedSection';
@@ -47,12 +47,16 @@ export default function AskAIPage() {
     const userMsg = { role: 'user', text };
     setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
+    setQuestion(''); // Clear input immediately for better UX
 
     try {
       const resp = await fetchWithAuth('/api/ask-ai', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text }),
+        body: JSON.stringify({
+          question: text,
+          history: messages // Send recent chat history for context
+        }),
       });
 
       if (!resp.ok) {
@@ -70,7 +74,6 @@ export default function AskAIPage() {
       setError('Something went wrong');
     } finally {
       setLoading(false);
-      setQuestion('');
     }
   };
 
@@ -83,7 +86,7 @@ export default function AskAIPage() {
 
   return (
     <div
-      className="min-h-screen w-full flex flex-col items-center justify-start pt-20 md:pt-24 px-4 font-sans text-slate-900 bg-fixed bg-cover bg-center"
+      className="min-h-screen w-full flex flex-col items-center justify-start pt-28 md:pt-32 px-4 font-sans text-slate-900 bg-fixed bg-cover bg-center"
       style={{
         backgroundImage: "url('/images/colorful-gradients-3840x2160-22838.jpg')",
       }}
@@ -99,13 +102,24 @@ export default function AskAIPage() {
             {/* AI Icon Removed as requested */}
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900 drop-shadow-sm font-playfair">Owlit AI</h1>
-              <p className="text-xs text-slate-500 font-medium font-fk-grotesk">Your personal Receipt assistant</p>
+              <p className="text-xs text-slate-500 font-medium font-fk-grotesk">Your Personal Receipt AI Assistant</p>
             </div>
           </div>
-          <div className="hidden sm:block">
-            <div className="px-3 py-1 rounded-full bg-black/5 border border-black/5 text-xs font-semibold text-slate-600 backdrop-blur-sm font-fk-grotesk">
-              Beta
-            </div>
+          <div>
+            {/* New Chat Button */}
+            <button
+              onClick={() => {
+                setMessages([]);
+                setError('');
+                if (window.confirm('Start a new chat?')) {
+                  setMessages([]);
+                }
+              }}
+              className="p-1.5 rounded-full bg-black/5 hover:bg-black/10 text-slate-600 transition-colors"
+              title="New Chat"
+            >
+              <Plus className="w-4 h-4" />
+            </button>
           </div>
         </header>
 
@@ -113,12 +127,9 @@ export default function AskAIPage() {
         <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6 scrollbar-thin scrollbar-thumb-black/10 scrollbar-track-transparent">
           {messages.length === 0 && (
             <div className="h-full flex flex-col items-center justify-center text-center p-8 opacity-90">
-              <div className="w-16 h-16 mb-5 rounded-2xl bg-emerald-100/50 flex items-center justify-center">
-                <Sparkles className="w-8 h-8 text-emerald-600" />
-              </div>
               <h3 className="text-2xl font-bold text-slate-900 mb-2 tracking-tight font-fk-grotesk">How can I help?</h3>
               <p className="text-slate-500 max-w-xs text-sm leading-relaxed mb-8 font-fk-grotesk font-semibold">
-                Ask about your spending, recent orders, or get insights from your receipts.
+                Ask about your spending or get insights from your receipts.
               </p>
 
               <div className="flex flex-wrap gap-2 justify-center max-w-sm">
@@ -163,33 +174,7 @@ export default function AskAIPage() {
                     )}
                   </div>
 
-                  {/* Used Items Source Card */}
-                  {msg.role === 'ai' && msg.items && msg.items.length > 0 && (
-                    <div className="mt-3 pt-2 border-t border-black/10">
-                      <div className="text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">
-                        Sources
-                      </div>
-                      <div className="space-y-1.5">
-                        {msg.items.map((it, i) => (
-                          <div
-                            key={i}
-                            className="bg-white rounded-lg p-2 flex flex-col gap-0.5 shadow-sm border border-black/5"
-                          >
-                            <div className="font-medium text-[12px] text-slate-900">
-                              {it.item_name || 'Item'}
-                            </div>
-                            <div className="flex flex-wrap gap-2 text-[10px] text-slate-500 font-semibold">
-                              <span className="font-berkeley text-slate-700">
-                                £{(it.price ?? 0).toFixed(2)}
-                              </span>
-                              {it.date && <span>{it.date}</span>}
-                              {it.merchant_name && <span>{it.merchant_name}</span>}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  {/* Sources Hidden by User Request */}
                 </div>
               </motion.div>
             ))}

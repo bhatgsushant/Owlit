@@ -15,6 +15,11 @@ const session = require('express-session');
 const cookieParser = require('cookie-parser');
 const passport = require('./auth.js');
 const supabase = require('./supabaseClient.js');
+const { Pool } = require('pg');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false }
+});
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const ITEM_SYNONYMS = {
@@ -28,6 +33,33 @@ const {
 } = require('./utils/receiptHash.js');
 const { resolveAiDateRange, analyzeSpendingResults } = require('./utils/askAiHelpers.js');
 const ASK_AI_SUPPORTED_OPERATIONS = new Set(['total_spend', 'item_spend', 'top_merchants', 'list_receipts']);
+
+// --- PROMPTS ---
+const ROUTER_SYSTEM_PROMPT = `
+You are the Router. Classify user questions into: [SQL_AGENT] or [VECTOR_STORE].
+DATA: Table 'v_receipt_line_items_enriched' has columns: transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
+LOGIC:
+- SQL_AGENT: DEFAULT CHOICE. Use this for ANY question about items, spending, prices, dates, categories, "favorite", "most bought", "how much", or analysis.
+- VECTOR_STORE: ONLY for questions like "Show me receipts", "What did I buy", or specific text search (e.g. "Find receipts with text X").
+- If unsure, use SQL_AGENT.
+OUTPUT JSON: { "tool": "SQL_AGENT" | "VECTOR_STORE" }
+`;
+
+const SQL_AGENT_SYSTEM_PROMPT = `
+You are a PostgreSQL Expert. Write a SQL query for view: v_receipt_line_items_enriched.
+Columns: user_id, transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
+RULES:
+1. ALWAYS filter by user_id = $1 (Security).
+2. Read-only SELECT only.
+3. Price is GBP.
+4. Return ONLY raw SQL.
+5. Use ILIKE for all string comparisons to ensure case-insensitivity.
+6. When searching for a product/category, check 'item', 'main_category', and 'sub_category' using OR logic wrapped in parentheses (e.g., AND (item ILIKE '%beer%' OR sub_category ILIKE '%beer%')).
+7. FROM table MUST be 'v_receipt_line_items_enriched'. DO NOT use 'receipt_line_items'.
+8. For date calculations, ALWAYS use date_trunc('week', CURRENT_DATE) or date_trunc('month', CURRENT_DATE). DO NOT use EXTRACT(DOW ...) arithmetic.
+9. **CONTEXT HANDLING:** Treat the latest question as the primary instruction. Only use the chat history to resolve ambiguious terms (like "it", "that", "this week"). Do NOT auto-apply previous filters (like date ranges) if the new question doesn't ask for them.
+10. **FUZZY MATCHING:** Users make typos. When searching for merchants/items (e.g. "wethrspoon"), use loose ILIKE patterns with wildcards (e.g. %weth%spoon%) to maximize matches.
+`;
 
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
@@ -2186,52 +2218,176 @@ app.post('/api/summarize-markdown', authenticateRequest, async (req, res) => {
   }
 });
 
-app.post('/api/ask', authenticateRequest, async (req, res) => {
+app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
+  const { question, history = [] } = req.body;
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+
+  let tool = "";
+
   try {
-    const { question } = req.body || {};
-    const userId = req.user?.id;
-    validateFields({ question }, {
-      question: { type: 'string', required: true, trim: true, maxLength: 2000, message: 'question is required.' }
-    });
+    // 0. LOGGING
+    console.log(`🤖 AskAI Request from User: ${userId}`);
+    console.log(`🤖 Question: "${question}"`);
 
-    if (!userId) {
-      throw new ValidationError('User session is required.');
+    // --- CONTEXT PREPARATION ---
+    // Limit history to last 6 messages to save tokens/context
+    const recentHistory = history.slice(-6).map(msg => ({
+      role: msg.role === 'ai' ? 'assistant' : 'user',
+      content: msg.text || ''
+    }));
+
+    // Add current question to messages for LLM
+    const messagesWithContext = [
+      ...recentHistory,
+      { role: 'user', content: question }
+    ];
+
+    // 1. DETERMINISTIC ROUTING (Force SQL for clear keywords)
+    const lowerQ = question.toLowerCase();
+    // Only force SQL for purely quantitative money terms.
+    if (lowerQ.match(/spend|spent|cost|total|average|sum|how much/)) {
+      console.log('🤖 Keyword Rule Triggered -> Forcing SQL_AGENT');
+      tool = "SQL_AGENT";
     }
 
-    const intent = await extractIntent(question);
-    const key = makeQueryKey(intent);
-
-    const { data: cachedRows, error: cacheError } = await supabase
-      .from('ai_cache')
-      .select('answer, facts')
-      .eq('user_id', userId)
-      .eq('query_key', key)
-      .order('created_at', { ascending: false })
-      .limit(1);
-
-    if (cacheError) {
-      console.error('Cache lookup error:', cacheError);
+    // 2. LLM ROUTING (Using History!)
+    if (!tool) {
+      const routerRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: ROUTER_SYSTEM_PROMPT },
+          ...messagesWithContext // Pass history!
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0
+      });
+      const parsed = JSON.parse(routerRes.choices[0].message.content);
+      tool = parsed.tool;
     }
 
-    if (cachedRows && cachedRows.length > 0) {
-      const cached = cachedRows[0];
-      return res.json({ answer: cached.answer, facts: cached.facts, cached: true });
+    console.log(`🤖 Selected Tool: ${tool}`);
+
+    let answer = "";
+    let items = [];
+
+    // 3. EXECUTION
+    if (tool === "SQL_AGENT") {
+      // Generate SQL (Using History!)
+      const sqlRes = await openai.chat.completions.create({
+        model: "gpt-4o", // Use smarter model for SQL generation with context
+        messages: [
+          { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
+          ...messagesWithContext // Pass history!
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0
+      });
+
+      const { sql: rawSql } = JSON.parse(sqlRes.choices[0].message.content);
+      console.log(`🤖 Generated SQL: ${rawSql}`); // Log SQL before executing
+
+      const sql = rawSql.replace(/\\n/g, ' ').trim(); // Basic cleanup
+
+      if (!sql.toLowerCase().startsWith('select')) {
+        throw new Error("Invalid SQL generated");
+      }
+
+      // Execute SQL
+      const { rows } = await pool.query(sql, [userId]);
+      items = rows;
+
+      // Summarize Results (Using History!)
+      // For summarization, we might not need full history, but consistent context helps.
+      // We'll stick to the existing summarization function for now, or update it if needed.
+      const summaryRes = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [
+          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'." },
+          ...messagesWithContext, // Context helps "and this week?" make sense in summary too
+          { role: "system", content: `Query Results: ${JSON.stringify(items)}` }
+        ],
+        temperature: 0.7
+      });
+
+      answer = summaryRes.choices[0].message.content;
+
+    } else {
+      // VECTOR STORE (Need to resolve question first?)
+      // If question is "and this week", checking vector for "and this week" is useless.
+      // We should ideally "Resolving" the question.
+      // But for now, let's just pass the raw question.
+      // PRO TIP: Force SQL Agent for "And this week?" via Router is best.
+      const vectorItems = await searchItemsVector(question, userId);
+      items = vectorItems;
+      // Looking at `generateAnswer` signature: `async function generateAnswer(question, facts)`
+      // `facts` expected structure: { total_spend, merchant_breakdown, receipt_ids } OR just items array?
+      // `searchItemsVector` returns an array of items.
+      // The old `/api/ask` used `extractIntent` -> `fetchFacts` (SQL-like) -> `generateAnswer`.
+      // The old logic combined specific intent extraction with SQL-like `fetchFacts`.
+      // NOW, Vector Store path is "Vague, semantic".
+      // We should probably just summarize the vector results.
+
+      // Let's look at `generateAnswer` again. It expects `facts`.
+      // However, for "Vector Store" branch, we primarily want RAG from chunks.
+      // `searchItemsVector` performs `match_receipt_items` RPC.
+
+      // Let's simply summarize the `items` found.
+      if (items.length > 0) {
+        const context = JSON.stringify(items.map(i => `${i.item_name} (£${i.price}) from ${i.merchant_name}`));
+        const vectorSumRes = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: "You are a helpful assistant. Use the provided receipt items to answer the user's question. Be friendly and use emojis! 🧾 ALWAYS use '£' for currency, never '$'." },
+            { role: "user", content: `Question: ${question}\nItems Found: ${context}` }
+          ]
+        });
+        answer = vectorSumRes.choices[0].message.content;
+      } else {
+        answer = "I couldn't find any specific receipts matching that description.";
+      }
     }
 
-    const facts = await fetchFacts(intent, userId);
-    const answer = await generateAnswer(question, facts);
+    res.json({ answer, items_used: items, tool_used: tool });
 
-    const { error: insertError } = await supabase
-      .from('ai_cache')
-      .insert({ user_id: userId, query_key: key, answer, facts });
+  } catch (err) {
+    if (tool === 'SQL_AGENT') {
+      console.error('SQL_AGENT Error Stack:', err.stack);
+      console.error('SQL_AGENT Error Msg:', err.message);
 
-    if (insertError) {
-      console.error('Cache insert error:', insertError);
+      console.log('___________________________________________________');
+      console.log('!!! SQL AGENT FAILURE DETECTED !!!');
+      console.log('generated_sql:', err.sql || 'N/A');
+      console.log('sql_error_message:', err.message);
+      console.log('___________________________________________________');
+      console.log('⚠️ SQL Agent failed. Falling back to Vector Search.');
+
+      try {
+        const vectorItems = await searchItemsVector(question, userId);
+        let fallbackAnswer = "";
+        if (vectorItems.length === 0) {
+          fallbackAnswer = "I ran into a technical issue calculating the exact numbers, and I couldn't find specific receipts searching by text either.";
+        } else {
+          const fallbackSummary = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: [
+              { role: "system", content: "The SQL query failed, so we found these receipts by text search. Explain this to the user." },
+              { role: "user", content: `Question: ${question}\nReceipts: ${JSON.stringify(vectorItems)}` }
+            ]
+          });
+          fallbackAnswer = fallbackSummary.choices[0].message.content;
+        }
+        return res.json({ answer: fallbackAnswer, items_used: vectorItems });
+      } catch (fallbackErr) {
+        console.error('Fallback failed:', fallbackErr);
+        return res.json({
+          answer: "I'm having trouble accessing your data right now. Please try again later.",
+          items_used: []
+        });
+      }
     }
-
-    return res.json({ answer, facts, cached: false });
-  } catch (error) {
-    return handleApiError(res, error, 'Failed to process question.');
+    console.error('AskAI failed:', err);
+    res.status(500).json({ error: 'AskAI failed. Please try again.' });
   }
 });
 
@@ -3160,96 +3316,7 @@ app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) 
 });
 
 // --- Ask AI endpoint ---
-// --- Ask AI endpoint (RAG Version) ---
-app.post('/api/ask-ai', optionalAuthenticate, async (req, res) => {
-  try {
-    const question = req.body?.question;
-    const userId = req.user?.id;
-
-    if (!question) {
-      return res.status(400).json({ error: 'Question is required.' });
-    }
-    if (!userId) {
-      return res.status(401).json({ error: 'Unauthorized.' });
-    }
-
-    console.log(`🤖 Ask AI (RAG) Question: "${question}"`);
-
-    // 1. Generate Embedding (using local Transformers.js to match Python script)
-    // Dynamic import because @xenova/transformers is ESM
-    const { pipeline } = await import('@xenova/transformers');
-    const extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
-
-    // Generate embedding (returns a Tensor, need to convert to array)
-    const output = await extractor(question, { pooling: 'mean', normalize: true });
-    const query_embedding = Array.from(output.data);
-
-    // 2. Search Supabase (match_documents RPC)
-    const { data: documents, error: searchError } = await supabase.rpc('match_documents', {
-      query_embedding,
-      match_threshold: 0.01,
-      match_count: 100, // Retrieve top 100 items (GPT-4o-mini has a large context, this improves "total" accuracy)
-      filter: { user_id: userId } // ISOLATION: Only search this user's data
-    });
-
-    if (searchError) {
-      console.error('RAG Search Error:', searchError);
-      throw new Error('Failed to search database.');
-    }
-
-    // 3. Construct Context
-    const contextText = documents?.map(doc => doc.content).join('\n---\n') || "";
-
-    // Fallback if no context found
-    if (!contextText) {
-      return res.json({
-        answer: "I couldn't find any relevant receipts to answer your question.",
-        items_used: []
-      });
-    }
-
-    // 4. Generate Answer with OpenAI
-    const systemPrompt = "You are a friendly financial assistant. Your goal is to answer questions about the user's spending based on their receipt data. Summarize the information and provide clear, concise answers. Do not just list transactions. Be conversational. IMPORTANT: ALWAYS use GBP (£) for currency symbols, never use Dollars ($).";
-
-    const userPrompt = `Based on the following receipt information, please provide a conversational answer to my question.
-
-If I ask for a total, calculate it from the items provided.
-
-**Receipt Data:**
-${contextText}
-
-**My Question:**
-${question}`;
-
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt }
-      ],
-      temperature: 0.2,
-    });
-
-    const answer = completion.choices[0]?.message?.content || "Sorry, I couldn't generate an answer.";
-
-    // 5. Return Response
-    // We map retrieved docs to 'items_used' format expected by frontend
-    // Note: The Python script stores raw text content. If `match_documents` returns structured data 
-    // inside the `metadata` column or if we can parse it, we can populate this better. 
-    // For now, we return empty items or raw content if feasible.
-    // The frontend expects `items_used` to be an array of objects.
-
-    res.json({
-      answer,
-      items_used: [], // RAG raw text doesn't map easily to the old structured item format, sending empty for now to avoid frontend crash
-      filters: { mode: 'RAG' }
-    });
-
-  } catch (err) {
-    console.error('AskAI (RAG) failed:', err);
-    return res.status(500).json({ error: 'AskAI failed. Please try again.' });
-  }
-});
+// [DUPLICATE ROUTE DELETED]
 
 
 // --- Start Server ---
