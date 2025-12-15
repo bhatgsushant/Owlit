@@ -1,10 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Plus, Sparkles } from 'lucide-react';
+import { Send, Loader2, Sparkles, Plus, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 
+
+// Feedback Buttons Component
+const FeedbackButtons = () => {
+  const [feedback, setFeedback] = useState(null);
+  return (
+    <div className="flex gap-2 mt-1.5 px-1">
+      <button
+        onClick={() => setFeedback(feedback === 'good' ? null : 'good')}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'good' ? 'text-slate-700 bg-emerald-50 border-emerald-200' : 'text-slate-400 hover:text-slate-600'}`}
+      >
+        Good <ThumbsUp className={`w-3 h-3 ${feedback === 'good' ? 'fill-slate-700' : ''}`} />
+      </button>
+      <button
+        onClick={() => setFeedback(feedback === 'bad' ? null : 'bad')}
+        className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'bad' ? 'text-slate-700 bg-red-50 border-red-200' : 'text-slate-400 hover:text-slate-600'}`}
+      >
+        Bad <ThumbsDown className={`w-3 h-3 ${feedback === 'bad' ? 'fill-slate-700' : ''}`} />
+      </button>
+    </div>
+  );
+};
+
 export default function AskAIPage() {
+  // ... existing code ...
+
   const { fetchWithAuth } = useAuth();
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
@@ -155,26 +179,28 @@ export default function AskAIPage() {
                 initial={{ opacity: 0, y: 10, scale: 0.98 }}
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 transition={{ duration: 0.2 }}
-                className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-1`}
+                className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-4 group`}
               >
-                <div
-                  style={{ maxWidth: '80%' }}
-                  className={`relative px-4 py-2.5 text-xs leading-snug font-fk-grotesk ${msg.role === 'user'
-                    ? 'bg-[#007AFF] text-white rounded-[20px] ml-auto'
-                    : 'bg-[#F2F2F7] text-slate-900 rounded-[20px] mr-auto border border-black/5'
-                    }`}
-                >
-                  <div className="whitespace-pre-wrap tracking-wide">
-                    {msg.text.replace(/\*\*/g, '').split(/([£$]?\d+(?:[.,]\d+)?)/).map((part, i) =>
-                      /^[£$]?\d+(?:[.,]\d+)?$/.test(part) ? (
-                        <span key={i} className="font-berkeley bg-white text-slate-900 px-1.5 py-0.5 rounded-md mx-0.5 shadow-sm inline-block">{part}</span>
-                      ) : (
-                        part
-                      )
-                    )}
+                <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                  <div
+                    className={`relative px-4 py-2.5 text-xs leading-snug font-fk-grotesk ${msg.role === 'user'
+                      ? 'bg-[#007AFF] text-white rounded-[20px] rounded-tr-sm'
+                      : 'bg-[#F2F2F7] text-slate-900 rounded-[20px] rounded-tl-sm border border-black/5'
+                      }`}
+                  >
+                    <div className="whitespace-pre-wrap tracking-wide">
+                      {msg.text.replace(/\*\*/g, '').split(/([£$]?\d+(?:[.,]\d+)?)/).map((part, i) =>
+                        /^[£$]?\d+(?:[.,]\d+)?$/.test(part) ? (
+                          <span key={i} className="font-berkeley bg-white text-slate-900 px-1.5 py-0.5 rounded-md mx-0.5 shadow-sm inline-block">{part}</span>
+                        ) : (
+                          part
+                        )
+                      )}
+                    </div>
                   </div>
 
-                  {/* Sources Hidden by User Request */}
+                  {/* Feedback Buttons (Static Layout) */}
+                  {msg.role === 'ai' && <FeedbackButtons />}
                 </div>
               </motion.div>
             ))}

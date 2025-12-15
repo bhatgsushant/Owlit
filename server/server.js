@@ -20,6 +20,11 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
+
+// Diagnostics
+const maskUrl = (url) => url ? url.replace(/:\/\/([^:]+):([^@]+)@/, '://$1:****@') : 'NOT_SET';
+console.log('🔌 Database Config:', maskUrl(process.env.DATABASE_URL));
+pool.on('error', (err) => console.error('❌ DB Pool Error:', err));
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const ITEM_SYNONYMS = {
@@ -49,16 +54,17 @@ const SQL_AGENT_SYSTEM_PROMPT = `
 You are a PostgreSQL Expert. Write a SQL query for view: v_receipt_line_items_enriched.
 Columns: user_id, transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
 RULES:
-1. ALWAYS filter by user_id = $1 (Security).
-2. Read-only SELECT only.
-3. Price is GBP.
-4. Return ONLY raw SQL.
-5. Use ILIKE for all string comparisons to ensure case-insensitivity.
-6. When searching for a product/category, check 'item', 'main_category', and 'sub_category' using OR logic wrapped in parentheses (e.g., AND (item ILIKE '%beer%' OR sub_category ILIKE '%beer%')).
-7. FROM table MUST be 'v_receipt_line_items_enriched'. DO NOT use 'receipt_line_items'.
-8. For date calculations, ALWAYS use date_trunc('week', CURRENT_DATE) or date_trunc('month', CURRENT_DATE). DO NOT use EXTRACT(DOW ...) arithmetic.
-9. **CONTEXT HANDLING:** Treat the latest question as the primary instruction. Only use the chat history to resolve ambiguious terms (like "it", "that", "this week"). Do NOT auto-apply previous filters (like date ranges) if the new question doesn't ask for them.
-10. **FUZZY MATCHING:** Users make typos. When searching for merchants/items (e.g. "wethrspoon"), use loose ILIKE patterns with wildcards (e.g. %weth%spoon%) to maximize matches.
+1. **DEFAULT DATE RANGE:** If the user does NOT specify a date range (e.g. "last month", "2024"), you MUST filter by the **CURRENT MONTH** (\`date_trunc('month', transaction_date) = date_trunc('month', CURRENT_DATE)\`). Do NOT search all time unless explicitly requested.
+2. ALWAYS filter by user_id = $1 (Security).
+3. Read-only SELECT only.
+4. Price is GBP.
+5. Return ONLY raw SQL.
+6. Use ILIKE for all string comparisons to ensure case-insensitivity.
+7. When searching for a product/category, check 'item', 'main_category', and 'sub_category' using OR logic wrapped in parentheses (e.g., AND (item ILIKE '%beer%' OR sub_category ILIKE '%beer%')).
+8. FROM table MUST be 'v_receipt_line_items_enriched'. DO NOT use 'receipt_line_items'.
+9. For date calculations, ALWAYS use date_trunc('week', CURRENT_DATE) or date_trunc('month', CURRENT_DATE). DO NOT use EXTRACT(DOW ...) arithmetic.
+10. **CONTEXT HANDLING:** Treat the latest question as the primary instruction. Only use the chat history to resolve ambiguious terms (like "it", "that", "this week"). Do NOT auto-apply previous filters (like date ranges) if the new question doesn't ask for them.
+11. **FUZZY MATCHING:** Users make typos. When searching for merchants/items (e.g. "wethrspoon"), use loose ILIKE patterns with wildcards (e.g. %weth%spoon%) to maximize matches.
 `;
 
 class ValidationError extends Error {
@@ -1262,6 +1268,23 @@ module.exports.generateFinalAnswer = generateFinalAnswer;
 
 async function getNormalizedItemName(itemName) {
   try {
+    // 1. Check if the item is already normalized in the database
+    const { data: existingItem, error: fetchError } = await supabase
+      .from('Item_Table')
+      .select('normalized_name')
+      .ilike('item_name', itemName)
+      .maybeSingle();
+
+    if (fetchError) {
+      console.error('Error fetching normalized item name:', fetchError);
+    }
+
+    if (existingItem) {
+      console.log(`✅ Found cached normalized name for "${itemName}": "${existingItem.normalized_name}"`);
+      return existingItem.normalized_name;
+    }
+
+    // 2. If not found, call OpenAI to normalize it
     const prompt = `You are a data normalization expert. Your task is to provide a concise, standardized name for a given grocery item. For example, if the item is "WBTN Toast Slice White", the normalized name should be "Bread".
 
 Item: ${itemName}
@@ -1280,13 +1303,13 @@ Normalized Name:`;
     const normalizedName = response.choices[0]?.message?.content?.trim();
     if (!normalizedName) return itemName;
 
-    // Save the normalized name to the database
-    const { error } = await supabase
+    // 3. Save the normalized name to the database for future use
+    const { error: insertError } = await supabase
       .from('Item_Table')
       .insert([{ item_name: itemName, normalized_name: normalizedName }]);
 
-    if (error) {
-      console.error('Error saving normalized item name:', error);
+    if (insertError) {
+      console.error('Error saving normalized item name:', insertError);
     }
 
     return normalizedName;
@@ -1661,13 +1684,13 @@ function findInCategoryKeywords(itemName) {
 }
 
 async function categorizeLineItems(lineItems, userId) {
-
   let isMasterListUpdated = false;
-  const categorizedLineItems = [];
 
-  for (const item of lineItems) {
+  // Process all items in parallel
+  const itemPromises = lineItems.map(async (item) => {
     const rawItemName = item.name || item.Name || '';
-    if (!rawItemName) continue;
+    if (!rawItemName) return null;
+
     const normalizedItemName = rawItemName.trim();
     const canonicalItemName = normalizedItemName.toLowerCase();
 
@@ -1675,7 +1698,6 @@ async function categorizeLineItems(lineItems, userId) {
     const aiSubcategoryIconKey = normalizeSubcategoryIconKey(
       item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key
     );
-
 
     // ✅ 1) Check user-specific category override *if* user is logged in
     let userOverride = null;
@@ -1716,13 +1738,12 @@ async function categorizeLineItems(lineItems, userId) {
       masterListEntry = findInMasterList(rawItemName);
     }
 
-
-
     if (masterListEntry) { // Found in master list
       const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
       const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
       const normalized_name = await getNormalizedItemName(rawItemName);
-      categorizedLineItems.push({
+
+      const categoryItem = {
         item: rawItemName,
         Item_Name: masterListEntry.Item_Name,
         main_category: masterListEntry.main_category,
@@ -1732,7 +1753,8 @@ async function categorizeLineItems(lineItems, userId) {
         price: parseFloat(item.price || item.Price) || 0,
         quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
         normalized_name: normalized_name,
-      });
+      };
+
       console.log(`🧠 Found "${rawItemName}" in master list as "${masterListEntry.Item_Name}".`);
 
       // Also check if this specific OCR variation is new and add it
@@ -1743,6 +1765,8 @@ async function categorizeLineItems(lineItems, userId) {
         isMasterListUpdated = true;
         console.log(`🔄 Updated "${masterListEntry.Item_Name}" with new OCR variation: "${rawItemName}"`);
       }
+
+      return categoryItem;
 
     } else { // Not found in master list, needs to be added
       let categoryInfo = findInCategoryKeywords(rawItemName);
@@ -1760,7 +1784,7 @@ async function categorizeLineItems(lineItems, userId) {
       const canonicalName = rawItemName; // Use the first seen name as canonical
       const normalized_name = await getNormalizedItemName(rawItemName);
 
-      categorizedLineItems.push({
+      const categoryItem = {
         item: rawItemName,
         Item_Name: canonicalName,
         main_category: categoryInfo.main_category,
@@ -1770,7 +1794,7 @@ async function categorizeLineItems(lineItems, userId) {
         price: parseFloat(item.price || item.Price) || 0,
         quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
         normalized_name: normalized_name,
-      });
+      };
 
       // Add the new item to the master list
       await saveMasterItem(
@@ -1780,11 +1804,13 @@ async function categorizeLineItems(lineItems, userId) {
       );
 
       console.log(`✨ Added "${canonicalName}" to master list from ${source}.`);
+
+      return categoryItem;
     }
-  }
+  });
 
-
-  return categorizedLineItems;
+  const results = await Promise.all(itemPromises);
+  return results.filter(item => item !== null);
 }
 
 // --- API Routes ---
@@ -2297,15 +2323,36 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
       const { rows } = await pool.query(sql, [userId]);
       items = rows;
 
+      // --- ZERO-RESULT FALLBACK ---
+      const isEffectivelyEmpty = (rows) => {
+        if (!rows || rows.length === 0) return true;
+        if (rows.length === 1) {
+          const row = rows[0];
+          // Check if all values are null or 0 (aggregates like SUM/COUNT often return this)
+          const values = Object.values(row);
+          return values.every(v => v === null || v == 0 || v === '0');
+        }
+        return false;
+      };
+
+      if (isEffectivelyEmpty(items)) {
+        console.log('⚠️ SQL returned 0/empty results. Auto-fallback to Vector Search for semantic match.');
+        const vectorFallbackItems = await searchItemsVector(question, userId);
+        if (vectorFallbackItems && vectorFallbackItems.length > 0) {
+          console.log(`✅ Fallback found ${vectorFallbackItems.length} items from Vector Store.`);
+          items = vectorFallbackItems;
+        }
+      }
+
       // Summarize Results (Using History!)
       // For summarization, we might not need full history, but consistent context helps.
       // We'll stick to the existing summarization function for now, or update it if needed.
       const summaryRes = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'." },
+          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...')." },
           ...messagesWithContext, // Context helps "and this week?" make sense in summary too
-          { role: "system", content: `Query Results: ${JSON.stringify(items)}` }
+          { role: "system", content: `Executed SQL: ${sql}\nQuery Results: ${JSON.stringify(items)}` }
         ],
         temperature: 0.7
       });
@@ -2366,12 +2413,12 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
         const vectorItems = await searchItemsVector(question, userId);
         let fallbackAnswer = "";
         if (vectorItems.length === 0) {
-          fallbackAnswer = "I ran into a technical issue calculating the exact numbers, and I couldn't find specific receipts searching by text either.";
+          fallbackAnswer = "I couldn't find any specific receipts matching your question.";
         } else {
           const fallbackSummary = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-              { role: "system", content: "The SQL query failed, so we found these receipts by text search. Explain this to the user." },
+              { role: "system", content: "You are a helpful assistant. Use the provided receipts to answer the user's question. Do NOT mention technical failures or SQL queries. If the receipts don't fully answer the question, just say what you found. Be witty! 🍺" },
               { role: "user", content: `Question: ${question}\nReceipts: ${JSON.stringify(vectorItems)}` }
             ]
           });
