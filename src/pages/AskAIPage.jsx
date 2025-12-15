@@ -4,20 +4,26 @@ import { useAuth } from '@/hooks/useAuth';
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 
-
 // Feedback Buttons Component
-const FeedbackButtons = () => {
+const FeedbackButtons = ({ onFeedback }) => {
   const [feedback, setFeedback] = useState(null);
+
+  const handleClick = (type) => {
+    const newVal = feedback === type ? null : type;
+    setFeedback(newVal);
+    if (newVal) onFeedback(newVal);
+  };
+
   return (
     <div className="flex gap-2 mt-1.5 px-1">
       <button
-        onClick={() => setFeedback(feedback === 'good' ? null : 'good')}
+        onClick={() => handleClick('good')}
         className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'good' ? 'text-slate-700 bg-emerald-50 border-emerald-200' : 'text-slate-400 hover:text-slate-600'}`}
       >
         Good <ThumbsUp className={`w-3 h-3 ${feedback === 'good' ? 'fill-slate-700' : ''}`} />
       </button>
       <button
-        onClick={() => setFeedback(feedback === 'bad' ? null : 'bad')}
+        onClick={() => handleClick('bad')}
         className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'bad' ? 'text-slate-700 bg-red-50 border-red-200' : 'text-slate-400 hover:text-slate-600'}`}
       >
         Bad <ThumbsDown className={`w-3 h-3 ${feedback === 'bad' ? 'fill-slate-700' : ''}`} />
@@ -27,9 +33,7 @@ const FeedbackButtons = () => {
 };
 
 export default function AskAIPage() {
-  // ... existing code ...
-
-  const { fetchWithAuth } = useAuth();
+  const { user, fetchWithAuth } = useAuth();
   const [question, setQuestion] = useState('');
   const [loading, setLoading] = useState(false);
   // State for active messages (always starts fresh)
@@ -60,9 +64,26 @@ export default function AskAIPage() {
     }
   }, [messages]);
 
-  const sendMessage = async (e) => {
-    e.preventDefault();
-    const text = question.trim();
+  const handleFeedback = async (msg, type) => {
+    try {
+      console.log('Sending feedback:', type, 'for memory:', msg.memory_id);
+      await fetchWithAuth('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: msg.question,
+          answer: msg.text,
+          feedback: type,
+          memory_id: msg.memory_id
+        }),
+      });
+    } catch (err) {
+      console.error('Failed to send feedback:', err);
+    }
+  };
+
+  const handleSend = async (textOverride = null) => {
+    const text = textOverride || question.trim();
     if (!text || loading) return;
 
     setError('');
@@ -91,6 +112,9 @@ export default function AskAIPage() {
         role: 'ai',
         text: data?.answer || 'No response',
         items: Array.isArray(data?.items_used) ? data.items_used : [],
+        memory_id: data?.memory_id,
+        question: text, // Store original question for feedback context
+        suggested_questions: data?.suggested_questions || []
       };
       setMessages((prev) => [...prev, aiMsg]);
     } catch (err) {
@@ -99,6 +123,11 @@ export default function AskAIPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const sendMessage = (e) => {
+    e.preventDefault();
+    handleSend();
   };
 
   const suggestions = recentPrompts.length > 0 ? recentPrompts : [
@@ -123,7 +152,6 @@ export default function AskAIPage() {
         {/* Header */}
         <header className="px-6 py-4 border-b border-black/5 bg-white/40 backdrop-blur-md flex items-center justify-between z-10">
           <div className="flex items-center gap-3">
-            {/* AI Icon Removed as requested */}
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900 drop-shadow-sm font-playfair">Owlit AI</h1>
               <p className="text-xs text-slate-500 font-medium font-fk-grotesk">Your Personal Receipt AI Assistant</p>
@@ -199,8 +227,26 @@ export default function AskAIPage() {
                     </div>
                   </div>
 
-                  {/* Feedback Buttons (Static Layout) */}
-                  {msg.role === 'ai' && <FeedbackButtons />}
+                  {/* Feedback Buttons */}
+                  {msg.role === 'ai' && (
+                    <div className="flex flex-col gap-2">
+                      <FeedbackButtons onFeedback={(type) => handleFeedback(msg, type)} />
+
+                      {msg.suggested_questions && msg.suggested_questions.length > 0 && (
+                        <div className="flex flex-wrap gap-2 mt-1">
+                          {msg.suggested_questions.map((suggestion, sIdx) => (
+                            <button
+                              key={sIdx}
+                              onClick={() => handleSend(suggestion)}
+                              className="text-xs bg-white/50 hover:bg-white border border-black/5 rounded-full px-3 py-1.5 text-slate-600 font-medium transition-all text-left shadow-sm hover:shadow active:scale-95"
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </motion.div>
             ))}
@@ -262,6 +308,6 @@ export default function AskAIPage() {
           </form>
         </footer>
       </AnimatedSection>
-    </div >
+    </div>
   );
 }

@@ -2244,12 +2244,124 @@ app.post('/api/summarize-markdown', authenticateRequest, async (req, res) => {
   }
 });
 
+// --- Semantic Caching Helpers ---
+async function searchSqlMemory(question, matchThreshold = 0.8) {
+  try {
+    const embeddingResp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: question,
+    });
+    const embedding = embeddingResp.data?.[0]?.embedding;
+
+    const { data, error } = await supabase.rpc('match_sql_memory', {
+      query_embedding: embedding,
+      match_threshold: matchThreshold,
+      match_count: 1
+    });
+
+    if (error) {
+      console.error('Error searching SQL memory:', error);
+      return null;
+    }
+
+    if (data && data.length > 0) {
+      console.log('🧠 Found relevant SQL memory:', data[0].question);
+      return data[0];
+    }
+    return null;
+  } catch (err) {
+    console.error('searchSqlMemory failed:', err);
+    return null;
+  }
+}
+
+async function saveSqlMemory(question, sqlQuery) {
+  try {
+    const embeddingResp = await openai.embeddings.create({
+      model: 'text-embedding-3-small',
+      input: question,
+    });
+    const embedding = embeddingResp.data?.[0]?.embedding;
+
+    const { data, error } = await supabase.from('sql_memory').insert({
+      question,
+      sql_query: sqlQuery,
+      embedding
+    }).select('id').single();
+
+    if (error) {
+      console.error('Error saving SQL memory:', error);
+      return null;
+    } else {
+      console.log('💾 Saved successful SQL query to memory ID:', data.id);
+      return data.id;
+    }
+  } catch (err) {
+    console.error('saveSqlMemory failed:', err);
+    return null;
+  }
+}
+
+// --- Feedback Endpoint ---
+app.post('/api/feedback', authenticateRequest, async (req, res) => {
+  const { question, answer, feedback, memory_id } = req.body;
+  const userId = req.user?.id;
+
+  if (!userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!feedback || !['good', 'bad'].includes(feedback)) {
+    return res.status(400).json({ error: 'Invalid feedback. Must be "good" or "bad".' });
+  }
+
+  try {
+    // 1. Save Feedback
+    const { error: insertError } = await supabase
+      .from('feedbacks')
+      .insert({
+        user_id: userId,
+        question,
+        answer,
+        feedback,
+        memory_id: memory_id || null
+      });
+
+    if (insertError) {
+      console.error('❌ Error saving feedback:', insertError);
+      return res.status(500).json({ error: 'Failed to save feedback' });
+    }
+    console.log(`📝 Feedback "${feedback}" saved for user ${userId}.`);
+
+    // 2. Memory Cleanup (Logic: If BAD feedback + Memory was used -> DELETE Memory)
+    if (feedback === 'bad' && memory_id) {
+      console.log(`🗑️ Bad feedback received. Deleting SQL memory ID: ${memory_id}`);
+      const { error: deleteError } = await supabase
+        .from('sql_memory')
+        .delete()
+        .eq('id', memory_id);
+
+      if (deleteError) {
+        console.error('❌ Error deleting bad memory:', deleteError);
+      } else {
+        console.log('✅ Bad memory deleted to prevent recurrence.');
+      }
+      return res.json({ success: true, memory_deleted: true });
+    }
+
+    res.json({ success: true });
+
+  } catch (error) {
+    console.error('Feedback API Error:', error);
+    res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
   const { question, history = [] } = req.body;
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   let tool = "";
+  let usedMemoryId = null; // Track memory ID
+  let suggestedQuestions = []; // Track suggested questions
 
   try {
     // 0. LOGGING
@@ -2299,11 +2411,28 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
 
     // 3. EXECUTION
     if (tool === "SQL_AGENT") {
+
+      // 🧠 MEMORY CHECK (Dynamic Few-Shot)
+      let memoryContext = "";
+      const similarSql = await searchSqlMemory(question);
+      if (similarSql) {
+        console.log('💡 Using Dynamic Few-Shot Prompting from Memory');
+        usedMemoryId = similarSql.id; // Capture ID of used memory
+        memoryContext = `
+IMPORTANT - PROVEN EXAMPLE:
+A very similar question was successfully answered in the past.
+Similar Question: "${similarSql.question}"
+Correct SQL used: ${similarSql.sql_query}
+
+INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, filters) but adapt the WHERE clauses (merchant name, date range) to match the CURRENT request.
+`;
+      }
+
       // Generate SQL (Using History!)
       const sqlRes = await openai.chat.completions.create({
         model: "gpt-4o", // Use smarter model for SQL generation with context
         messages: [
-          { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
+          { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + memoryContext + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
           ...messagesWithContext // Pass history!
         ],
         response_format: { type: "json_object" },
@@ -2342,22 +2471,35 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
           console.log(`✅ Fallback found ${vectorFallbackItems.length} items from Vector Store.`);
           items = vectorFallbackItems;
         }
+        // If fallback used, we don't invalidate the SQL memory per se, but we definitely don't save a new broken one.
+      } else {
+        // ✅ SUCCESSFUL SQL -> SAVE TO MEMORY
+        // Only save if it wasn't a memory hit (or even if it was, to reinforce?)
+        // If we used a memory and it worked, we rely on that old ID.
+        // If we didn't use a memory, or the generated SQL is very different, we save it.
+
+        if (!similarSql || similarSql.sql_query !== sql) {
+          // Fire-and-forget save, but wait for ID if we want to return it
+          const newMemoryId = await saveSqlMemory(question, sql);
+          if (newMemoryId) usedMemoryId = newMemoryId;
+        }
       }
 
       // Summarize Results (Using History!)
-      // For summarization, we might not need full history, but consistent context helps.
-      // We'll stick to the existing summarization function for now, or update it if needed.
       const summaryRes = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...')." },
+          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...').\n\nALSO: Generate 3 short, relevant follow-up questions the user might want to ask next based on this data (e.g. 'What about last month?', 'Who is my top merchant?').\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
           ...messagesWithContext, // Context helps "and this week?" make sense in summary too
           { role: "system", content: `Executed SQL: ${sql}\nQuery Results: ${JSON.stringify(items)}` }
         ],
+        response_format: { type: "json_object" },
         temperature: 0.7
       });
 
-      answer = summaryRes.choices[0].message.content;
+      const summaryContent = JSON.parse(summaryRes.choices[0].message.content);
+      answer = summaryContent.answer;
+      suggestedQuestions = summaryContent.suggested_questions || [];
 
     } else {
       // VECTOR STORE (Need to resolve question first?)
@@ -2385,17 +2527,20 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
         const vectorSumRes = await openai.chat.completions.create({
           model: "gpt-4o-mini",
           messages: [
-            { role: "system", content: "You are a helpful assistant. Use the provided receipt items to answer the user's question. Be friendly and use emojis! 🧾 ALWAYS use '£' for currency, never '$'." },
+            { role: "system", content: "You are a helpful assistant. Use the provided receipt items to answer the user's question. Be friendly and use emojis! 🧾 ALWAYS use '£' for currency, never '$'.\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
             { role: "user", content: `Question: ${question}\nItems Found: ${context}` }
-          ]
+          ],
+          response_format: { type: "json_object" }
         });
-        answer = vectorSumRes.choices[0].message.content;
+        const vectorContent = JSON.parse(vectorSumRes.choices[0].message.content);
+        answer = vectorContent.answer;
+        suggestedQuestions = vectorContent.suggested_questions || [];
       } else {
         answer = "I couldn't find any specific receipts matching that description.";
       }
     }
 
-    res.json({ answer, items_used: items, tool_used: tool });
+    res.json({ answer, items_used: items, tool_used: tool, memory_id: usedMemoryId, suggested_questions: suggestedQuestions });
 
   } catch (err) {
     if (tool === 'SQL_AGENT') {
@@ -2418,13 +2563,17 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
           const fallbackSummary = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
-              { role: "system", content: "You are a helpful assistant. Use the provided receipts to answer the user's question. Do NOT mention technical failures or SQL queries. If the receipts don't fully answer the question, just say what you found. Be witty! 🍺" },
+              { role: "system", content: "You are a helpful assistant. Use the provided receipts to answer the user's question. Do NOT mention technical failures or SQL queries. If the receipts don't fully answer the question, just say what you found. Be witty! 🍺\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
               { role: "user", content: `Question: ${question}\nReceipts: ${JSON.stringify(vectorItems)}` }
-            ]
+            ],
+            response_format: { type: "json_object" }
           });
-          fallbackAnswer = fallbackSummary.choices[0].message.content;
+          const fallbackContent = JSON.parse(fallbackSummary.choices[0].message.content);
+          fallbackAnswer = fallbackContent.answer;
+          const fallbackSuggestions = fallbackContent.suggested_questions || [];
+          return res.json({ answer: fallbackAnswer, items_used: vectorItems, suggested_questions: fallbackSuggestions });
         }
-        return res.json({ answer: fallbackAnswer, items_used: vectorItems });
+
       } catch (fallbackErr) {
         console.error('Fallback failed:', fallbackErr);
         return res.json({
