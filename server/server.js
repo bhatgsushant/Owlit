@@ -214,6 +214,18 @@ const safeJsonParse = (value, errorMessage) => {
   }
 };
 
+const safeJsonParseWithMarkdown = (text) => {
+  if (!text) return null;
+  // Remove markdown code blocks if present
+  const cleanText = text.replace(/```json\n?|\n?```/g, '').trim();
+  try {
+    return JSON.parse(cleanText);
+  } catch (e) {
+    console.error('Failed to parse JSON:', text);
+    throw new Error('Invalid JSON format from AI');
+  }
+};
+
 const validateLineItems = (lineItems = []) => {
   if (!Array.isArray(lineItems)) {
     throw new ValidationError('line_items must be an array.');
@@ -2400,7 +2412,7 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
         response_format: { type: "json_object" },
         temperature: 0
       });
-      const parsed = JSON.parse(routerRes.choices[0].message.content);
+      const parsed = safeJsonParseWithMarkdown(routerRes.choices[0].message.content);
       tool = parsed.tool;
     }
 
@@ -2439,7 +2451,7 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
         temperature: 0
       });
 
-      const { sql: rawSql } = JSON.parse(sqlRes.choices[0].message.content);
+      const { sql: rawSql } = safeJsonParseWithMarkdown(sqlRes.choices[0].message.content);
       console.log(`🤖 Generated SQL: ${rawSql}`); // Log SQL before executing
 
       const sql = rawSql.replace(/\\n/g, ' ').trim(); // Basic cleanup
@@ -2497,7 +2509,7 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
         temperature: 0.7
       });
 
-      const summaryContent = JSON.parse(summaryRes.choices[0].message.content);
+      const summaryContent = safeJsonParseWithMarkdown(summaryRes.choices[0].message.content);
       answer = summaryContent.answer;
       suggestedQuestions = summaryContent.suggested_questions || [];
 
@@ -2532,7 +2544,7 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
           ],
           response_format: { type: "json_object" }
         });
-        const vectorContent = JSON.parse(vectorSumRes.choices[0].message.content);
+        const vectorContent = safeJsonParseWithMarkdown(vectorSumRes.choices[0].message.content);
         answer = vectorContent.answer;
         suggestedQuestions = vectorContent.suggested_questions || [];
       } else {
@@ -2568,7 +2580,7 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
             ],
             response_format: { type: "json_object" }
           });
-          const fallbackContent = JSON.parse(fallbackSummary.choices[0].message.content);
+          const fallbackContent = safeJsonParseWithMarkdown(fallbackSummary.choices[0].message.content);
           fallbackAnswer = fallbackContent.answer;
           const fallbackSuggestions = fallbackContent.suggested_questions || [];
           return res.json({ answer: fallbackAnswer, items_used: vectorItems, suggested_questions: fallbackSuggestions });
@@ -2582,7 +2594,12 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
         });
       }
     }
-    console.error('AskAI failed:', err);
+    console.error('AskAI Critical Failure:', {
+      tool,
+      errorName: err.name,
+      errorMessage: err.message,
+      stack: err.stack
+    });
     res.status(500).json({ error: 'AskAI failed. Please try again.' });
   }
 });
