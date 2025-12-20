@@ -600,16 +600,16 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
     const seen = new Set();
 
     if (userStoreOverrides) {
-        Object.keys(userStoreOverrides).forEach((merchantName) => {
-            const lower = merchantName.toLowerCase();
-            if(seen.has(lower)) return;
-            seen.add(lower);
-            if(!trimmed || lower.includes(trimmed)){
-                matches.push(merchantName)
-            } else {
-                others.push(merchantName)
-            }
-        });
+      Object.keys(userStoreOverrides).forEach((merchantName) => {
+        const lower = merchantName.toLowerCase();
+        if (seen.has(lower)) return;
+        seen.add(lower);
+        if (!trimmed || lower.includes(trimmed)) {
+          matches.push(merchantName)
+        } else {
+          others.push(merchantName)
+        }
+      });
     }
 
     storeList.forEach(({ merchant_name }) => {
@@ -1401,7 +1401,11 @@ export default function ScanReceipt() {
       return;
     }
 
-    const isEditing = extractedData && extractedData.id;
+    // Only treat as "Editing" if we have an ID AND we are explicitly in edit mode (via URL param).
+    // This prevents fresh scans that happen to match an existing ID (duplicate) from automatically handling as a "Replace" operation.
+    const params = new URLSearchParams(location.search);
+    const isExplicitEdit = params.get('edit');
+    const isEditing = extractedData && extractedData.id && isExplicitEdit;
 
     if (isEditing) {
       if (!options.existingReceiptId) {

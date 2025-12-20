@@ -1958,12 +1958,30 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
           }),
       };
 
+      // Check for duplicate receipt
+      if (req.user?.id) {
+        const { data: existingReceipt } = await supabase
+          .from('receipts')
+          .select('id')
+          .eq('user_id', req.user.id)
+          .eq('merchant_name', transformedData.merchant_name)
+          .eq('transaction_date', transformedData.transaction_date)
+          .eq('total_amount', transformedData.total_amount)
+          .maybeSingle();
+
+        if (existingReceipt) {
+          console.log(`⚠️ Duplicate found: ${existingReceipt.id}`);
+          transformedData.id = existingReceipt.id; // iOS app looks for this 'id'
+        }
+      }
+
       console.log(`🟢 Processed single receipt for user ${req.user?.id || 'anonymous'} with ${categorizedLineItems.length} line item(s).`);
       const responsePayload = { ...transformedData };
       res.json(responsePayload);
 
       // Fire-and-forget embedding ingestion
-      if (req.user?.id) {
+      // Only run if it's NOT a duplicate (no ID present in transformedData)
+      if (req.user?.id && !transformedData.id) {
         setImmediate(async () => {
           try {
             await ingestReceiptItems(
@@ -2476,12 +2494,16 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
         return false;
       };
 
+      let isVectorFallback = false;
+
       if (isEffectivelyEmpty(items)) {
         console.log('⚠️ SQL returned 0/empty results. Auto-fallback to Vector Search for semantic match.');
         const vectorFallbackItems = await searchItemsVector(question, userId);
         if (vectorFallbackItems && vectorFallbackItems.length > 0) {
           console.log(`✅ Fallback found ${vectorFallbackItems.length} items from Vector Store.`);
-          items = vectorFallbackItems;
+          // Sort by transaction_date descending (newest first)
+          items = vectorFallbackItems.sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date));
+          isVectorFallback = true;
         }
         // If fallback used, we don't invalidate the SQL memory per se, but we definitely don't save a new broken one.
       } else {
@@ -2498,12 +2520,21 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
       }
 
       // Summarize Results (Using History!)
+      let systemPrompt = "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...').\n\nALSO: Generate 3 short, relevant follow-up questions the user might want to ask next based on this data (e.g. 'What about last month?', 'Who is my top merchant?').\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }";
+
+      let contextInfo = `Executed SQL: ${sql}\nQuery Results: ${JSON.stringify(items)}`;
+
+      if (isVectorFallback) {
+        systemPrompt = "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. \n\nIMPORTANT: Use the provided items to answer. Since these were found via semantic search (fallback), do NOT assume they represent a specific time period like 'this month' unless the transaction dates clearly show it. Instead, mention that these are the most recent relevant matches found.\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }";
+        contextInfo = `Vector Search Fallback Results (sorted by date): ${JSON.stringify(items)}`;
+      }
+
       const summaryRes = await openai.chat.completions.create({
         model: "gpt-4o-mini",
         messages: [
-          { role: "system", content: "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...').\n\nALSO: Generate 3 short, relevant follow-up questions the user might want to ask next based on this data (e.g. 'What about last month?', 'Who is my top merchant?').\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
+          { role: "system", content: systemPrompt },
           ...messagesWithContext, // Context helps "and this week?" make sense in summary too
-          { role: "system", content: `Executed SQL: ${sql}\nQuery Results: ${JSON.stringify(items)}` }
+          { role: "system", content: contextInfo }
         ],
         response_format: { type: "json_object" },
         temperature: 0.7
@@ -2977,6 +3008,137 @@ app.delete('/api/receipts/:id', authenticateRequest, async (req, res) => {
     return res.json({ success: true });
   } catch (error) {
     return handleApiError(res, error, 'Failed to delete receipt');
+  }
+});
+
+// --- Merchant Insights Endpoint ---
+app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
+  const { merchant_name } = req.query;
+  if (!merchant_name) return res.status(400).json({ error: 'Merchant name is required' });
+
+  // Get User ID from your auth middleware
+  const userId = req.user.id;
+
+  // Decode and allow for simple fuzzy matching/names
+  const merchantName = decodeURIComponent(merchant_name);
+
+  try {
+    // 1. Period Stats (This Month, Prev Month, This Year, Prev Year)
+    // Uses Conditional Aggregation for efficiency (1 Query instead of 4)
+    const statsQuery = `
+      SELECT
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as this_month,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND transaction_date < date_trunc('month', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as prev_month,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as this_year,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND transaction_date < date_trunc('year', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as prev_year
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1
+        AND merchant_name ILIKE $2
+    `;
+
+    // We use ILIKE for case-insensitive matching
+    const statsRes = await pool.query(statsQuery, [userId, merchantName]);
+    const stats = statsRes.rows[0];
+
+    // Parse numbers
+    const thisMonth = parseFloat(stats.this_month);
+    const prevMonth = parseFloat(stats.prev_month);
+    const thisYear = parseFloat(stats.this_year);
+    const prevYear = parseFloat(stats.prev_year);
+
+    // Calculate Percentage Changes (Handle division by zero)
+    const monthChange = prevMonth > 0 ? ((thisMonth - prevMonth) / prevMonth) * 100 : (thisMonth > 0 ? 100 : 0);
+    const yearChange = prevYear > 0 ? ((thisYear - prevYear) / prevYear) * 100 : (thisYear > 0 ? 100 : 0);
+
+    // 2. Trend Graph (Weekly for last 12 weeks)
+    // Returns a simple array of values for the sparkline
+    const trendQuery = `
+        SELECT
+            date_trunc('week', transaction_date) as period_start,
+            SUM(price * quantity) as total
+        FROM v_receipt_line_items_enriched
+        WHERE user_id = $1
+          AND merchant_name ILIKE $2
+          AND transaction_date >= CURRENT_DATE - INTERVAL '12 weeks'
+        GROUP BY period_start
+        ORDER BY period_start ASC
+    `;
+    const trendRes = await pool.query(trendQuery, [userId, merchantName]);
+    // Extract just the totals into an array [10.50, 20.00, ...]
+    const trendGraph = trendRes.rows.map(r => parseFloat(r.total));
+
+    // 3. Top Category (Highest Spend)
+    const topCatQuery = `
+      SELECT main_category, SUM(price * quantity) as spend
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+      GROUP BY main_category
+      ORDER BY spend DESC
+      LIMIT 1
+    `;
+    const topCatRes = await pool.query(topCatQuery, [userId, merchantName]);
+    const topCategory = topCatRes.rows[0]?.main_category || 'General';
+
+    // 4. Top Item (Most Frequent)
+    const topItemQuery = `
+      SELECT item, COUNT(*) as freq
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+      GROUP BY item
+      ORDER BY freq DESC
+      LIMIT 1
+    `;
+    const topItemRes = await pool.query(topItemQuery, [userId, merchantName]);
+    const topItem = topItemRes.rows[0]?.item || 'Unknown';
+
+    // 5. Health Score (Healthy vs Unhealthy Percentage)
+    const healthQuery = `
+      SELECT
+        COUNT(CASE WHEN main_category IN ('fruit', 'vegetable', 'meat', 'poultry', 'seafood', 'dairy', 'health', 'fitness') THEN 1 END) as healthy_count,
+        COUNT(CASE WHEN main_category IN ('snacks', 'beverages', 'alcohol', 'fast_food', 'dessert') THEN 1 END) as unhealthy_count
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+    `;
+    const healthRes = await pool.query(healthQuery, [userId, merchantName]);
+    const hCount = parseInt(healthRes.rows[0]?.healthy_count || 0);
+    const uCount = parseInt(healthRes.rows[0]?.unhealthy_count || 0);
+    const totalHealth = hCount + uCount;
+
+    const healthyPerc = totalHealth > 0 ? Math.round((hCount / totalHealth) * 100) : 100; // Default to 100% healthy if no data (optimistic)
+    const unhealthyPerc = totalHealth > 0 ? Math.round((uCount / totalHealth) * 100) : 0;
+
+    // Construct the Response
+    res.json({
+      merchant: merchantName,
+      category: topCategory,
+      period_stats: {
+        current_month: {
+          total: thisMonth,
+          percentage_change: monthChange
+        },
+        current_year: {
+          total: thisYear,
+          percentage_change: yearChange
+        },
+        previous_month: {
+          total: prevMonth,
+          percentage_change: null
+        }
+      },
+      trend_graph: trendGraph,
+      insights: {
+        top_category: topCategory,
+        top_item: topItem,
+        health_score: {
+          healthy_percentage: healthyPerc,
+          unhealthy_percentage: unhealthyPerc
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Error fetching merchant insights:', error);
+    res.status(500).json({ error: 'Failed to fetch merchant insights' });
   }
 });
 
