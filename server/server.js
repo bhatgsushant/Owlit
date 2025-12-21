@@ -3036,22 +3036,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
         AND merchant_name ILIKE $2
     `;
 
-    // We use ILIKE for case-insensitive matching
-    const statsRes = await pool.query(statsQuery, [userId, merchantName]);
-    const stats = statsRes.rows[0];
-
-    // Parse numbers
-    const thisMonth = parseFloat(stats.this_month);
-    const prevMonth = parseFloat(stats.prev_month);
-    const thisYear = parseFloat(stats.this_year);
-    const prevYear = parseFloat(stats.prev_year);
-
-    // Calculate Percentage Changes (Handle division by zero)
-    const monthChange = prevMonth > 0 ? ((thisMonth - prevMonth) / prevMonth) * 100 : (thisMonth > 0 ? 100 : 0);
-    const yearChange = prevYear > 0 ? ((thisYear - prevYear) / prevYear) * 100 : (thisYear > 0 ? 100 : 0);
-
     // 2. Trend Graph (Weekly for last 12 weeks)
-    // Returns a simple array of values for the sparkline
     const trendQuery = `
         SELECT
             date_trunc('week', transaction_date) as period_start,
@@ -3063,9 +3048,6 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
         GROUP BY period_start
         ORDER BY period_start ASC
     `;
-    const trendRes = await pool.query(trendQuery, [userId, merchantName]);
-    // Extract just the totals into an array [10.50, 20.00, ...]
-    const trendGraph = trendRes.rows.map(r => parseFloat(r.total));
 
     // 3. Top Category (Highest Spend)
     const topCatQuery = `
@@ -3076,8 +3058,6 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       ORDER BY spend DESC
       LIMIT 1
     `;
-    const topCatRes = await pool.query(topCatQuery, [userId, merchantName]);
-    const topCategory = topCatRes.rows[0]?.main_category || 'General';
 
     // 4. Top Item (Most Frequent)
     const topItemQuery = `
@@ -3088,8 +3068,6 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       ORDER BY freq DESC
       LIMIT 1
     `;
-    const topItemRes = await pool.query(topItemQuery, [userId, merchantName]);
-    const topItem = topItemRes.rows[0]?.item || 'Unknown';
 
     // 5. Health Score (Healthy vs Unhealthy Percentage)
     const healthQuery = `
@@ -3099,13 +3077,87 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       FROM v_receipt_line_items_enriched
       WHERE user_id = $1 AND merchant_name ILIKE $2
     `;
-    const healthRes = await pool.query(healthQuery, [userId, merchantName]);
+
+    // [New] 6. Contribution Percentage (Merchant vs Total Spending this Month)
+    // "How much of my monthly grocery budget goes to Tesco?"
+    const contribQuery = `
+      WITH monthly_totals AS (
+          SELECT
+              COALESCE(SUM(price * quantity), 0) AS total_spent
+          FROM v_receipt_line_items_enriched
+          WHERE user_id = $1
+            AND transaction_date >= date_trunc('month', CURRENT_DATE)
+            AND transaction_date <  date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+      ),
+      merchant_month_totals AS (
+          SELECT
+              COALESCE(SUM(price * quantity), 0) AS merchant_spent
+          FROM v_receipt_line_items_enriched
+          WHERE user_id = $1
+            AND merchant_name ILIKE $2  -- Dynamic merchant name
+            AND transaction_date >= date_trunc('month', CURRENT_DATE)
+            AND transaction_date <  date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+      )
+      SELECT
+          CASE 
+            WHEN total_spent > 0 THEN ROUND((merchant_spent / total_spent) * 100, 2) 
+            ELSE 0 
+          END AS contribution_percentage
+      FROM monthly_totals, merchant_month_totals;
+    `;
+
+    // [New] 7. Total Visit Count (This Month)
+    // "How many times have I visited this store this month?"
+    const visitQuery = `
+        SELECT COUNT(DISTINCT receipt_id) AS visit_count
+        FROM v_receipt_line_items_enriched
+        WHERE user_id = $1 
+          AND merchant_name ILIKE $2
+          AND transaction_date >= date_trunc('month', CURRENT_DATE)
+          AND transaction_date <  date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
+    `;
+
+    // Execute Parallel Queries
+    const [statsRes, trendRes, topCatRes, topItemRes, healthRes, contribRes, visitRes] = await Promise.all([
+      pool.query(statsQuery, [userId, merchantName]),
+      pool.query(trendQuery, [userId, merchantName]),
+      pool.query(topCatQuery, [userId, merchantName]),
+      pool.query(topItemQuery, [userId, merchantName]),
+      pool.query(healthQuery, [userId, merchantName]),
+      pool.query(contribQuery, [userId, merchantName]),
+      pool.query(visitQuery, [userId, merchantName])
+    ]);
+
+    // Extract Results
+    const stats = statsRes.rows[0];
+    const thisMonth = parseFloat(stats?.this_month || 0);
+    const prevMonth = parseFloat(stats?.prev_month || 0);
+    const thisYear = parseFloat(stats?.this_year || 0);
+    const prevYear = parseFloat(stats?.prev_year || 0);
+
+    // Calculate Percentage Changes (Handle division by zero)
+    const monthChange = prevMonth > 0 ? ((thisMonth - prevMonth) / prevMonth) * 100 : (thisMonth > 0 ? 100 : 0);
+    const yearChange = prevYear > 0 ? ((thisYear - prevYear) / prevYear) * 100 : (thisYear > 0 ? 100 : 0);
+
+    // Trend
+    const trendGraph = trendRes.rows.map(r => parseFloat(r.total));
+
+    // Top Category
+    const topCategory = topCatRes.rows[0]?.main_category || 'General';
+
+    // Top Item
+    const topItem = topItemRes.rows[0]?.item || 'Unknown';
+
+    // Health Score
     const hCount = parseInt(healthRes.rows[0]?.healthy_count || 0);
     const uCount = parseInt(healthRes.rows[0]?.unhealthy_count || 0);
     const totalHealth = hCount + uCount;
-
     const healthyPerc = totalHealth > 0 ? Math.round((hCount / totalHealth) * 100) : 100; // Default to 100% healthy if no data (optimistic)
     const unhealthyPerc = totalHealth > 0 ? Math.round((uCount / totalHealth) * 100) : 0;
+
+    // Contribution & Visits
+    const contributionPercentage = parseFloat(contribRes.rows[0]?.contribution_percentage || 0);
+    const visitCount = parseInt(visitRes.rows[0]?.visit_count || 0);
 
     // Construct the Response
     res.json({
@@ -3132,7 +3184,9 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
         health_score: {
           healthy_percentage: healthyPerc,
           unhealthy_percentage: unhealthyPerc
-        }
+        },
+        contribution_percentage: contributionPercentage,
+        visit_count: visitCount
       }
     });
 
