@@ -2460,7 +2460,7 @@ INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, fi
 
       // Generate SQL (Using History!)
       const sqlRes = await openai.chat.completions.create({
-        model: "gpt-4o", // Use smarter model for SQL generation with context
+        model: "gpt-4o-mini", // Use smarter model for SQL generation with context
         messages: [
           { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + memoryContext + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
           ...messagesWithContext // Pass history!
