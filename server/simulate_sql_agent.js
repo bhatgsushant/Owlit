@@ -9,21 +9,11 @@ const pool = new Pool({
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-const SQL_AGENT_SYSTEM_PROMPT = `
-You are a PostgreSQL Expert. Write a SQL query for view: v_receipt_line_items_enriched.
-Columns: user_id, transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
-RULES:
-1. ALWAYS filter by user_id = $1 (Security).
-2. Read-only SELECT only.
-3. Price is GBP.
-4. Return ONLY raw SQL.
-5. Use ILIKE for all string comparisons to ensure case-insensitivity.
-6. When searching for a product/category, check 'item', 'main_category', and 'sub_category' using OR logic wrapped in parentheses (e.g., AND (item ILIKE '%beer%' OR sub_category ILIKE '%beer%')).
-`;
+const { SQL_AGENT_SYSTEM_PROMPT } = require('./agents/sql_agent_prompts');
 
 async function simulate() {
     let client;
-    const question = "Which is my favourite beer?";
+    const question = "how I spped dinning ths month?"; // Typo test
     const userId = '103517642769452703078'; // Target User
 
     try {
@@ -32,24 +22,38 @@ async function simulate() {
 
         client = await pool.connect();
 
+        // --- STEP 1: QUERY REFINEMENT ---
+        console.log(`original_question: "${question}"`);
+        const { refineQuestion } = require('./agents/query_refiner');
+        const refinedQuestion = await refineQuestion(question);
+        console.log(`refined_question: "${refinedQuestion}"`);
+
         // 1. Generate SQL
         console.log('Generating SQL...');
         const sqlRes = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             messages: [
                 { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
-                { role: "user", content: question }
+                { role: "user", content: refinedQuestion }
             ],
             response_format: { type: "json_object" },
             temperature: 0
         });
 
-        const { sql } = JSON.parse(sqlRes.choices[0].message.content);
-        console.log('generated_sql:', sql);
+        const json = JSON.parse(sqlRes.choices[0].message.content);
+        let sqlQuery;
+
+        if (json.sql) {
+            console.log('generated_sql:', json.sql);
+            sqlQuery = json.sql.replace(/```sql|```/g, '').trim();
+        } else {
+            console.log("No 'sql' key in JSON:", json);
+        }
+
 
         // 2. Execute SQL
         console.log('Executing SQL...');
-        const { rows } = await client.query(sql, [userId]);
+        const { rows } = await client.query(sqlQuery, [userId]);
         console.log('SQL Execution Success!');
         console.log(`Rows returned: ${rows.length}`);
         if (rows.length > 0) {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles, Plus, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { Send, Loader2, Sparkles, Plus, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+
 import { motion, AnimatePresence } from 'framer-motion';
 import AnimatedSection from '@/components/ui/AnimatedSection';
 
@@ -82,15 +83,18 @@ export default function AskAIPage() {
     }
   };
 
-  const handleSend = async (textOverride = null) => {
+  const handleSend = async (textOverride = null, isRetry = false) => {
     const text = textOverride || question.trim();
     if (!text || loading) return;
 
     setError('');
-    savePromptToHistory(text);
+    // Only save to history if it's a NEW user question (not a retry)
+    if (!isRetry) {
+      savePromptToHistory(text);
+      const userMsg = { role: 'user', text };
+      setMessages((prev) => [...prev, userMsg]);
+    }
 
-    const userMsg = { role: 'user', text };
-    setMessages((prev) => [...prev, userMsg]);
     setLoading(true);
     setQuestion(''); // Clear input immediately for better UX
 
@@ -100,7 +104,8 @@ export default function AskAIPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           question: text,
-          history: messages // Send recent chat history for context
+          history: messages, // Send recent chat history for context
+          isRetry
         }),
       });
 
@@ -230,7 +235,16 @@ export default function AskAIPage() {
                   {/* Feedback Buttons */}
                   {msg.role === 'ai' && (
                     <div className="flex flex-col gap-2">
-                      <FeedbackButtons onFeedback={(type) => handleFeedback(msg, type)} />
+                      <div className="flex items-center gap-2">
+                        <FeedbackButtons onFeedback={(type) => handleFeedback(msg, type)} />
+                        <button
+                          onClick={() => handleSend(msg.question, true)}
+                          className="flex items-center gap-1.5 mt-1.5 px-2 py-0.5 text-xs font-medium text-slate-400 hover:text-slate-600 transition-colors border border-black/5 rounded-full bg-white/50 backdrop-blur-sm shadow-sm"
+                          title="Regenerate Answer"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </button>
+                      </div>
 
                       {msg.suggested_questions && msg.suggested_questions.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-1">

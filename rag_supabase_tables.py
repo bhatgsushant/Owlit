@@ -10,6 +10,9 @@ import pandas as pd
 def initialize():
     """Initializes Supabase client, embedding model, and LLM."""
     load_dotenv()
+    if not os.getenv("SUPABASE_URL"):
+        # Fallback to server/.env
+        load_dotenv(os.path.join("server", ".env"))
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SERVICE_KEY") or os.getenv("SUPABASE_KEY")
     openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -49,7 +52,10 @@ def embed_data(client, model):
                 f"Quantity: {row.get('quantity', 'N/A')}, "
                 f"Category: {row.get('main_category', 'N/A')} ({row.get('sub_category', 'N/A')}), "
                 f"Merchant: {row.get('merchant_name', 'N/A')}, "
-                f"Date: {row.get('transaction_date', 'N/A')}"
+                f"Date: {row.get('transaction_date', 'N/A')}, "
+                f"Normalized Name: {row.get('normalized_name', 'N/A')}, "
+                f"Store Category: {row.get('store_main_category', 'N/A')}, "
+                f"Store Type: {row.get('store_type', 'N/A')}"
             )
 
         df['content'] = df.apply(create_text_representation, axis=1)

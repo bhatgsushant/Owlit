@@ -37,6 +37,7 @@ const {
   buildReceiptHash,
 } = require('./utils/receiptHash.js');
 const { resolveAiDateRange, analyzeSpendingResults } = require('./utils/askAiHelpers.js');
+const AskController = require('./controllers/ask_controller');
 const ASK_AI_SUPPORTED_OPERATIONS = new Set(['total_spend', 'item_spend', 'top_merchants', 'list_receipts']);
 
 // --- PROMPTS ---
@@ -50,22 +51,7 @@ LOGIC:
 OUTPUT JSON: { "tool": "SQL_AGENT" | "VECTOR_STORE" }
 `;
 
-const SQL_AGENT_SYSTEM_PROMPT = `
-You are a PostgreSQL Expert. Write a SQL query for view: v_receipt_line_items_enriched.
-Columns: user_id, transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
-RULES:
-1. **DEFAULT DATE RANGE:** If the user does NOT specify a date range (e.g. "last month", "2024"), you MUST filter by the **CURRENT MONTH** (\`date_trunc('month', transaction_date) = date_trunc('month', CURRENT_DATE)\`). Do NOT search all time unless explicitly requested.
-2. ALWAYS filter by user_id = $1 (Security).
-3. Read-only SELECT only.
-4. Price is GBP.
-5. Return ONLY raw SQL.
-6. Use ILIKE for all string comparisons to ensure case-insensitivity.
-7. When searching for a product/category, check 'item', 'main_category', and 'sub_category' using OR logic wrapped in parentheses (e.g., AND (item ILIKE '%beer%' OR sub_category ILIKE '%beer%')).
-8. FROM table MUST be 'v_receipt_line_items_enriched'. DO NOT use 'receipt_line_items'.
-9. For date calculations, ALWAYS use date_trunc('week', CURRENT_DATE) or date_trunc('month', CURRENT_DATE). DO NOT use EXTRACT(DOW ...) arithmetic.
-10. **CONTEXT HANDLING:** Treat the latest question as the primary instruction. Only use the chat history to resolve ambiguious terms (like "it", "that", "this week"). Do NOT auto-apply previous filters (like date ranges) if the new question doesn't ask for them.
-11. **FUZZY MATCHING:** Users make typos. When searching for merchants/items (e.g. "wethrspoon"), use loose ILIKE patterns with wildcards (e.g. %weth%spoon%) to maximize matches.
-`;
+const { SQL_AGENT_SYSTEM_PROMPT } = require('./agents/sql_agent_prompts');
 
 class ValidationError extends Error {
   constructor(message, statusCode = 400) {
@@ -2373,7 +2359,28 @@ app.post('/api/feedback', authenticateRequest, async (req, res) => {
       } else {
         console.log('✅ Bad memory deleted to prevent recurrence.');
       }
-      return res.json({ success: true, memory_deleted: true });
+
+      // AUTO-RETRY LOGIC
+      console.log('🔄 Triggering Auto-Retry for bad feedback...');
+      try {
+        const retryResult = await AskController.processQuestion({
+          userId,
+          question,
+          history: [], // Feedback endpoint doesn't carry full history, assume context-free retry for now
+          isRetry: true
+        });
+
+        return res.json({
+          success: true,
+          memory_deleted: true,
+          new_answer: retryResult.answer,
+          new_tool: retryResult.tool
+        });
+      } catch (retryErr) {
+        console.error("⚠️ Auto-Retry failed:", retryErr);
+        // Fallback to normal success response if retry fails
+        return res.json({ success: true, memory_deleted: true });
+      }
     }
 
     res.json({ success: true });
@@ -2385,253 +2392,28 @@ app.post('/api/feedback', authenticateRequest, async (req, res) => {
 });
 
 app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
-  const { question, history = [] } = req.body;
+  const { question, history = [], isRetry = false } = req.body;
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
-  let tool = "";
-  let usedMemoryId = null; // Track memory ID
-  let suggestedQuestions = []; // Track suggested questions
-
   try {
-    // 0. LOGGING
-    console.log(`🤖 AskAI Request from User: ${userId}`);
-    console.log(`🤖 Question: "${question}"`);
+    const result = await AskController.processQuestion({
+      userId,
+      question,
+      history,
+      isRetry
+    });
 
-    // --- CONTEXT PREPARATION ---
-    // Limit history to last 6 messages to save tokens/context
-    const recentHistory = history.slice(-6).map(msg => ({
-      role: msg.role === 'ai' ? 'assistant' : 'user',
-      content: msg.text || ''
-    }));
-
-    // Add current question to messages for LLM
-    const messagesWithContext = [
-      ...recentHistory,
-      { role: 'user', content: question }
-    ];
-
-    // 1. DETERMINISTIC ROUTING (Force SQL for clear keywords)
-    const lowerQ = question.toLowerCase();
-    // Only force SQL for purely quantitative money terms.
-    if (lowerQ.match(/spend|spent|cost|total|average|sum|how much/)) {
-      console.log('🤖 Keyword Rule Triggered -> Forcing SQL_AGENT');
-      tool = "SQL_AGENT";
-    }
-
-    // 2. LLM ROUTING (Using History!)
-    if (!tool) {
-      const routerRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: ROUTER_SYSTEM_PROMPT },
-          ...messagesWithContext // Pass history!
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0
-      });
-      const parsed = safeJsonParseWithMarkdown(routerRes.choices[0].message.content);
-      tool = parsed.tool;
-    }
-
-    console.log(`🤖 Selected Tool: ${tool}`);
-
-    let answer = "";
-    let items = [];
-
-    // 3. EXECUTION
-    if (tool === "SQL_AGENT") {
-
-      // 🧠 MEMORY CHECK (Dynamic Few-Shot)
-      let memoryContext = "";
-      const similarSql = await searchSqlMemory(question);
-      if (similarSql) {
-        console.log('💡 Using Dynamic Few-Shot Prompting from Memory');
-        usedMemoryId = similarSql.id; // Capture ID of used memory
-        memoryContext = `
-IMPORTANT - PROVEN EXAMPLE:
-A very similar question was successfully answered in the past.
-Similar Question: "${similarSql.question}"
-Correct SQL used: ${similarSql.sql_query}
-
-INSTRUCTION: Use the above SQL as a "Proven Template". Copy its logic (joins, filters) but adapt the WHERE clauses (merchant name, date range) to match the CURRENT request.
-`;
-      }
-
-      // Generate SQL (Using History!)
-      const sqlRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini", // Use smarter model for SQL generation with context
-        messages: [
-          { role: "system", content: SQL_AGENT_SYSTEM_PROMPT + memoryContext + "\nOutput JSON: { \"sql\": \"SELECT ...\" }" },
-          ...messagesWithContext // Pass history!
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0
-      });
-
-      const { sql: rawSql } = safeJsonParseWithMarkdown(sqlRes.choices[0].message.content);
-      console.log(`🤖 Generated SQL: ${rawSql}`); // Log SQL before executing
-
-      const sql = rawSql.replace(/\\n/g, ' ').trim(); // Basic cleanup
-
-      if (!sql.toLowerCase().startsWith('select')) {
-        throw new Error("Invalid SQL generated");
-      }
-
-      // Execute SQL
-      const { rows } = await pool.query(sql, [userId]);
-      items = rows;
-
-      // --- ZERO-RESULT FALLBACK ---
-      const isEffectivelyEmpty = (rows) => {
-        if (!rows || rows.length === 0) return true;
-        if (rows.length === 1) {
-          const row = rows[0];
-          // Check if all values are null or 0 (aggregates like SUM/COUNT often return this)
-          const values = Object.values(row);
-          return values.every(v => v === null || v == 0 || v === '0');
-        }
-        return false;
-      };
-
-      let isVectorFallback = false;
-
-      if (isEffectivelyEmpty(items)) {
-        console.log('⚠️ SQL returned 0/empty results. Auto-fallback to Vector Search for semantic match.');
-        const vectorFallbackItems = await searchItemsVector(question, userId);
-        if (vectorFallbackItems && vectorFallbackItems.length > 0) {
-          console.log(`✅ Fallback found ${vectorFallbackItems.length} items from Vector Store.`);
-          // Sort by transaction_date descending (newest first)
-          items = vectorFallbackItems.sort((a, b) => new Date(b.transaction_date) - new Date(a.transaction_date));
-          isVectorFallback = true;
-        }
-        // If fallback used, we don't invalidate the SQL memory per se, but we definitely don't save a new broken one.
-      } else {
-        // ✅ SUCCESSFUL SQL -> SAVE TO MEMORY
-        // Only save if it wasn't a memory hit (or even if it was, to reinforce?)
-        // If we used a memory and it worked, we rely on that old ID.
-        // If we didn't use a memory, or the generated SQL is very different, we save it.
-
-        if (!similarSql || similarSql.sql_query !== sql) {
-          // Fire-and-forget save, but wait for ID if we want to return it
-          const newMemoryId = await saveSqlMemory(question, sql);
-          if (newMemoryId) usedMemoryId = newMemoryId;
-        }
-      }
-
-      // Summarize Results (Using History!)
-      let systemPrompt = "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. IMPORTANT: Look at the 'Executed SQL' to see what date range was used (e.g. date_trunc('month'...)). FLAGGING: You MUST explicitly mention this date context in your answer (e.g. 'Spending for this month...', 'Total for 2024...').\n\nALSO: Generate 3 short, relevant follow-up questions the user might want to ask next based on this data (e.g. 'What about last month?', 'Who is my top merchant?').\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }";
-
-      let contextInfo = `Executed SQL: ${sql}\nQuery Results: ${JSON.stringify(items)}`;
-
-      if (isVectorFallback) {
-        systemPrompt = "You are a helpful assistant. Summarize the database results for the user. Be witty and concise. Use emojis! 🍺 🛒 ALWAYS use '£' for currency, never '$'. \n\nIMPORTANT: Use the provided items to answer. Since these were found via semantic search (fallback), do NOT assume they represent a specific time period like 'this month' unless the transaction dates clearly show it. Instead, mention that these are the most recent relevant matches found.\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }";
-        contextInfo = `Vector Search Fallback Results (sorted by date): ${JSON.stringify(items)}`;
-      }
-
-      const summaryRes = await openai.chat.completions.create({
-        model: "gpt-4o-mini",
-        messages: [
-          { role: "system", content: systemPrompt },
-          ...messagesWithContext, // Context helps "and this week?" make sense in summary too
-          { role: "system", content: contextInfo }
-        ],
-        response_format: { type: "json_object" },
-        temperature: 0.7
-      });
-
-      const summaryContent = safeJsonParseWithMarkdown(summaryRes.choices[0].message.content);
-      answer = summaryContent.answer;
-      suggestedQuestions = summaryContent.suggested_questions || [];
-
-    } else {
-      // VECTOR STORE (Need to resolve question first?)
-      // If question is "and this week", checking vector for "and this week" is useless.
-      // We should ideally "Resolving" the question.
-      // But for now, let's just pass the raw question.
-      // PRO TIP: Force SQL Agent for "And this week?" via Router is best.
-      const vectorItems = await searchItemsVector(question, userId);
-      items = vectorItems;
-      // Looking at `generateAnswer` signature: `async function generateAnswer(question, facts)`
-      // `facts` expected structure: { total_spend, merchant_breakdown, receipt_ids } OR just items array?
-      // `searchItemsVector` returns an array of items.
-      // The old `/api/ask` used `extractIntent` -> `fetchFacts` (SQL-like) -> `generateAnswer`.
-      // The old logic combined specific intent extraction with SQL-like `fetchFacts`.
-      // NOW, Vector Store path is "Vague, semantic".
-      // We should probably just summarize the vector results.
-
-      // Let's look at `generateAnswer` again. It expects `facts`.
-      // However, for "Vector Store" branch, we primarily want RAG from chunks.
-      // `searchItemsVector` performs `match_receipt_items` RPC.
-
-      // Let's simply summarize the `items` found.
-      if (items.length > 0) {
-        const context = JSON.stringify(items.map(i => `${i.item_name} (£${i.price}) from ${i.merchant_name}`));
-        const vectorSumRes = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [
-            { role: "system", content: "You are a helpful assistant. Use the provided receipt items to answer the user's question. Be friendly and use emojis! 🧾 ALWAYS use '£' for currency, never '$'.\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
-            { role: "user", content: `Question: ${question}\nItems Found: ${context}` }
-          ],
-          response_format: { type: "json_object" }
-        });
-        const vectorContent = safeJsonParseWithMarkdown(vectorSumRes.choices[0].message.content);
-        answer = vectorContent.answer;
-        suggestedQuestions = vectorContent.suggested_questions || [];
-      } else {
-        answer = "I couldn't find any specific receipts matching that description.";
-      }
-    }
-
-    res.json({ answer, items_used: items, tool_used: tool, memory_id: usedMemoryId, suggested_questions: suggestedQuestions });
+    res.json({
+      tool: result.tool,
+      answer: result.answer,
+      memory_id: result.usedMemoryId,
+      suggested_questions: result.suggestedQuestions
+    });
 
   } catch (err) {
-    if (tool === 'SQL_AGENT') {
-      console.error('SQL_AGENT Error Stack:', err.stack);
-      console.error('SQL_AGENT Error Msg:', err.message);
-
-      console.log('___________________________________________________');
-      console.log('!!! SQL AGENT FAILURE DETECTED !!!');
-      console.log('generated_sql:', err.sql || 'N/A');
-      console.log('sql_error_message:', err.message);
-      console.log('___________________________________________________');
-      console.log('⚠️ SQL Agent failed. Falling back to Vector Search.');
-
-      try {
-        const vectorItems = await searchItemsVector(question, userId);
-        let fallbackAnswer = "";
-        if (vectorItems.length === 0) {
-          fallbackAnswer = "I couldn't find any specific receipts matching your question.";
-        } else {
-          const fallbackSummary = await openai.chat.completions.create({
-            model: "gpt-4o-mini",
-            messages: [
-              { role: "system", content: "You are a helpful assistant. Use the provided receipts to answer the user's question. Do NOT mention technical failures or SQL queries. If the receipts don't fully answer the question, just say what you found. Be witty! 🍺\n\nALSO: Generate 3 short, relevant follow-up questions.\n\nOutput JSON: { \"answer\": \"...\", \"suggested_questions\": [\"Q1\", \"Q2\", \"Q3\"] }" },
-              { role: "user", content: `Question: ${question}\nReceipts: ${JSON.stringify(vectorItems)}` }
-            ],
-            response_format: { type: "json_object" }
-          });
-          const fallbackContent = safeJsonParseWithMarkdown(fallbackSummary.choices[0].message.content);
-          fallbackAnswer = fallbackContent.answer;
-          const fallbackSuggestions = fallbackContent.suggested_questions || [];
-          return res.json({ answer: fallbackAnswer, items_used: vectorItems, suggested_questions: fallbackSuggestions });
-        }
-
-      } catch (fallbackErr) {
-        console.error('Fallback failed:', fallbackErr);
-        return res.json({
-          answer: "I'm having trouble accessing your data right now. Please try again later.",
-          items_used: []
-        });
-      }
-    }
-    console.error('AskAI Critical Failure:', {
-      tool,
-      errorName: err.name,
-      errorMessage: err.message,
-      stack: err.stack
-    });
-    res.status(500).json({ error: 'AskAI failed. Please try again.' });
+    console.error('AskController Error:', err);
+    res.status(500).json({ error: 'Failed to process question' });
   }
 });
 
