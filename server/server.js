@@ -2860,6 +2860,41 @@ app.delete('/api/receipts/:id', authenticateRequest, async (req, res) => {
   }
 });
 
+// --- NEW ANALYTICS ENDPOINTS ---
+
+// GET /api/merchants/resolve?name=Tesco
+app.get('/api/merchants/resolve', authenticateRequest, async (req, res) => {
+  const { name } = req.query;
+  const userId = req.user.id;
+
+  if (!name) return res.status(400).json({ error: "Missing 'name' parameter" });
+
+  try {
+    // Search for the most frequent merchant matching the input name for this user
+    const query = `
+      SELECT merchant_name, COUNT(*) as count
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+      GROUP BY merchant_name
+      ORDER BY count DESC
+      LIMIT 1;
+    `;
+    const result = await pool.query(query, [userId, name]);
+
+    if (result.rows.length > 0) {
+      const bestName = result.rows[0].merchant_name;
+      // Return structured result used by iOS app
+      return res.json({ id: bestName, display_name: bestName });
+    }
+
+    // Fallback if not found
+    return res.json({ id: name, display_name: name });
+
+  } catch (err) {
+    console.error("Error resolving merchant:", err);
+    res.status(500).json({ error: "Database error" });
+  }
+});
 // --- Merchant Insights Endpoint ---
 app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
   const { merchant_name } = req.query;
