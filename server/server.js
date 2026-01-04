@@ -35,6 +35,7 @@ const ITEM_SYNONYMS = {
 const {
   normalizeMerchantName,
   buildReceiptHash,
+  buildLooseReceiptHash,
 } = require('./utils/receiptHash.js');
 const { resolveAiDateRange, analyzeSpendingResults } = require('./utils/askAiHelpers.js');
 const AskController = require('./controllers/ask_controller');
@@ -2146,6 +2147,29 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
     });
     const receiptHashToStore = dedupeHash;
 
+    // --- Loose Fingerprint for Multi-Page ---
+    const looseHash = buildLooseReceiptHash(req.user?.id || 'multi', {
+      merchant_name,
+      transaction_date: normalizedTransactionDate,
+      total_amount: normalizedTotalAmount,
+      line_items: categorizedLineItems,
+    });
+
+    let isPotentialDuplicate = false;
+    if (req.user?.id) {
+      const { data: looseMatches } = await supabase
+        .from('receipts')
+        .select('id')
+        .eq('user_id', req.user.id)
+        .eq('receipt_fingerprint_loose', looseHash)
+        .limit(1);
+
+      if (looseMatches && looseMatches.length > 0) {
+        isPotentialDuplicate = true;
+      }
+    }
+    // ----------------------------------------
+
     if (req.user?.id) {
       const { error: saveError } = await supabase
         .from('receipts')
@@ -2159,6 +2183,8 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
           line_items: categorizedLineItems,
           receipt_url,
           receipt_hash: receiptHashToStore,
+          receipt_fingerprint_loose: looseHash,
+          is_potential_duplicate: isPotentialDuplicate,
           family_id: familyId,
         });
 
@@ -2697,6 +2723,28 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
       });
     }
 
+    // --- Loose Fingerprint (Soft Duplicate) Check ---
+    const looseHash = buildLooseReceiptHash(req.user.id, {
+      merchant_name,
+      transaction_date: normalizedTransactionDate,
+      total_amount: normalizedTotalAmount,
+      line_items,
+    });
+
+    let isPotentialDuplicate = false;
+    const { data: looseMatches } = await supabase
+      .from('receipts')
+      .select('id')
+      .eq('user_id', req.user.id)
+      .eq('receipt_fingerprint_loose', looseHash)
+      .limit(1);
+
+    if (looseMatches && looseMatches.length > 0) {
+      console.log(`⚠️ Potential duplicate detected (loose match) for user ${req.user.id}`);
+      isPotentialDuplicate = true;
+    }
+    // ------------------------------------------------
+
     let receipt_url = null;
     if (req.file) {
       if (!isSupportedUpload(req.file.mimetype)) {
@@ -2740,6 +2788,8 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
         line_items,
         receipt_url,
         receipt_hash: dedupeHash,
+        receipt_fingerprint_loose: looseHash,
+        is_potential_duplicate: isPotentialDuplicate,
         family_id: familyId,
       })
       .select()

@@ -48,8 +48,40 @@ function buildReceiptHash(userId, receiptData = {}) {
   return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
 }
 
+function buildLooseReceiptHash(userId, receiptData = {}) {
+  const {
+    merchant_name = '',
+    transaction_date = '',
+    total_amount = 0,
+    line_items = [],
+  } = receiptData;
+
+  const normalizedDate = new Date(transaction_date).toISOString().split('T')[0];
+  const normalizedTotal = Number(total_amount ?? 0).toFixed(2);
+
+  // Extract item names only, normalize and sort (ignore price/quantity)
+  const itemNames = [...line_items]
+    .map(item => {
+      const name = item.item || item.name || item.Item_Name || '';
+      return normalizeMerchantName(name); // Reuse normalizeMerchantName for consistent cleaning
+    })
+    .filter(Boolean)
+    .sort();
+
+  const payload = {
+    userId,
+    merchant: normalizeMerchantName(merchant_name),
+    date: normalizedDate,
+    total: normalizedTotal,
+    items: itemNames,
+  };
+
+  return crypto.createHash('sha256').update(JSON.stringify(payload)).digest('hex');
+}
+
 module.exports = {
   normalizeMerchantName,
   normalizeLineItemsForHash,
   buildReceiptHash,
+  buildLooseReceiptHash,
 };
