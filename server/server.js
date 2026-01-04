@@ -1567,9 +1567,9 @@ async function fetchFacts(intent, userId) {
   const receiptIds = new Set();
 
   filtered.forEach((row) => {
-    const price = Number(row.price) || 0;
+    const price = Number(row.unit_price) || 0;
     const quantity = Number(row.quantity) || 0;
-    const spend = price * quantity;
+    const spend = Number(row.total_price) || (price * quantity); // Prefer pre-calculated total
     totalSpend += spend;
     const merchant = row.merchant_name || 'Unknown';
     totalsByMerchant[merchant] = (totalsByMerchant[merchant] || 0) + spend;
@@ -2911,10 +2911,10 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     // Uses Conditional Aggregation for efficiency (1 Query instead of 4)
     const statsQuery = `
       SELECT
-        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as this_month,
-        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND transaction_date < date_trunc('month', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as prev_month,
-        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as this_year,
-        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND transaction_date < date_trunc('year', CURRENT_DATE) THEN price * quantity ELSE 0 END), 0) as prev_year
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) THEN total_price ELSE 0 END), 0) as this_month,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('month', CURRENT_DATE) - INTERVAL '1 month' AND transaction_date < date_trunc('month', CURRENT_DATE) THEN total_price ELSE 0 END), 0) as prev_month,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) THEN total_price ELSE 0 END), 0) as this_year,
+        COALESCE(SUM(CASE WHEN transaction_date >= date_trunc('year', CURRENT_DATE) - INTERVAL '1 year' AND transaction_date < date_trunc('year', CURRENT_DATE) THEN total_price ELSE 0 END), 0) as prev_year
       FROM v_receipt_line_items_enriched
       WHERE user_id = $1
         AND merchant_name ILIKE $2
@@ -2924,7 +2924,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     const trendQuery = `
         SELECT
             date_trunc('week', transaction_date) as period_start,
-            SUM(price * quantity) as total
+            SUM(total_price) as total
         FROM v_receipt_line_items_enriched
         WHERE user_id = $1
           AND merchant_name ILIKE $2
@@ -2935,7 +2935,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
 
     // 3. Top Category (Highest Spend)
     const topCatQuery = `
-      SELECT main_category, SUM(price * quantity) as spend
+      SELECT main_category, SUM(total_price) as spend
       FROM v_receipt_line_items_enriched
       WHERE user_id = $1 AND merchant_name ILIKE $2
       GROUP BY main_category
@@ -2967,7 +2967,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     const contribQuery = `
       WITH monthly_totals AS (
           SELECT
-              COALESCE(SUM(price * quantity), 0) AS total_spent
+              COALESCE(SUM(total_price), 0) AS total_spent
           FROM v_receipt_line_items_enriched
           WHERE user_id = $1
             AND transaction_date >= date_trunc('month', CURRENT_DATE)
@@ -2975,7 +2975,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       ),
       merchant_month_totals AS (
           SELECT
-              COALESCE(SUM(price * quantity), 0) AS merchant_spent
+              COALESCE(SUM(total_price), 0) AS merchant_spent
           FROM v_receipt_line_items_enriched
           WHERE user_id = $1
             AND merchant_name ILIKE $2  -- Dynamic merchant name
@@ -3076,7 +3076,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
 
   } catch (error) {
     console.error('❌ Error fetching merchant insights:', error);
-    res.status(500).json({ error: 'Failed to fetch merchant insights' });
+    res.status(500).json({ error: `Failed to fetch merchant insights: ${error.message}` });
   }
 });
 
@@ -3631,6 +3631,45 @@ app.get('/api/user-store-type-overrides', authenticateRequest, async (req, res) 
 // --- Ask AI endpoint ---
 // [DUPLICATE ROUTE DELETED]
 
+
+// --- Line Item Inputs for Client-Side (Optional use) ---
+app.get('/api/insights/line-items', authenticateRequest, async (req, res) => {
+  const { merchant_id } = req.query;
+  const userId = req.user.id;
+
+  if (!merchant_id) return res.status(400).json({ error: "Missing 'merchant_id'" });
+
+  try {
+    const query = `
+      SELECT 
+        transaction_date, 
+        merchant_name,
+        item,
+        unit_price,
+        quantity,
+        total_price, 
+        main_category,
+        sub_category
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+      ORDER BY transaction_date DESC;
+    `;
+    const result = await pool.query(query, [userId, merchant_id]);
+
+    // Remap for frontend compatibility if needed, or rely on CodingKeys
+    // Frontend expects: price (unit), totalPrice
+    const mapped = result.rows.map(row => ({
+      ...row,
+      price: row.unit_price // Alias unit_price to price for frontend
+    }));
+
+    res.json(mapped);
+
+  } catch (err) {
+    console.error("Error fetching merchant line items:", err);
+    res.status(500).json({ error: "Database error: " + err.message });
+  }
+});
 
 // --- Start Server ---
 app.listen(port, async () => {
