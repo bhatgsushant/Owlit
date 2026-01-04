@@ -2953,6 +2953,14 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       LIMIT 1
     `;
 
+    // 8. Store Main Category (General category for the merchant)
+    const storeCatQuery = `
+      SELECT store_main_category
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 AND merchant_name ILIKE $2
+      LIMIT 1
+    `;
+
     // 5. Health Score (Healthy vs Unhealthy Percentage)
     const healthQuery = `
       SELECT
@@ -3002,14 +3010,15 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     `;
 
     // Execute Parallel Queries
-    const [statsRes, trendRes, topCatRes, topItemRes, healthRes, contribRes, visitRes] = await Promise.all([
+    const [statsRes, trendRes, topCatRes, topItemRes, healthRes, contribRes, visitRes, storeCatRes] = await Promise.all([
       pool.query(statsQuery, [userId, merchantName]),
       pool.query(trendQuery, [userId, merchantName]),
       pool.query(topCatQuery, [userId, merchantName]),
       pool.query(topItemQuery, [userId, merchantName]),
       pool.query(healthQuery, [userId, merchantName]),
       pool.query(contribQuery, [userId, merchantName]),
-      pool.query(visitQuery, [userId, merchantName])
+      pool.query(visitQuery, [userId, merchantName]),
+      pool.query(storeCatQuery, [userId, merchantName])
     ]);
 
     // Extract Results
@@ -3029,6 +3038,9 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     // Top Category
     const topCategory = topCatRes.rows[0]?.main_category || 'General';
 
+    // Store Category
+    const storeCategory = storeCatRes.rows[0]?.store_main_category || topCategory; // Fallback to top category
+
     // Top Item
     const topItem = topItemRes.rows[0]?.item || 'Unknown';
 
@@ -3046,7 +3058,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     // Construct the Response
     res.json({
       merchant: merchantName,
-      category: topCategory,
+      category: storeCategory,
       period_stats: {
         current_month: {
           total: thisMonth,
@@ -3668,6 +3680,120 @@ app.get('/api/insights/line-items', authenticateRequest, async (req, res) => {
   } catch (err) {
     console.error("Error fetching merchant line items:", err);
     res.status(500).json({ error: "Database error: " + err.message });
+  }
+});
+
+// --- Analytics Dashboard Endpoint ---
+app.get('/api/analytics/overview', authenticateRequest, async (req, res) => {
+  const userId = req.user.id;
+  const { time_range = 'month' } = req.query; // week, month, quarter, year, all
+
+  try {
+    let dateFilter = '';
+
+    // Determine Date Filter
+    if (time_range === 'week') {
+      dateFilter = "AND transaction_date >= date_trunc('week', CURRENT_DATE)";
+    } else if (time_range === 'month') {
+      dateFilter = "AND transaction_date >= date_trunc('month', CURRENT_DATE)";
+    } else if (time_range === 'quarter') {
+      dateFilter = "AND transaction_date >= date_trunc('quarter', CURRENT_DATE)";
+    } else if (time_range === 'year') {
+      dateFilter = "AND transaction_date >= date_trunc('year', CURRENT_DATE)"; // This Year
+    }
+    // 'all' implies no filter (or could set a reasonable limit if needed)
+
+    // 1. Category Drilldown (Main Category)
+    const categoryQuery = `
+      SELECT main_category, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY main_category
+      ORDER BY total DESC
+    `;
+
+    // 2. Sub-category Breakdown (Pie Chart)
+    const subCategoryQuery = `
+      SELECT sub_category, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY sub_category
+      ORDER BY total DESC
+      LIMIT 10
+    `;
+
+    // 3. Timeline Spend Trend (Line Graph)
+    // Granularity depends on time_range. 
+    // Short ranges (week/month) -> Daily. Long ranges (year/all) -> Monthly.
+    let groupBy = "date_trunc('month', transaction_date)";
+    if (time_range === 'week' || time_range === 'month') {
+      groupBy = "date_trunc('day', transaction_date)";
+    }
+
+    const trendQuery = `
+      SELECT ${groupBy} as period, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY period
+      ORDER BY period ASC
+    `;
+
+    // 4. Top Merchants (Bar Graph)
+    const merchantQuery = `
+      SELECT merchant_name, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY merchant_name
+      ORDER BY total DESC
+      LIMIT 10
+    `;
+
+    // 5. Top Store Types (Bar Graph)
+    const storeTypeQuery = `
+      SELECT store_main_category, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY store_main_category
+      ORDER BY total DESC
+    `;
+
+    // 6. Top Items Table (Normalized)
+    const itemsQuery = `
+      SELECT item, SUM(total_price) as total, COUNT(*) as count, AVG(unit_price) as avg_price
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY item
+      ORDER BY total DESC
+      LIMIT 50
+    `;
+
+    // Execute Parallel
+    const [catRes, subRes, trendRes, merchRes, storeRes, itemRes] = await Promise.all([
+      pool.query(categoryQuery, [userId]),
+      pool.query(subCategoryQuery, [userId]),
+      pool.query(trendQuery, [userId]),
+      pool.query(merchantQuery, [userId]),
+      pool.query(storeTypeQuery, [userId]),
+      pool.query(itemsQuery, [userId])
+    ]);
+
+    res.json({
+      categories: catRes.rows.map(r => ({ label: r.main_category || 'Unknown', value: parseFloat(r.total) })),
+      sub_categories: subRes.rows.map(r => ({ label: r.sub_category || 'Unknown', value: parseFloat(r.total) })),
+      trend: trendRes.rows.map(r => ({ date: r.period, value: parseFloat(r.total) })),
+      merchants: merchRes.rows.map(r => ({ label: r.merchant_name || 'Unknown', value: parseFloat(r.total) })),
+      store_types: storeRes.rows.map(r => ({ label: r.store_main_category || 'Unknown', value: parseFloat(r.total) })),
+      items: itemRes.rows.map(r => ({
+        name: r.item,
+        total: parseFloat(r.total),
+        count: parseInt(r.count),
+        avg_price: parseFloat(r.avg_price)
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching analytics overview:", err);
+    res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 
