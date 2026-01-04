@@ -25,8 +25,9 @@ const AskController = {
      * @param {string} params.question - The raw question
      * @param {Array} params.history - Chat history
      * @param {boolean} params.isRetry - Whether this is a retry attempt (skips memory)
+     * @param {Object} params.replyContext - The message being replied to
      */
-    async processQuestion({ userId, question, history = [], isRetry = false }) {
+    async processQuestion({ userId, question, history = [], isRetry = false, replyContext = null }) {
         let tool = "";
         let usedMemoryId = null;
         let suggestedQuestions = [];
@@ -34,9 +35,9 @@ const AskController = {
         // 0. LOGGING
         console.log(`🤖 AskController: Processing for ${userId} (Retry: ${isRetry})`);
         console.log(`🤖 Raw Question: "${question}"`);
-
-        // --- STEP 1: QUERY REFINEMENT (Typo Fixes) ---
-        const finalQuestion = await refineQuestion(question);
+        if (replyContext) {
+            console.log(`🤖 Reply Context: "${replyContext.text ? replyContext.text.substring(0, 50) + '...' : ''}"`);
+        }
 
         // --- CONTEXT PREPARATION ---
         const recentHistory = history.slice(-6).map(msg => ({
@@ -44,9 +45,18 @@ const AskController = {
             content: msg.text || ''
         }));
 
+        // --- STEP 1: QUERY REFINEMENT (Typo Fixes & Context) ---
+        const finalQuestion = await refineQuestion(question, recentHistory);
+
+        // Inject Reply Context if strictly replying
+        let effectiveQuestion = finalQuestion;
+        if (replyContext && replyContext.text) {
+            effectiveQuestion = `[User is replying to this previous message: "${replyContext.text}"]\n\n${finalQuestion}`;
+        }
+
         const messagesWithContext = [
             ...recentHistory,
-            { role: 'user', content: finalQuestion }
+            { role: 'user', content: effectiveQuestion }
         ];
 
         // 1. DETERMINISTIC ROUTING (Force SQL for clear keywords)

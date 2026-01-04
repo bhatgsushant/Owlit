@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Loader2, Sparkles, Plus, ThumbsUp, ThumbsDown, RefreshCw } from 'lucide-react';
+import { Send, Loader2, Sparkles, Plus, ThumbsUp, ThumbsDown, RefreshCw, Reply, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,14 +20,16 @@ const FeedbackButtons = ({ onFeedback }) => {
       <button
         onClick={() => handleClick('good')}
         className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'good' ? 'text-slate-700 bg-emerald-50 border-emerald-200' : 'text-slate-400 hover:text-slate-600'}`}
+        title="Good"
       >
-        Good <ThumbsUp className={`w-3 h-3 ${feedback === 'good' ? 'fill-slate-700' : ''}`} />
+        <ThumbsUp className={`w-3 h-3 ${feedback === 'good' ? 'fill-slate-700' : ''}`} />
       </button>
       <button
         onClick={() => handleClick('bad')}
         className={`flex items-center gap-1.5 text-xs font-medium transition-colors border border-black/5 rounded-full px-2 py-0.5 bg-white/50 backdrop-blur-sm shadow-sm ${feedback === 'bad' ? 'text-slate-700 bg-red-50 border-red-200' : 'text-slate-400 hover:text-slate-600'}`}
+        title="Bad"
       >
-        Bad <ThumbsDown className={`w-3 h-3 ${feedback === 'bad' ? 'fill-slate-700' : ''}`} />
+        <ThumbsDown className={`w-3 h-3 ${feedback === 'bad' ? 'fill-slate-700' : ''}`} />
       </button>
     </div>
   );
@@ -39,6 +41,7 @@ export default function AskAIPage() {
   const [loading, setLoading] = useState(false);
   // State for active messages (always starts fresh)
   const [messages, setMessages] = useState([]);
+  const [replyingTo, setReplyingTo] = useState(null);
 
   // State for recent chat history (recommendations)
   const [recentPrompts, setRecentPrompts] = useState(() => {
@@ -91,12 +94,17 @@ export default function AskAIPage() {
     // Only save to history if it's a NEW user question (not a retry)
     if (!isRetry) {
       savePromptToHistory(text);
-      const userMsg = { role: 'user', text };
+      const userMsg = {
+        role: 'user',
+        text,
+        replyTo: replyingTo // Attach reply context
+      };
       setMessages((prev) => [...prev, userMsg]);
     }
 
     setLoading(true);
     setQuestion(''); // Clear input immediately for better UX
+    setReplyingTo(null); // Clear reply state
 
     try {
       const resp = await fetchWithAuth('/api/ask-ai', {
@@ -105,7 +113,8 @@ export default function AskAIPage() {
         body: JSON.stringify({
           question: text,
           history: messages, // Send recent chat history for context
-          isRetry
+          isRetry,
+          replyContext: replyingTo // Send the context of the reply
         }),
       });
 
@@ -214,13 +223,38 @@ export default function AskAIPage() {
                 transition={{ duration: 0.2 }}
                 className={`flex w-full ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-4 group`}
               >
-                <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%]`}>
+                <div className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'} max-w-[80%] relative`}>
+
+                  {/* Reply Button (Hover) */}
+                  <button
+                    onClick={() => setReplyingTo(msg)}
+                    className={`absolute bottom-0 mb-2 p-1.5 rounded-full bg-white/80 hover:bg-white text-slate-400 hover:text-blue-500 shadow-sm opacity-0 group-hover:opacity-100 transition-all duration-200 z-10 ${msg.role === 'user' ? '-left-8' : '-right-8'
+                      }`}
+                    title="Reply"
+                  >
+                    <Reply size={14} />
+                  </button>
+
+                  {/* Message Bubble */}
                   <div
                     className={`relative px-4 py-2.5 text-xs leading-snug font-fk-grotesk ${msg.role === 'user'
                       ? 'bg-[#007AFF] text-white rounded-[20px] rounded-tr-sm'
                       : 'bg-[#F2F2F7] text-slate-900 rounded-[20px] rounded-tl-sm border border-black/5'
                       }`}
                   >
+                    {/* Quoted Reply Context */}
+                    {msg.replyTo && (
+                      <div className={`mb-2 pl-2 border-l-2 text-[10px] font-medium opacity-80 ${msg.role === 'user' ? 'border-white/40 text-blue-50' : 'border-slate-300 text-slate-500'
+                        }`}>
+                        <div className="text-[9px] uppercase tracking-wider opacity-70 mb-0.5">
+                          Reply to {msg.replyTo.role === 'ai' ? 'Owlit' : 'You'}
+                        </div>
+                        <div className="line-clamp-2 italic">
+                          "{msg.replyTo.text}"
+                        </div>
+                      </div>
+                    )}
+
                     <div className="whitespace-pre-wrap tracking-wide">
                       {msg.text.replace(/\*\*/g, '').split(/([£$]?\d+(?:[.,]\d+)?)/).map((part, i) =>
                         /^[£$]?\d+(?:[.,]\d+)?$/.test(part) ? (
@@ -244,6 +278,13 @@ export default function AskAIPage() {
                         >
                           <RefreshCw className="w-3 h-3" />
                         </button>
+                        <button
+                          onClick={() => setReplyingTo(msg)}
+                          className="flex items-center gap-1.5 mt-1.5 px-2 py-0.5 text-xs font-medium text-slate-400 hover:text-blue-500 transition-colors border border-black/5 rounded-full bg-white/50 backdrop-blur-sm shadow-sm"
+                          title="Reply"
+                        >
+                          <Reply className="w-3 h-3" />
+                        </button>
                       </div>
 
                       {msg.suggested_questions && msg.suggested_questions.length > 0 && (
@@ -253,6 +294,7 @@ export default function AskAIPage() {
                               key={sIdx}
                               onClick={() => handleSend(suggestion)}
                               className="text-xs bg-white/50 hover:bg-white border border-black/5 rounded-full px-3 py-1.5 text-slate-600 font-medium transition-all text-left shadow-sm hover:shadow active:scale-95"
+                              title="Ask this"
                             >
                               {suggestion}
                             </button>
@@ -284,41 +326,63 @@ export default function AskAIPage() {
         </main>
 
         {/* Input Area */}
-        <footer className="p-4 border-t border-black/5 bg-white/50 backdrop-blur-xl z-10">
+        <footer className="z-10 bg-white/50 backdrop-blur-xl border-t border-black/5">
+          {/* Replying Status Banner */}
+          <AnimatePresence>
+            {replyingTo && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 pt-3 pb-1 flex justify-between items-center text-xs text-slate-600 bg-slate-50/50"
+              >
+                <div className="flex flex-col border-l-2 border-blue-400 pl-2">
+                  <span className="font-semibold text-[10px] text-blue-500 uppercase tracking-wider">Replying to {replyingTo.role === 'ai' ? 'Owlit' : 'You'}</span>
+                  <span className="line-clamp-1 italic opacity-80">"{replyingTo.text}"</span>
+                </div>
+                <button onClick={() => setReplyingTo(null)} className="p-1 rounded-full hover:bg-slate-200">
+                  <X size={14} />
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <form
             onSubmit={sendMessage}
-            className="flex items-center gap-2 bg-white border border-black/5 px-3 py-1.5 rounded-[24px] shadow-sm transition-all focus-within:shadow-md min-h-[40px]"
+            className="flex items-center gap-2 p-4"
           >
-            <input
-              type="text"
-              value={question}
-              onChange={(e) => setQuestion(e.target.value)}
-              placeholder="Ask Me"
-              className="flex-1 bg-transparent border-none outline-none text-slate-900 placeholder:text-slate-400 text-xs leading-snug font-fk-grotesk font-semibold h-full ml-1"
-              disabled={loading}
-            />
+            <div className="flex-1 flex items-center bg-white border border-black/5 px-3 py-1.5 rounded-[24px] shadow-sm transition-all focus-within:shadow-md min-h-[40px]">
+              <input
+                type="text"
+                value={question}
+                onChange={(e) => setQuestion(e.target.value)}
+                placeholder={replyingTo ? "Type your reply..." : "Ask Me"}
+                className="flex-1 bg-transparent border-none outline-none text-slate-900 placeholder:text-slate-400 text-xs leading-snug font-fk-grotesk font-semibold h-full ml-1"
+                disabled={loading}
+              />
 
-            <AnimatePresence>
-              {question.trim().length > 0 && (
-                <motion.button
-                  initial={{ scale: 0, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  exit={{ scale: 0, opacity: 0 }}
-                  whileTap={{ scale: 0.9 }}
-                  type="submit"
-                  disabled={loading}
-                  className="w-7 h-7 flex items-center justify-center rounded-full bg-[#007AFF] text-white shadow-sm hover:bg-[#006fe6] transition-colors"
-                >
-                  {loading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <div className="mb-0.5 ml-0.5">
-                      <Send className="w-3.5 h-3.5 fill-current" />
-                    </div>
-                  )}
-                </motion.button>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {question.trim().length > 0 && (
+                  <motion.button
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    whileTap={{ scale: 0.9 }}
+                    type="submit"
+                    disabled={loading}
+                    className="w-7 h-7 flex items-center justify-center rounded-full bg-[#007AFF] text-white shadow-sm hover:bg-[#006fe6] transition-colors ml-2"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <div className="mb-0.5 ml-0.5">
+                        <Send className="w-3.5 h-3.5 fill-current" />
+                      </div>
+                    )}
+                  </motion.button>
+                )}
+              </AnimatePresence>
+            </div>
           </form>
         </footer>
       </AnimatedSection>
