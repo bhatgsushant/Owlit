@@ -14,8 +14,7 @@ Columns:
 - transaction_date (timestamp): Date of purchase.
 - merchant_name (text): Name of the merchant (e.g. "Tesco", "Uber").
 - item (text): Name of the specific product (e.g. "Milk 2L").
-- price (numeric): Unit price in GBP (£).
-- quantity (numeric): Number of units purchased.
+- total_price (numeric): FINAL PRICE for the line item. USE THIS FOR ALL CALCULATIONS.
 - main_category (text): High-level category (e.g. "Groceries", "Transport").
 - sub_category (text): Granular category (e.g. "Dairy", "Taxi").
 - normalized_name (text): Cleaned product name for better matching.
@@ -35,6 +34,10 @@ const DATA_RULES = `
    - Use \`date_trunc('week', CURRENT_DATE)\` for "this week".
    - Do NOT use \`EXTRACT(DOW...)\` or complex arithmetic.
    - If no date is specified, DEFAULT to **CURRENT MONTH**.
+3. **PRICING RULES (STRICT):**
+   - **ALWAYS** use \`total_price\` for spend aggregations.
+   - **NEVER** use \`price\` or \`quantity\` columns (they are unreliable or do not exist).
+   - **NEVER** calculate \`price * quantity\`.
 `;
 
 const SEARCH_MATCHING_RULES = `
@@ -45,8 +48,8 @@ const SEARCH_MATCHING_RULES = `
      - "Berries" -> \`ILIKE '%berr%'\`
      - "Pharmacy" -> \`ILIKE '%pharma%'\`
    - **BROAD SEARCH:** Check ALL descriptive columns using OR logic:
-     - \`item\`, \`main_category\`, \`sub_category\`, \`store_main_category\`, \`normalized_name\`.
-     - Example: \`AND (item ILIKE '%stem%' OR main_category ILIKE '%stem%' ...)\`
+     - \`item\`, \`main_category\`, \`sub_category\`, \`store_main_category\`, \`store_type\`, \`normalized_name\`.
+     - Example: \`AND (item ILIKE '%root%' OR main_category ILIKE '%root%' OR store_type ILIKE '%root%' ...)\`
 
 2. **FUZZY MATCHING:**
    - Use \`ILIKE\` with generous wildcards (e.g., \`%term%\`) for all text comparisons.
@@ -56,8 +59,9 @@ const SEARCH_MATCHING_RULES = `
 const AGGREGATION_RULES = `
 1. **MANDATORY AGGREGATION:**
    - If the user asks "How much did I spend..." or "Total...", you **MUST** calculate it in SQL.
-   - USE: \`SELECT SUM(price * quantity) AS total_spent ...\`
+   - USE: \`SELECT COALESCE(SUM(total_price), 0) AS total_spent ...\`
    - **FORBIDDEN:** Do NOT return raw rows for the client to sum.
+   - **FORBIDDEN:** Do NOT mulitply price * quantity.
 `;
 
 const RESPONSE_FORMAT = `
@@ -82,6 +86,6 @@ ${RESPONSE_FORMAT}
 `;
 
 module.exports = {
-    SQL_AGENT_SYSTEM_PROMPT,
-    VIEW_NAME
+   SQL_AGENT_SYSTEM_PROMPT,
+   VIEW_NAME
 };

@@ -477,7 +477,7 @@ export default function Insights() {
   const { user, loading: authLoading, fetchWithAuth, userStoreOverrides } = useAuth();
   const isMobile = useIsMobile();
   const navigate = useNavigate();
-  const [receipts, setReceipts] = useState([]);
+  const [lineItems, setLineItems] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
@@ -637,7 +637,7 @@ export default function Insights() {
         const msg = await response.text();
         throw new Error(msg || 'Failed to delete receipt.');
       }
-      setReceipts((prev) => prev.filter((r) => r.id !== receiptId));
+      setLineItems((prev) => prev.filter((item) => item.receipt_id !== receiptId));
     } catch (error) {
       console.error(error);
       alert('Failed to delete receipt.');
@@ -685,6 +685,14 @@ export default function Insights() {
         }
 
         if (activeScope === 'family') {
+          // Keep API family/receipts for now but treat result carefully
+          // NOTE: Only if family endpoint returns line items. Assuming it still returns receipts JSON.
+          // IF family endpoint returns receipts, we must FLATTEN them to ensure consistent schema usage.
+          // BUT the user said "Prefer... /api/family/receipts". 
+          // Let's assume for now we keep family receipts as 'receipts' logic separate?
+          // WAIT: "Fetch flat line items, not receipts... Prefer /api/family/receipts"
+          // If /api/family/receipts returns receipts, I should map it to line items.
+
           const response = await fetchWithAuth('/api/family/receipts');
           if (!response.ok) {
             const message = await readErrorMessage(response);
@@ -692,18 +700,30 @@ export default function Insights() {
           }
           const payload = await response.json();
           if (isMounted) {
-            setReceipts(Array.isArray(payload?.receipts) ? payload.receipts : []);
+            const familyReceipts = Array.isArray(payload?.receipts) ? payload.receipts : [];
+            // Flatten strictly for consistency
+            const flat = familyReceipts.flatMap(r =>
+              (r.line_items || []).map(li => ({
+                ...li,
+                receipt_id: r.id,
+                transaction_date: r.transaction_date || r.date,
+                merchant_name: r.merchant_name,
+                store_type: r.store_type
+              }))
+            );
+            setLineItems(flat);
           }
         } else {
+          // DIRECT SUPABASE QUERY - NEW SCHEMA
           const { data, error } = await supabase
-            .from('v_receipts_enriched')
+            .from('v_receipt_line_items_enriched') // CHANGED
             .select('*')
             .eq('user_id', user.id)
             .order('transaction_date', { ascending: true });
 
           if (error) throw error;
           if (isMounted) {
-            setReceipts(Array.isArray(data) ? data : []);
+            setLineItems(Array.isArray(data) ? data : []);
           }
         }
       } catch (err) {
@@ -724,7 +744,40 @@ export default function Insights() {
   }, [authLoading, user, activeScope, fetchWithAuth]);
 
   const processedReceipts = useMemo(() => {
-    if (!receipts.length) return [];
+    if (!lineItems.length) return [];
+
+    // Group flat lines back into receipts for the Table/UI
+    const receiptMap = new Map();
+
+    lineItems.forEach((item) => {
+      const receiptId = item.receipt_id;
+      if (!receiptId) return;
+
+      if (!receiptMap.has(receiptId)) {
+        receiptMap.set(receiptId, {
+          id: receiptId,
+          merchant_name: item.merchant_name,
+          transaction_date: item.transaction_date, // Ensuring date provided by view
+          store_type: item.store_type, // Will resolve below if needed
+          total_amount: 0,
+          line_items: [],
+          // Keep raw fields that might be expected if present on first item
+          created_at: item.created_at,
+          image_url: item.image_url
+        });
+      }
+
+      const receipt = receiptMap.get(receiptId);
+
+      // STRICT PRICING RULE: Use total_price. Default 0 if missing.
+      const price = Number(item.total_price);
+      const safePrice = Number.isFinite(price) ? price : 0;
+
+      receipt.total_amount += safePrice;
+      receipt.line_items.push(item);
+    });
+
+    const grouped = Array.from(receiptMap.values());
 
     const resolveStoreType = (receipt) => {
       const name = (receipt.merchant_name || '').trim();
@@ -737,19 +790,8 @@ export default function Insights() {
       return match?.store_type || fallbackInfo?.StoreName_category || receipt.store_type || 'Other';
     };
 
-    return receipts.map((receipt) => {
-      const items = Array.isArray(receipt.line_items) ? receipt.line_items : [];
-      const itemsTotal = items.reduce((sum, item) => {
-        const price = Number(item.line_total ?? item.price ?? item.Price ?? 0);
-        return sum + price;
-      }, 0);
-
-      const rawDate =
-        receipt.receipt_date ||
-        receipt.transaction_date ||
-        receipt.date ||
-        receipt.Date ||
-        null;
+    return grouped.map((receipt) => {
+      const rawDate = receipt.transaction_date;
       let parsedDate = null;
       if (rawDate) {
         try {
@@ -763,13 +805,12 @@ export default function Insights() {
       return {
         ...receipt,
         store_type: resolveStoreType(receipt),
-        line_items: items,
-        total_amount: Number(receipt.total_amount) > 0 ? Number(receipt.total_amount) : itemsTotal,
         dateObj: isValidDate ? parsedDate : null,
-        itemsTotal,
+        // Ensure itemsTotal matches total_amount
+        itemsTotal: receipt.total_amount,
       };
     });
-  }, [receipts]);
+  }, [lineItems, storeInfoList, userStoreOverrides]);
 
   const dateRangeFilteredReceipts = useMemo(() => {
     const startDate = dateRange.start ? parseISO(String(dateRange.start)) : null;
@@ -1111,15 +1152,18 @@ export default function Insights() {
       merchantMap.set(merchantName, (merchantMap.get(merchantName) || 0) + receiptTotal);
 
       receipt.line_items.forEach((item, index) => {
-        const price = Number(item.price ?? item.Price ?? 0);
-        const quantityRaw = item.quantity ?? item.Quantity ?? 1;
-        const quantity = Number(quantityRaw);
-        const multiplier = Number.isFinite(quantity) && quantity > 0 ? quantity : 1;
-        const lineTotal = price * multiplier;
+        // STRICT CONTRACT: Use total_price.
+        // If line_total is present (from processedReceipts reconstruction), use it.
+        // Fallback to item.total_price from the view.
+        const lineTotal = Number(item.line_total ?? item.total_price ?? item.total ?? 0);
         if (lineTotal <= 0) return;
 
+        // strict: price is informational only
+        const price = Number(item.unit_price ?? item.price ?? 0);
+        const quantity = Number(item.quantity ?? 1);
+
         const mainCategory =
-          formatCategoryLabel(item.main_category || item.Category || 'Other') || 'Other';
+          formatCategoryLabel(item.main_category || item.category || 'Other') || 'Other';
         const subCategory =
           formatCategoryLabel(item.sub_category || item.SubCategory || 'Misc') || 'Misc';
 
@@ -1147,7 +1191,7 @@ export default function Insights() {
           id: `${receipt.id || receipt.receipt_id || 'receipt'}-${index}`,
           name: itemName,
           total: roundToTwo(lineTotal),
-          quantity: multiplier,
+          quantity: quantity,
           unitPrice: price,
           merchant: receipt.merchant_name || 'Unknown merchant',
           date: receipt.transaction_date,
@@ -1165,6 +1209,8 @@ export default function Insights() {
             historyMap.set(dateKey, { totalPrice: 0, count: 0 });
           }
           const historyEntry = historyMap.get(dateKey);
+          // For price trend, we track UNIT PRICE, not total.
+          // This is the ONLY place unit_price is used for analytics (trend).
           historyEntry.totalPrice += price;
           historyEntry.count += 1;
         }

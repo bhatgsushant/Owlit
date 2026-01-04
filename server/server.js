@@ -43,7 +43,7 @@ const ASK_AI_SUPPORTED_OPERATIONS = new Set(['total_spend', 'item_spend', 'top_m
 // --- PROMPTS ---
 const ROUTER_SYSTEM_PROMPT = `
 You are the Router. Classify user questions into: [SQL_AGENT] or [VECTOR_STORE].
-DATA: Table 'v_receipt_line_items_enriched' has columns: transaction_date, merchant_name, item, price, quantity, main_category, sub_category.
+DATA: Table 'v_receipt_line_items_enriched' has columns: transaction_date, merchant_name, item, total_price, main_category, sub_category.
 LOGIC:
 - SQL_AGENT: DEFAULT CHOICE. Use this for ANY question about items, spending, prices, dates, categories, "favorite", "most bought", "how much", or analysis.
 - VECTOR_STORE: ONLY for questions like "Show me receipts", "What did I buy", or specific text search (e.g. "Find receipts with text X").
@@ -790,6 +790,22 @@ ${tesseractText ? `Tesseract.js pre-scanned the following text, which may contai
 ${tesseractText}
 
 ` : ''}
+
+CRITICAL INSTRUCTION FOR DISCOUNTS (BLOCK LOGIC):
+Treat the text as a sequence of "Item Blocks".
+A block starts with an Item Name & Price and ends *only* when the NEXT Item Name & Price appears.
+Scan the ENTIRE block between two items for discount lines.
+- IGNORE garbage text (like "viqqs...").
+- If you find "Cc Price", "Savings", "Offer" *anywhere* in that block, apply it to the item at the start of the block.
+
+Example Block:
+"Almonds £5.25"  <-- Item Start
+"viqqs noise"    <-- Ignore
+"Cc £4.50"       <-- Valid Discount in block -> Apply! 4.50 is the price.
+"Bananas..."     <-- Next Block Starts
+
+Do not let noise break the link between Item and Discount.
+
 ${CATEGORY_PROMPT_TEXT}
 Output clean structured JSON in this format. The date should be in DD/MM/YYYY format. if you cannot find a date, use today's date as a sensible defaults:
 {
@@ -1331,6 +1347,7 @@ async function processDocumentWithDocAI(buffer, mimeType) {
   try {
     const [result] = await docAIClient.processDocument(request);
     console.log('✅ Document AI processing complete.');
+    console.log('📜 Document AI Raw Text:\n', result.document.text);
     return result.document.text;
   } catch (error) {
     console.error('❌ Google Document AI API error:', error);

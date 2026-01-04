@@ -749,8 +749,7 @@ function EditableReceipt({ data, setData, onSave, saveUserCategoryPreference, fi
   useEffect(() => {
     const newTotal = (data.line_items || []).reduce((acc, item) => {
       const price = parseNumberValue(item.price);
-      const qty = parseNumberValue(item.quantity);
-      return acc + price * (Number.isFinite(qty) ? qty : 0);
+      return acc + price;
     }, 0);
     setData(prev => ({ ...prev, total_amount: newTotal }));
   }, [data.line_items, setData]);

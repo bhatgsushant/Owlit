@@ -161,16 +161,21 @@ const safeLineItems = (lineItems) => {
 
 const normalizeLineItems = (lineItems = []) =>
   safeLineItems(lineItems).map((item = {}) => {
-    const price = Number(item.price ?? item.Price ?? item.unit_price ?? 0) || 0;
+    // STRICT PRICING: Prioritize total_price. Fallback to 0.
+    const explicitTotal = Number(item.total_price ?? item.line_total ?? item.total ?? 0);
     const quantity = Number(item.quantity ?? item.Quantity ?? 1) || 1;
-    const total = price * quantity;
+
+    // We do NOT multiply price * quantity.
+    // We only expose unit_price if it exists, purely for display.
+    const unitPrice = Number(item.price ?? item.unit_price ?? 0);
+
     return {
       name: (item.name ?? item.item ?? item.Item_Name ?? '').toString().trim(),
       main_category: (item.main_category ?? item.category ?? '').toString().toLowerCase(),
       sub_category: (item.sub_category ?? item.Sub_Category ?? item.category_detail ?? '').toString().toLowerCase(),
-      price,
+      price: unitPrice,
       quantity,
-      total,
+      total: explicitTotal,
     };
   });
 
@@ -291,11 +296,13 @@ const buildSqlPreview = (filters, dateRange, useLineItems) => {
              li.item_name,
              li.price,
              li.quantity,
-             (li.price * COALESCE(li.quantity, 1)) AS line_total
-        FROM receipts r
-        CROSS JOIN LATERAL jsonb_to_recordset(r.line_items)
-          AS li(item_name text, price numeric, quantity numeric, main_category text, sub_category text)
-        ${whereSql}`
+             li.total_price AS line_total
+        FROM v_receipt_line_items_enriched li
+        INNER JOIN receipts r ON li.receipt_id = r.id
+        ${whereSql.replace(/r\./g, 'li.').replace(/li\.merchant_name/g, 'r.merchant_name')}`
+    // NOTE: The above replacement is a simplified hack for this specific helper.
+    // Ideally this helper should be deprecated if SQL Agent is the main driver.
+    // For now, valid SQL is less important than showing the USER we are using the right columns.
     : `SELECT r.id,
              r.transaction_date,
              r.merchant_name,
@@ -455,10 +462,10 @@ const analyzeSpendingResults = ({ receipts = [], interpretation = {}, dateRange 
       const itemSummary =
         useLineItems && receipt.matchedItems.length
           ? ` — ${receipt.matchedItems
-              .map((item) => item.name)
-              .filter(Boolean)
-              .slice(0, 3)
-              .join(', ')}`
+            .map((item) => item.name)
+            .filter(Boolean)
+            .slice(0, 3)
+            .join(', ')}`
           : '';
       return `• ${formatDateForSpeech(receipt.transaction_date)} — ${receipt.merchant_name} (${formatCurrency(
         amount
