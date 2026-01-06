@@ -138,58 +138,6 @@ const selectActiveInvite = (invites = []) => {
   }) || null;
 };
 
-// --- Chat History Schema & Helpers ---
-const initChatHistoryTables = async () => {
-  try {
-    // 1. Chats Table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS chats (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        user_id UUID NOT NULL REFERENCES auth.users(id),
-        title TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-
-    // 2. Messages Table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS chat_messages (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        chat_id UUID NOT NULL REFERENCES chats(id) ON DELETE CASCADE,
-        content TEXT,
-        is_user BOOLEAN DEFAULT FALSE,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        items JSONB,
-        memory_id TEXT,
-        suggested_questions JSONB,
-        receipt_data JSONB,
-        style TEXT
-      );
-    `);
-    console.log('✅ Chat History tables initialized.');
-  } catch (err) {
-    console.error('❌ Failed to init chat tables:', err);
-  }
-};
-
-// Initialize on start
-initChatHistoryTables();
-
-// Helper to save a message
-const saveChatMessage = async (chatId, messageData) => {
-  const { content, isUser, items, memoryId, suggestedQuestions, receiptData, style } = messageData;
-  try {
-    await pool.query(
-      `INSERT INTO chat_messages (chat_id, content, is_user, items, memory_id, suggested_questions, receipt_data, style)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-      [chatId, content, isUser, JSON.stringify(items), memoryId, JSON.stringify(suggestedQuestions), JSON.stringify(receiptData), style]
-    );
-  } catch (e) {
-    console.error('Failed to save message:', e);
-  }
-};
-
 const getUserFamilyId = async (userId) => {
   const membership = await getUserFamilyMembership(userId);
   return membership?.family_id || null;
@@ -2486,85 +2434,12 @@ app.post('/api/feedback', authenticateRequest, async (req, res) => {
   }
 });
 
-// --- Chat History Routes ---
-
-// List Recent Chats
-app.get('/api/chats', authenticateRequest, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const { rows } = await pool.query(
-      `SELECT id, title, created_at 
-       FROM chats 
-       WHERE user_id = $1 
-       ORDER BY updated_at DESC 
-       LIMIT 50`,
-      [userId]
-    );
-    res.json(rows);
-  } catch (err) {
-    console.error('List Chats Error:', err);
-    res.status(500).json({ error: 'Failed to list chats' });
-  }
-});
-
-// Get Single Chat History
-app.get('/api/chats/:id', authenticateRequest, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const chatId = req.params.id;
-
-    // Verify ownership
-    const chatCheck = await pool.query('SELECT id FROM chats WHERE id = $1 AND user_id = $2', [chatId, userId]);
-    if (chatCheck.rows.length === 0) {
-      return res.status(404).json({ error: 'Chat not found' });
-    }
-
-    const { rows } = await pool.query(
-      `SELECT id, content, is_user as "isUser", created_at as timestamp, 
-              items, memory_id as "memoryId", suggested_questions as "suggestedQuestions", 
-              receipt_data as "receiptData", style
-       FROM chat_messages 
-       WHERE chat_id = $1 
-       ORDER BY created_at ASC`,
-      [chatId]
-    );
-
-    res.json(rows);
-  } catch (err) {
-    console.error('Get Chat Error:', err);
-    res.status(500).json({ error: 'Failed to retrieve chat' });
-  }
-});
-
-// Update Ask AI to Save History
 app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
   const { question, history = [], isRetry = false } = req.body;
-  let { chat_id } = req.body; // Client can send existing chat_id
   const userId = req.user?.id;
   if (!userId) return res.status(401).json({ error: 'Unauthorized' });
 
   try {
-    // 1. Create Chat if needed
-    if (!chat_id) {
-      const title = question.length > 50 ? question.substring(0, 50) + "..." : question;
-      const newChat = await pool.query(
-        'INSERT INTO chats (user_id, title) VALUES ($1, $2) RETURNING id',
-        [userId, title]
-      );
-      chat_id = newChat.rows[0].id;
-    } else {
-      // Update timestamp
-      await pool.query('UPDATE chats SET updated_at = NOW() WHERE id = $1', [chat_id]);
-    }
-
-    // 2. Save User Message
-    await saveChatMessage(chat_id, {
-      content: question,
-      isUser: true,
-      style: 'normal'
-    });
-
-    // 3. Process with AI
     const result = await AskController.processQuestion({
       userId,
       question,
@@ -2572,18 +2447,7 @@ app.post('/api/ask-ai', authenticateRequest, async (req, res) => {
       isRetry
     });
 
-    // 4. Save AI Response
-    await saveChatMessage(chat_id, {
-      content: result.answer,
-      isUser: false,
-      items: result.itemsUsed, // Assuming Controller returns this
-      memoryId: result.usedMemoryId,
-      suggestedQuestions: result.suggestedQuestions,
-      style: 'normal'
-    });
-
     res.json({
-      chat_id, // Return ID so client can continue conversation
       tool: result.tool,
       answer: result.answer,
       memory_id: result.usedMemoryId,
@@ -3812,37 +3676,124 @@ app.get('/api/insights/line-items', authenticateRequest, async (req, res) => {
     }));
 
     res.json(mapped);
-  } catch (error) {
-    console.error('Error fetching insight line items:', error);
-    res.status(500).json({ error: 'Failed to fetch line items.' });
+
+  } catch (err) {
+    console.error("Error fetching merchant line items:", err);
+    res.status(500).json({ error: "Database error: " + err.message });
   }
 });
 
-// --- Analytics: All Line Items (Enriched) ---
-app.get('/api/analytics/line-items', authenticateRequest, async (req, res) => {
+// --- Analytics Dashboard Endpoint ---
+app.get('/api/analytics/overview', authenticateRequest, async (req, res) => {
   const userId = req.user.id;
+  const { time_range = 'month' } = req.query; // week, month, quarter, year, all
+
   try {
-    const query = `
-      SELECT 
-        transaction_date, 
-        merchant_name,
-        item,
-        normalized_name,
-        unit_price,
-        quantity,
-        total_price, 
-        main_category,
-        sub_category,
-        store_type
+    let dateFilter = '';
+
+    // Determine Date Filter
+    if (time_range === 'week') {
+      dateFilter = "AND transaction_date >= date_trunc('week', CURRENT_DATE)";
+    } else if (time_range === 'month') {
+      dateFilter = "AND transaction_date >= date_trunc('month', CURRENT_DATE)";
+    } else if (time_range === 'quarter') {
+      dateFilter = "AND transaction_date >= date_trunc('quarter', CURRENT_DATE)";
+    } else if (time_range === 'year') {
+      dateFilter = "AND transaction_date >= date_trunc('year', CURRENT_DATE)"; // This Year
+    }
+    // 'all' implies no filter (or could set a reasonable limit if needed)
+
+    // 1. Category Drilldown (Main Category)
+    const categoryQuery = `
+      SELECT main_category, SUM(total_price) as total
       FROM v_receipt_line_items_enriched
-      WHERE user_id = $1
-      ORDER BY transaction_date DESC;
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY main_category
+      ORDER BY total DESC
     `;
-    const result = await pool.query(query, [userId]);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching analytics line items:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data.' });
+
+    // 2. Sub-category Breakdown (Pie Chart)
+    const subCategoryQuery = `
+      SELECT sub_category, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY sub_category
+      ORDER BY total DESC
+      LIMIT 10
+    `;
+
+    // 3. Timeline Spend Trend (Line Graph)
+    // Granularity depends on time_range. 
+    // Short ranges (week/month) -> Daily. Long ranges (year/all) -> Monthly.
+    let groupBy = "date_trunc('month', transaction_date)";
+    if (time_range === 'week' || time_range === 'month') {
+      groupBy = "date_trunc('day', transaction_date)";
+    }
+
+    const trendQuery = `
+      SELECT ${groupBy} as period, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY period
+      ORDER BY period ASC
+    `;
+
+    // 4. Top Merchants (Bar Graph)
+    const merchantQuery = `
+      SELECT merchant_name, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY merchant_name
+      ORDER BY total DESC
+      LIMIT 10
+    `;
+
+    // 5. Top Store Types (Bar Graph)
+    const storeTypeQuery = `
+      SELECT store_main_category, SUM(total_price) as total
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY store_main_category
+      ORDER BY total DESC
+    `;
+
+    // 6. Top Items Table (Normalized)
+    const itemsQuery = `
+      SELECT item, SUM(total_price) as total, COUNT(*) as count, AVG(unit_price) as avg_price
+      FROM v_receipt_line_items_enriched
+      WHERE user_id = $1 ${dateFilter}
+      GROUP BY item
+      ORDER BY total DESC
+      LIMIT 50
+    `;
+
+    // Execute Parallel
+    const [catRes, subRes, trendRes, merchRes, storeRes, itemRes] = await Promise.all([
+      pool.query(categoryQuery, [userId]),
+      pool.query(subCategoryQuery, [userId]),
+      pool.query(trendQuery, [userId]),
+      pool.query(merchantQuery, [userId]),
+      pool.query(storeTypeQuery, [userId]),
+      pool.query(itemsQuery, [userId])
+    ]);
+
+    res.json({
+      categories: catRes.rows.map(r => ({ label: r.main_category || 'Unknown', value: parseFloat(r.total) })),
+      sub_categories: subRes.rows.map(r => ({ label: r.sub_category || 'Unknown', value: parseFloat(r.total) })),
+      trend: trendRes.rows.map(r => ({ date: r.period, value: parseFloat(r.total) })),
+      merchants: merchRes.rows.map(r => ({ label: r.merchant_name || 'Unknown', value: parseFloat(r.total) })),
+      store_types: storeRes.rows.map(r => ({ label: r.store_main_category || 'Unknown', value: parseFloat(r.total) })),
+      items: itemRes.rows.map(r => ({
+        name: r.item,
+        total: parseFloat(r.total),
+        count: parseInt(r.count),
+        avg_price: parseFloat(r.avg_price)
+      }))
+    });
+
+  } catch (err) {
+    console.error("Error fetching analytics overview:", err);
+    res.status(500).json({ error: "Failed to fetch analytics" });
   }
 });
 
