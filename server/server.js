@@ -141,6 +141,10 @@ const selectActiveInvite = (invites = []) => {
 // --- Chat History Schema & Helpers ---
 const initChatHistoryTables = async () => {
   try {
+    console.log('🔄 Initializing Chat History tables...');
+    // Enable pgcrypto for UUID generation
+    await pool.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto";');
+
     // 1. Chats Table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS chats (
