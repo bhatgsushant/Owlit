@@ -1352,7 +1352,9 @@ async function processDocumentWithDocAI(buffer, mimeType) {
     return result.document.text;
   } catch (error) {
     console.error('❌ Google Document AI API error:', error);
-    throw new Error('Failed to process document with Google Document AI.');
+    // Extract meaningful error message if available (gRPC errors often have 'details' or 'statusDetails')
+    const reason = error.reason || error.message || 'Unknown error';
+    throw new Error(`Failed to process document with Google Document AI: ${reason}`);
   }
 }
 
@@ -2483,8 +2485,20 @@ app.get('/auth/google', (req, res, next) => {
 });
 
 app.get('/auth/google/callback',
-  // Disable session creation for the callback, as we are using JWT tokens
-  passport.authenticate('google', { failureRedirect: '/login', session: false }),
+  (req, res, next) => {
+    passport.authenticate('google', { session: false }, (err, user, info) => {
+      if (err) {
+        console.error('Passport Authentication Error:', err);
+        return res.redirect(`${CLIENT_URL}/login?error=server_error`);
+      }
+      if (!user) {
+        console.warn('Passport Authentication Failed: No user returned');
+        return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
+      }
+      req.user = user;
+      next();
+    })(req, res, next);
+  },
   (req, res) => {
     try {
       // Issue a JWT for the authenticated user

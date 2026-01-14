@@ -49,7 +49,8 @@ passport.deserializeUser(async (id, done) => {
 passport.use(new GoogleStrategy({
   clientID: GOOGLE_CLIENT_ID,
   clientSecret: GOOGLE_CLIENT_SECRET,
-  callbackURL: '/auth/google/callback'
+  callbackURL: '/auth/google/callback',
+  proxy: true
 }, async (accessToken, refreshToken, profile, done) => {
   try {
     const userProfile = {
@@ -70,12 +71,13 @@ passport.use(new GoogleStrategy({
 
     if (error) {
       console.error("Error saving user to Supabase:", error);
-      return done(error, null);
+      return done(null, false);
     }
 
     return done(null, data);
   } catch (err) {
-    return done(err, null);
+    console.error("Unexpected error in Google OAuth Strategy:", err);
+    return done(null, false);
   }
 }));
 
