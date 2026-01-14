@@ -71,13 +71,12 @@ passport.use(new GoogleStrategy({
 
     if (error) {
       console.error("Error saving user to Supabase:", error);
-      return done(null, false);
+      return done(error, null);
     }
 
     return done(null, data);
   } catch (err) {
-    console.error("Unexpected error in Google OAuth Strategy:", err);
-    return done(null, false);
+    return done(err, null);
   }
 }));
 
