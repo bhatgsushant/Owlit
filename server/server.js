@@ -2485,20 +2485,8 @@ app.get('/auth/google', (req, res, next) => {
 });
 
 app.get('/auth/google/callback',
-  (req, res, next) => {
-    passport.authenticate('google', { session: false }, (err, user, info) => {
-      if (err) {
-        console.error('Passport Authentication Error:', err);
-        return res.redirect(`${CLIENT_URL}/login?error=server_error`);
-      }
-      if (!user) {
-        console.warn('Passport Authentication Failed: No user returned');
-        return res.redirect(`${CLIENT_URL}/login?error=auth_failed`);
-      }
-      req.user = user;
-      next();
-    })(req, res, next);
-  },
+  // Disable session creation for the callback, as we are using JWT tokens
+  passport.authenticate('google', { failureRedirect: '/login', session: false }),
   (req, res) => {
     try {
       // Issue a JWT for the authenticated user

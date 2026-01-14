@@ -297,7 +297,7 @@ const MerchantTooltip = ({ active, payload }) => {
   const datum = payload[0]?.payload;
   if (!datum) return null;
   return (
-    <div className="rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-xs text-white shadow-xl">
+    <div className="rounded-lg border border-white/10 bg-slate-900/90 px-3 py-2 text-xs text-white shadow-xl" style={{ fontFamily: 'Roboto, sans-serif' }}>
       <p className="font-semibold">{datum.name}</p>
       <p className="text-gray-200">Spend: {formatCurrency(datum.value)}</p>
       <p className="text-gray-400">Share: {datum.percent.toFixed(1)}%</p>
@@ -2803,7 +2803,7 @@ export default function Insights() {
               <ReXAxis
                 type="number"
                 domain={merchantXAxisDomain}
-                tick={{ fill: '#E2E8F0', fontSize: 12, fontWeight: 500 }}
+                tick={{ fill: '#E2E8F0', fontSize: 12, fontWeight: 500, fontFamily: 'Roboto, sans-serif' }}
                 tickLine={false}
                 axisLine={{ stroke: 'rgba(148, 163, 184, 0.4)' }}
                 tickFormatter={merchantXAxisFormatter}
@@ -2812,7 +2812,7 @@ export default function Insights() {
                 type="category"
                 dataKey="name"
                 width={isMobile ? 64 : 120}
-                tick={{ fill: '#F8FAFC', fontSize: 12, fontWeight: 500 }}
+                tick={{ fill: '#F8FAFC', fontSize: 12, fontWeight: 500, fontFamily: 'Roboto, sans-serif' }}
                 tickLine={false}
                 axisLine={false}
               />
@@ -2840,6 +2840,7 @@ export default function Insights() {
                       : formatCurrency(value)
                   }
                   className="text-xs fill-white"
+                  style={{ fontFamily: 'Roboto, sans-serif' }}
                 />
               </ReBar>
             </ReBarChart>
@@ -3086,21 +3087,20 @@ export default function Insights() {
       {analytics.stats && (
         <AnimatedSection delay={0.05}>
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
-            <StatsCard
-              label="Total Spend Captured"
-              value={analytics.stats.totalSpent || 0}
-              helper={`Across ${analytics.stats.totalReceipts || 0} receipts`}
-              glass
+            <TimeframeCard
+              label="This Month"
+              current={analytics.timeframeInsights.month.current}
+              previous={analytics.timeframeInsights.month.previous}
             />
-            <StatsCard
-              label="Average Per Receipt"
-              value={analytics.stats.avgPerReceipt || 0}
-              helper="Smarter batching keeps individual trips lower"
+            <TimeframeCard
+              label="This Week"
+              current={analytics.timeframeInsights.week.current}
+              previous={analytics.timeframeInsights.week.previous}
             />
-            <StatsCard
-              label="Top Category"
-              value={analytics.stats.topCategory || '—'}
-              helper="Based on captured line items"
+            <TimeframeCard
+              label="Today"
+              current={analytics.timeframeInsights.day.current}
+              previous={analytics.timeframeInsights.day.previous}
             />
             <StatsCard
               label="Month-over-Month"
@@ -3125,20 +3125,21 @@ export default function Insights() {
       {analytics.timeframeInsights && (
         <AnimatedSection delay={0.07}>
           <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 md:gap-6">
-            <TimeframeCard
-              label="This Month"
-              current={analytics.timeframeInsights.month.current}
-              previous={analytics.timeframeInsights.month.previous}
+            <StatsCard
+              label="Total Spend Captured"
+              value={analytics.stats?.totalSpent || 0}
+              helper={`Across ${analytics.stats?.totalReceipts || 0} receipts`}
+              glass
             />
-            <TimeframeCard
-              label="This Week"
-              current={analytics.timeframeInsights.week.current}
-              previous={analytics.timeframeInsights.week.previous}
+            <StatsCard
+              label="Average Per Receipt"
+              value={analytics.stats?.avgPerReceipt || 0}
+              helper="Smarter batching keeps individual trips lower"
             />
-            <TimeframeCard
-              label="Today"
-              current={analytics.timeframeInsights.day.current}
-              previous={analytics.timeframeInsights.day.previous}
+            <StatsCard
+              label="Top Category"
+              value={analytics.stats?.topCategory || '—'}
+              helper="Based on captured line items"
             />
             <TimeframeCard
               label="Year to Date"

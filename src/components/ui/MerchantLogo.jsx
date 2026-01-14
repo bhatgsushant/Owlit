@@ -11,7 +11,7 @@ const MerchantLogo = ({ merchantName }) => {
   useEffect(() => {
     const storeInfo = getStoreInfo(merchantName, userStoreOverrides);
     if (storeInfo && storeInfo.domain) {
-      setLogoUrl(`https://logo.clearbit.com/${storeInfo.domain}`);
+      setLogoUrl(`https://img.logo.dev/${storeInfo.domain}?token=pk_Sa5pkb0QQ3CfQPaZgFE7jA`);
     }
     setImgError(false);
   }, [merchantName, userStoreOverrides]);
@@ -23,14 +23,14 @@ const MerchantLogo = ({ merchantName }) => {
       </div>
     );
   }
-  
+
   return (
     <div className="w-10 h-10 rounded-full bg-white p-1 shadow-md border border-gray-200/50 overflow-hidden">
-      <img 
-        src={logoUrl} 
+      <img
+        src={logoUrl}
         alt={`${merchantName} logo`}
         className="w-full h-full object-contain"
-        onError={() => setImgError(true)} 
+        onError={() => setImgError(true)}
       />
     </div>
   );
