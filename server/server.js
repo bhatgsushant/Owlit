@@ -2948,7 +2948,7 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     // 2. Trend Graph (Weekly for last 12 weeks)
     const trendQuery = `
         SELECT
-            transaction_date::date as period_start,
+            TO_CHAR(transaction_date, 'YYYY-MM-DD') as period_start,
             SUM(total_price) as total
         FROM v_receipt_line_items_enriched
         WHERE user_id = $1
