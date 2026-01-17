@@ -2897,6 +2897,29 @@ app.get('/api/merchants/resolve', authenticateRequest, async (req, res) => {
     res.status(500).json({ error: "Database error" });
   }
 });
+
+app.get('/api/merchants/filtered-list', authenticateRequest, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const query = `
+      SELECT merchant_name,
+             COUNT(*) AS tt
+      FROM receipts
+      WHERE user_id = $1
+        AND transaction_date >= (date_trunc('day', now()) - interval '12 weeks')
+        AND transaction_date <  date_trunc('day', now()) + interval '1 day'
+      GROUP BY merchant_name
+      HAVING COUNT(*) >= 3
+      ORDER BY tt DESC;
+    `;
+    const { rows } = await pool.query(query, [userId]);
+    const merchants = rows.map(r => r.merchant_name);
+    res.json(merchants);
+  } catch (error) {
+    console.error('❌ Error fetching filtered merchant list:', error);
+    res.status(500).json({ error: 'Failed to fetch merchant list' });
+  }
+});
 // --- Merchant Insights Endpoint ---
 app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
   const { merchant_name } = req.query;
