@@ -3034,8 +3034,16 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
           AND transaction_date <  date_trunc('month', CURRENT_DATE) + INTERVAL '1 month'
     `;
 
+    // [New] 9. Merchant Domain (For Logo Dev)
+    const domainQuery = `
+      SELECT domain
+      FROM store_info
+      WHERE merchant_name ILIKE $1
+      LIMIT 1
+    `;
+
     // Execute Parallel Queries
-    const [statsRes, trendRes, topCatRes, topItemRes, healthRes, contribRes, visitRes, storeCatRes] = await Promise.all([
+    const [statsRes, trendRes, topCatRes, topItemRes, healthRes, contribRes, visitRes, storeCatRes, domainRes] = await Promise.all([
       pool.query(statsQuery, [userId, merchantName]),
       pool.query(trendQuery, [userId, merchantName]),
       pool.query(topCatQuery, [userId, merchantName]),
@@ -3043,7 +3051,8 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
       pool.query(healthQuery, [userId, merchantName]),
       pool.query(contribQuery, [userId, merchantName]),
       pool.query(visitQuery, [userId, merchantName]),
-      pool.query(storeCatQuery, [userId, merchantName])
+      pool.query(storeCatQuery, [userId, merchantName]),
+      pool.query(domainQuery, [merchantName])
     ]);
 
     // Extract Results
@@ -3083,9 +3092,13 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     const contributionPercentage = parseFloat(contribRes.rows[0]?.contribution_percentage || 0);
     const visitCount = parseInt(visitRes.rows[0]?.visit_count || 0);
 
+    // Domain
+    const domain = domainRes.rows[0]?.domain || null;
+
     // Construct the Response
     res.json({
       merchant: merchantName,
+      domain: domain,
       category: storeCategory,
       period_stats: {
         current_month: {
