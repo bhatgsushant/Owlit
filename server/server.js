@@ -2874,13 +2874,13 @@ app.get('/api/merchants/resolve', authenticateRequest, async (req, res) => {
   try {
     // Search for the most frequent merchant matching the input name for this user
     const query = `
-      SELECT merchant_name, COUNT(*) as count
-      FROM v_receipt_line_items_enriched
-      WHERE user_id = $1 AND merchant_name ILIKE $2
-      GROUP BY merchant_name
-      ORDER BY count DESC
-      LIMIT 1;
-    `;
+    SELECT merchant_name, COUNT(*) as count
+    FROM v_receipt_line_items_enriched
+    WHERE user_id = $1 AND merchant_name ILIKE '%' || $2 || '%'
+    GROUP BY merchant_name
+    ORDER BY count DESC
+    LIMIT 1;
+  `;
     const result = await pool.query(query, [userId, name]);
 
     if (result.rows.length > 0) {
@@ -3058,7 +3058,10 @@ app.get('/api/insights/merchant', authenticateRequest, async (req, res) => {
     const yearChange = prevYear > 0 ? ((thisYear - prevYear) / prevYear) * 100 : (thisYear > 0 ? 100 : 0);
 
     // Trend
-    const trendGraph = trendRes.rows.map(r => parseFloat(r.total));
+    const trendGraph = trendRes.rows.map(r => ({
+      date: r.period_start,
+      value: parseFloat(r.total)
+    }));
 
     // Top Category
     const topCategory = topCatRes.rows[0]?.main_category || 'General';
