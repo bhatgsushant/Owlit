@@ -2875,7 +2875,7 @@ app.get('/api/merchants/resolve', authenticateRequest, async (req, res) => {
       .select('merchant_name')
       .eq('user_id', userId)
       .ilike('merchant_name', `%${name}%`)
-      .limit(20);
+      .limit(100); // Higher limit for better matching
 
     if (error) throw error;
 
@@ -2894,6 +2894,31 @@ app.get('/api/merchants/resolve', authenticateRequest, async (req, res) => {
   } catch (err) {
     console.error("Error resolving merchant:", err);
     res.status(500).json({ error: "Database error" });
+  }
+});
+
+// GET /api/merchants/filtered-list (Populates dropdown)
+app.get('/api/merchants/filtered-list', authenticateRequest, async (req, res) => {
+  const userId = req.user.id;
+  try {
+    const { data, error } = await supabase
+      .from('v_receipt_line_items_enriched')
+      .select('merchant_name')
+      .eq('user_id', userId);
+
+    if (error) throw error;
+
+    // Unique names sorted by frequency (DESC)
+    const counts = (data || []).reduce((acc, row) => {
+      acc[row.merchant_name] = (acc[row.merchant_name] || 0) + 1;
+      return acc;
+    }, {});
+
+    const sortedMerchants = Object.keys(counts).sort((a, b) => counts[b] - counts[a]);
+    res.json(sortedMerchants);
+  } catch (err) {
+    console.error('Error fetching merchant list:', err);
+    res.status(500).json({ error: 'Failed' });
   }
 });
 // --- Merchant Insights Endpoint ---
@@ -3605,7 +3630,7 @@ app.get('/api/analytics/line-items', authenticateRequest, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('v_receipt_line_items_enriched')
-      .select('transaction_date, merchant_name, item, normalized_name, unit_price, quantity, total_price, main_category, sub_category, store_type')
+      .select('transaction_date, merchant_name, item, normalized_name, unit_price, quantity, total_price, main_category, sub_category, store_type, receipt_id, store_main_category')
       .eq('user_id', userId)
       .order('transaction_date', { ascending: false });
 
