@@ -2576,7 +2576,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/store-info', optionalAuthenticate, async (req, res) => {
   const { data, error } = await supabase
     .from('store_info')
-    .select('id, merchant_name, store_type')
+    .select('id, merchant_name, store_type, domain')
     .order('merchant_name', { ascending: true });
 
   if (error) {
