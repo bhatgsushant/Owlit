@@ -2627,16 +2627,18 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
 
     const normalizedTransactionDate = new Date(transaction_date).toISOString().split('T')[0];
     const familyId = await getUserFamilyId(req.user.id);
-    const requestedReceiptId = req.body?.existingReceiptId;
+    const requestedReceiptId = req.body?.existingReceiptId || receiptData.existing_receipt_id;
+    const duplicateAction = req.query?.duplicateAction || req.body?.duplicateAction;
 
     // If an existing receipt ID is provided, handle it as an update.
-    if (requestedReceiptId) {
+    if (requestedReceiptId || (duplicateAction === 'replace' && req.body?.existingReceiptId)) {
+      const targetId = requestedReceiptId || req.body?.existingReceiptId;
       let receipt_url = null;
       const { data: existingReceipt, error: fetchError } = await supabase
         .from('receipts')
         .select('id, receipt_url')
         .eq('user_id', req.user.id)
-        .eq('id', requestedReceiptId)
+        .eq('id', targetId)
         .single();
 
       if (fetchError || !existingReceipt) {
@@ -2674,6 +2676,21 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
       const { merchant_id: canonicalMerchantId, alias: merchantAlias } = await resolveMerchant(merchant_name || '', supabase);
       const finalReceiptUrl = receipt_url || existingReceipt.receipt_url;
 
+      // RE-CALCULATE HASHES FOR UPDATED RECEIPT
+      const updatedDedupeHash = buildReceiptHash(req.user.id, {
+        merchant_name,
+        transaction_date: normalizedTransactionDate,
+        total_amount: normalizedTotalAmount,
+        line_items,
+      });
+
+      const updatedLooseHash = buildLooseReceiptHash(req.user.id, {
+        merchant_name,
+        transaction_date: normalizedTransactionDate,
+        total_amount: normalizedTotalAmount,
+        line_items,
+      });
+
       const { data: updatedData, error: updateError } = await supabase
         .from('receipts')
         .update({
@@ -2684,9 +2701,11 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
           total_amount: normalizedTotalAmount,
           line_items,
           receipt_url: finalReceiptUrl,
+          receipt_hash: updatedDedupeHash,
+          receipt_fingerprint_loose: updatedLooseHash,
           family_id: familyId,
         })
-        .eq('id', requestedReceiptId)
+        .eq('id', targetId)
         .select()
         .single();
 
