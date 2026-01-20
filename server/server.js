@@ -2775,7 +2775,6 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
       line_items,
     });
 
-    let isPotentialDuplicate = false;
     const { data: looseMatches } = await supabase
       .from('receipts')
       .select('id')
@@ -2785,7 +2784,11 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
 
     if (looseMatches && looseMatches.length > 0) {
       console.log(`⚠️ Potential duplicate detected (loose match) for user ${req.user.id}`);
-      isPotentialDuplicate = true;
+      return res.status(409).json({
+        error: 'This receipt already exists.',
+        code: 'DUPLICATE_RECEIPT',
+        existingReceiptId: looseMatches[0].id,
+      });
     }
     // ------------------------------------------------
 
@@ -2833,7 +2836,6 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
         receipt_url,
         receipt_hash: dedupeHash,
         receipt_fingerprint_loose: looseHash,
-        is_potential_duplicate: isPotentialDuplicate,
         family_id: familyId,
       })
       .select()
