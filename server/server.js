@@ -2603,6 +2603,31 @@ app.get('/api/receipts', authenticateRequest, async (req, res) => {
   }
 });
 
+app.get('/api/receipts/:id', authenticateRequest, async (req, res) => {
+  try {
+    const receiptId = req.params.id;
+
+    const { data, error } = await supabase
+      .from('receipts')
+      .select('*')
+      .eq('id', receiptId)
+      .eq('user_id', req.user.id)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+
+    res.json(data);
+  } catch (error) {
+    console.error('Error fetching receipt:', error);
+    res.status(500).json({ error: 'Failed to fetch receipt' });
+  }
+});
+
+
 app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), async (req, res) => {
   try {
     const payload = req.body?.receiptData;
