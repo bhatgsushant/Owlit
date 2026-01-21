@@ -3684,7 +3684,7 @@ app.get('/api/analytics/line-items', authenticateRequest, async (req, res) => {
     res.json(data);
   } catch (error) {
     console.error('Error fetching analytics line items:', error);
-    res.status(500).json({ error: 'Failed to fetch analytics data.' });
+    res.status(500).json({ error: error.message });
   }
 });
 
