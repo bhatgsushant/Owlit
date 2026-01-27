@@ -1997,6 +1997,7 @@ app.post('/api/scan', optionalAuthenticate, upload.single('file'), async (req, r
         if (existingReceipt) {
           console.log(`⚠️ Duplicate found: ${existingReceipt.id}`);
           transformedData.id = existingReceipt.id; // iOS app looks for this 'id'
+          transformedData.existing_receipt_id = existingReceipt.id;
         }
       }
 
