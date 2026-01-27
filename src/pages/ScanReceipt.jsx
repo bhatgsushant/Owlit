@@ -1139,6 +1139,14 @@ export default function ScanReceipt() {
       if (dataToEdit) {
         try {
           const parsed = JSON.parse(dataToEdit);
+          // Normalize line items: map total_price to price if price is missing
+          if (Array.isArray(parsed.line_items)) {
+            parsed.line_items = parsed.line_items.map((item) => ({
+              ...item,
+              price: item.price !== undefined && item.price !== null ? item.price : item.total_price,
+              quantity: item.quantity !== undefined && item.quantity !== null ? item.quantity : 1,
+            }));
+          }
           setExtractedData(parsed);
           setMode('upload');
         } catch (err) {

@@ -99,14 +99,6 @@ export default function App() {
           }
         />
         <Route
-          path="/account"
-          element={
-            <ProtectedRoute>
-              <Layout currentPageName="Account"><Account /></Layout>
-            </ProtectedRoute>
-          }
-        />
-        <Route
           path="/document-preview"
           element={
             <ProtectedRoute>
