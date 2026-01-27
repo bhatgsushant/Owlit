@@ -1281,8 +1281,23 @@ Matching items: ${JSON.stringify(items || [])}`;
 
 module.exports.generateFinalAnswer = generateFinalAnswer;
 
-async function getNormalizedItemName(itemName) {
+async function getNormalizedItemName(itemName, userId = null) {
   try {
+    // 0. Check User Specific Rename
+    if (userId) {
+      const { data: userRename } = await supabase
+        .from('user_item_renames')
+        .select('normalized_name')
+        .ilike('item_name', itemName)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (userRename) {
+        console.log(`✅ Found user preference for "${itemName}": "${userRename.normalized_name}"`);
+        return userRename.normalized_name;
+      }
+    }
+
     // 1. Check if the item is already normalized in the database
     const { data: existingItem, error: fetchError } = await supabase
       .from('Item_Table')
@@ -1763,7 +1778,7 @@ async function categorizeLineItems(lineItems, userId) {
     if (masterListEntry) { // Found in master list
       const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
       const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
-      const normalized_name = await getNormalizedItemName(rawItemName);
+      const normalized_name = await getNormalizedItemName(rawItemName, userId);
 
       const categoryItem = {
         item: rawItemName,
@@ -1804,7 +1819,7 @@ async function categorizeLineItems(lineItems, userId) {
       const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(categoryInfo.main_category);
       const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(categoryInfo.sub_category);
       const canonicalName = rawItemName; // Use the first seen name as canonical
-      const normalized_name = await getNormalizedItemName(rawItemName);
+      const normalized_name = await getNormalizedItemName(rawItemName, userId);
 
       const categoryItem = {
         item: rawItemName,
@@ -3505,6 +3520,35 @@ app.post('/api/update-user-category', authenticateRequest, async (req, res) => {
 
   } catch (error) {
     return handleApiError(res, error, 'Failed to update user category');
+  }
+});
+
+app.post('/api/user-item-name-preference', authenticateRequest, async (req, res) => {
+  try {
+    const { item_name, normalized_name } = req.body || {};
+    validateFields({ item_name, normalized_name }, {
+      item_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'item_name is required.' },
+      normalized_name: { type: 'string', required: true, trim: true, maxLength: 255, message: 'normalized_name is required.' }
+    });
+
+    const normalizedKey = item_name.trim().toLowerCase();
+
+    const { error } = await supabase
+      .from('user_item_renames')
+      .upsert(
+        { user_id: req.user.id, item_name: normalizedKey, normalized_name: normalized_name },
+        { onConflict: 'user_id,item_name' }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    console.log(`✨ Saved user-specific item rename: ${item_name} → ${normalized_name}`);
+    res.json({ success: true });
+
+  } catch (error) {
+    return handleApiError(res, error, 'Failed to save user item name preference');
   }
 });
 
