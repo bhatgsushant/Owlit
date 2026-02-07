@@ -1283,22 +1283,22 @@ module.exports.generateFinalAnswer = generateFinalAnswer;
 
 async function getNormalizedItemName(itemName, userId = null) {
   try {
-    // 0. Check User Specific Rename
+    // 1. Check User-Specific Override
     if (userId) {
-      const { data: userRename } = await supabase
-        .from('user_item_renames')
+      const { data: userOverride, error: userError } = await supabase
+        .from('Item_Table_User_Override')
         .select('normalized_name')
-        .ilike('item_name', itemName)
         .eq('user_id', userId)
+        .ilike('item_name', itemName)
         .maybeSingle();
 
-      if (userRename) {
-        console.log(`✅ Found user preference for "${itemName}": "${userRename.normalized_name}"`);
-        return userRename.normalized_name;
+      if (userOverride) {
+        console.log(`👤 Found USER-SPECIFIC normalized name for "${itemName}": "${userOverride.normalized_name}"`);
+        return userOverride.normalized_name;
       }
     }
 
-    // 1. Check if the item is already normalized in the database
+    // 2. Check Global Table
     const { data: existingItem, error: fetchError } = await supabase
       .from('Item_Table')
       .select('normalized_name')
@@ -1310,7 +1310,7 @@ async function getNormalizedItemName(itemName, userId = null) {
     }
 
     if (existingItem) {
-      console.log(`✅ Found cached normalized name for "${itemName}": "${existingItem.normalized_name}"`);
+      console.log(`✅ Found GLOBAL normalized name for "${itemName}": "${existingItem.normalized_name}"`);
       return existingItem.normalized_name;
     }
 
@@ -1333,19 +1333,51 @@ Normalized Name:`;
     const normalizedName = response.choices[0]?.message?.content?.trim();
     if (!normalizedName) return itemName;
 
-    // 3. Save the normalized name to the database for future use
-    const { error: insertError } = await supabase
-      .from('Item_Table')
-      .insert([{ item_name: itemName, normalized_name: normalizedName }]);
-
-    if (insertError) {
-      console.error('Error saving normalized item name:', insertError);
-    }
+    // NOTE: We no longer automatically save to Item_Table here.
+    // Saving happens during the confirmation/save step via syncItemNormalization.
+    console.log(`🤖 AI derived normalized name for "${itemName}": "${normalizedName}" (Not yet saved to DB)`);
 
     return normalizedName;
   } catch (error) {
     console.error('Error getting normalized item name:', error);
     return itemName;
+  }
+}
+
+async function syncItemNormalization(lineItems, userId) {
+  if (!lineItems || !Array.isArray(lineItems) || !userId) return;
+
+  for (const item of lineItems) {
+    const itemName = item.item || item.item_name || item.Name || '';
+    const normalizedName = item.normalized_name || item.normalizedName || '';
+    const isEdited = item.is_edited === true || item.isEdited === true;
+
+    if (!itemName || !normalizedName) continue;
+
+    try {
+      if (isEdited) {
+        await supabase
+          .from('Item_Table_User_Override')
+          .upsert({
+            user_id: userId,
+            item_name: itemName,
+            normalized_name: normalizedName
+          }, { onConflict: 'user_id,item_name' });
+
+        console.log(`👤 USER OVERRIDE: "${itemName}" -> "${normalizedName}"`);
+      } else {
+        await supabase
+          .from('Item_Table')
+          .upsert({
+            item_name: itemName,
+            normalized_name: normalizedName
+          }, { onConflict: 'item_name' });
+
+        console.log(`🌍 GLOBAL LEARNED: "${itemName}" -> "${normalizedName}"`);
+      }
+    } catch (err) {
+      console.error(`❌ Sync Item Normalization failed for ${itemName}:`, err.message);
+    }
   }
 }
 
@@ -2760,6 +2792,9 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
         throw updateError;
       }
 
+      // Step 2 & 3: Sync Item Normalizations
+      setImmediate(() => syncItemNormalization(line_items, req.user.id));
+
       return res.status(200).json(updatedData);
     }
 
@@ -2869,6 +2904,10 @@ app.post('/api/receipts', authenticateRequest, upload.single('receiptImage'), as
       }
       throw error;
     }
+
+    // Step 2 & 3: Sync Item Normalizations
+    setImmediate(() => syncItemNormalization(line_items, req.user.id));
+
     res.status(201).json(data);
   } catch (error) {
     return handleApiError(res, error, 'Failed to save receipt');
