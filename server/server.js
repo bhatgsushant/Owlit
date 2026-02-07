@@ -1345,18 +1345,29 @@ Normalized Name:`;
 }
 
 async function syncItemNormalization(lineItems, userId) {
-  if (!lineItems || !Array.isArray(lineItems) || !userId) return;
+  if (!lineItems || !Array.isArray(lineItems) || !userId) {
+    console.log('⚠️ Sync Item Normalization skipped: Missing lineItems or userId');
+    return;
+  }
+
+  console.log(`🔄 Syncing Normalization for ${lineItems.length} items (User: ${userId})`);
 
   for (const item of lineItems) {
     const itemName = item.item || item.item_name || item.Name || '';
     const normalizedName = item.normalized_name || item.normalizedName || '';
     const isEdited = item.is_edited === true || item.isEdited === true;
 
-    if (!itemName || !normalizedName) continue;
+    console.log(`DEBUG: Processing item "${itemName}" | Normalized: "${normalizedName}" | isEdited: ${isEdited}`);
+
+    if (!itemName || !normalizedName) {
+      console.log(`⏩ Skipping item "${itemName}" due to missing name/normalized name`);
+      continue;
+    }
 
     try {
       if (isEdited) {
-        await supabase
+        console.log(`Attempting USER OVERRIDE upsert for "${itemName}" -> "${normalizedName}"`);
+        const { error: upsertError } = await supabase
           .from('Item_Table_User_Override')
           .upsert({
             user_id: userId,
@@ -1364,19 +1375,28 @@ async function syncItemNormalization(lineItems, userId) {
             normalized_name: normalizedName
           }, { onConflict: 'user_id,item_name' });
 
-        console.log(`👤 USER OVERRIDE: "${itemName}" -> "${normalizedName}"`);
+        if (upsertError) {
+          console.error(`❌ USER OVERRIDE Sync failed for ${itemName}:`, upsertError.message);
+        } else {
+          console.log(`👤 USER OVERRIDE SAVED: "${itemName}" -> "${normalizedName}"`);
+        }
       } else {
-        await supabase
+        console.log(`Attempting GLOBAL LEARNED upsert for "${itemName}" -> "${normalizedName}"`);
+        const { error: upsertError } = await supabase
           .from('Item_Table')
           .upsert({
             item_name: itemName,
             normalized_name: normalizedName
           }, { onConflict: 'item_name' });
 
-        console.log(`🌍 GLOBAL LEARNED: "${itemName}" -> "${normalizedName}"`);
+        if (upsertError) {
+          console.error(`❌ GLOBAL LEARNED Sync failed for ${itemName}:`, upsertError.message);
+        } else {
+          console.log(`🌍 GLOBAL LEARNED SAVED: "${itemName}" -> "${normalizedName}"`);
+        }
       }
     } catch (err) {
-      console.error(`❌ Sync Item Normalization failed for ${itemName}:`, err.message);
+      console.error(`❌ Sync Item Normalization hard failure for ${itemName}:`, err.message);
     }
   }
 }
