@@ -1831,6 +1831,7 @@ async function categorizeLineItems(lineItems, userId) {
       price: parseFloat(item.price || item.Price) || 0,
       quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
       normalized_name: normalized_name,
+      is_edited: false,
     };
 
     // Update Master List variation tracking if applicable
