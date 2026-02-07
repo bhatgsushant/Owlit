@@ -1755,78 +1755,86 @@ function findInCategoryKeywords(itemName) {
 async function categorizeLineItems(lineItems, userId) {
   let isMasterListUpdated = false;
 
-  // Process all items in parallel
   const itemPromises = lineItems.map(async (item) => {
-    const rawItemName = item.name || item.Name || '';
+    const rawItemName = (item.name || item.Name || '').trim();
     if (!rawItemName) return null;
 
-    const normalizedItemName = rawItemName.trim();
-    const canonicalItemName = normalizedItemName.toLowerCase();
+    // 1. Get the Normalized Name FIRST using the hierarchy (User -> Global -> AI)
+    const normalized_name = await getNormalizedItemName(rawItemName, userId);
 
-    const aiCategoryIconKey = normalizeCategoryIconKey(item.category_icon_key || item.CategoryIconKey);
-    const aiSubcategoryIconKey = normalizeSubcategoryIconKey(
-      item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key
-    );
+    // 2. Determine Look-up Keys (Check normalized name first, then raw name)
+    const searchKeys = Array.from(new Set([
+      normalized_name,
+      normalized_name.toLowerCase(),
+      rawItemName,
+      rawItemName.toLowerCase()
+    ])).filter(Boolean);
 
-    // ✅ 1) Check user-specific category override *if* user is logged in
-    let userOverride = null;
+    // 3. Find Category Metadata (User Override -> Master List -> AI)
+    let categoryInfo = null;
+    let masterListEntry = null;
 
+    // A) Check User Category Overrides
     if (userId) {
-      const exactMatch = await supabase
-        .from('user_categories')
-        .select('main_category, sub_category')
-        .eq('user_id', userId)
-        .eq('item_name', normalizedItemName)
-        .maybeSingle();
-
-      if (exactMatch.data) {
-        userOverride = exactMatch.data;
-      } else {
-        const normalizedMatch = await supabase
+      for (const key of searchKeys) {
+        const { data } = await supabase
           .from('user_categories')
           .select('main_category, sub_category')
           .eq('user_id', userId)
-          .eq('item_name', canonicalItemName)
+          .eq('item_name', key)
           .maybeSingle();
 
-        userOverride = normalizedMatch.data;
+        if (data) {
+          categoryInfo = data;
+          console.log(`🎨 Used USER-SPECIFIC category for "${rawItemName}" (via key: "${key}")`);
+          break;
+        }
       }
     }
 
-    let masterListEntry;
-
-    if (userOverride) {
-      masterListEntry = {
-        Item_Name: rawItemName,
-        main_category: userOverride.main_category,
-        sub_category: userOverride.sub_category
-      };
-      console.log(`🎨 Used USER-SPECIFIC category for "${rawItemName}"`);
-    } else {
-      // ✅ Fallback to global master list
-      masterListEntry = findInMasterList(rawItemName);
+    // B) Check Global Master List
+    if (!categoryInfo) {
+      for (const key of searchKeys) {
+        masterListEntry = findInMasterList(key);
+        if (masterListEntry) {
+          categoryInfo = {
+            main_category: masterListEntry.main_category,
+            sub_category: masterListEntry.sub_category
+          };
+          console.log(`🧠 Found "${rawItemName}" in master list (via key: "${key}") as "${masterListEntry.Item_Name}".`);
+          break;
+        }
+      }
     }
 
-    if (masterListEntry) { // Found in master list
-      const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(masterListEntry.main_category);
-      const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(masterListEntry.sub_category);
-      const normalized_name = await getNormalizedItemName(rawItemName, userId);
-
-      const categoryItem = {
-        item: rawItemName,
-        Item_Name: masterListEntry.Item_Name,
-        main_category: masterListEntry.main_category,
-        sub_category: masterListEntry.sub_category,
-        category_icon_key: categoryIconKey || null,
-        subcategory_icon_key: subcategoryIconKey || null,
-        price: parseFloat(item.price || item.Price) || 0,
-        quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
-        normalized_name: normalized_name,
+    // C) Fallback to Keywords then AI
+    if (!categoryInfo) {
+      categoryInfo = findInCategoryKeywords(rawItemName) || {
+        main_category: item.category || item.Category || 'other',
+        sub_category: item.sub_category || item.SubCategory || 'miscellaneous'
       };
+    }
 
-      console.log(`🧠 Found "${rawItemName}" in master list as "${masterListEntry.Item_Name}".`);
+    // 4. Finalize Item Details
+    const categoryIconKey = normalizeCategoryIconKey(item.category_icon_key || item.CategoryIconKey || categoryInfo.main_category);
+    const subcategoryIconKey = normalizeSubcategoryIconKey(
+      item.subcategory_icon_key || item.SubCategoryIconKey || item.sub_category_icon_key || categoryInfo.sub_category
+    );
 
-      // Also check if this specific OCR variation is new and add it
+    const categoryItem = {
+      item: rawItemName,
+      Item_Name: masterListEntry?.Item_Name || normalized_name || rawItemName,
+      main_category: categoryInfo.main_category,
+      sub_category: categoryInfo.sub_category,
+      category_icon_key: categoryIconKey || null,
+      subcategory_icon_key: subcategoryIconKey || null,
+      price: parseFloat(item.price || item.Price) || 0,
+      quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
+      normalized_name: normalized_name,
+    };
+
+    // Update Master List variation tracking if applicable
+    if (masterListEntry) {
       const canonicalEntry = masterItems[masterListEntry.Item_Name];
       const lowercasedRaw = rawItemName.toLowerCase().trim();
       if (canonicalEntry && !canonicalEntry.receipt_ItemNames.some(n => n.toLowerCase().trim() === lowercasedRaw)) {
@@ -1834,48 +1842,18 @@ async function categorizeLineItems(lineItems, userId) {
         isMasterListUpdated = true;
         console.log(`🔄 Updated "${masterListEntry.Item_Name}" with new OCR variation: "${rawItemName}"`);
       }
-
-      return categoryItem;
-
-    } else { // Not found in master list, needs to be added
-      let categoryInfo = findInCategoryKeywords(rawItemName);
-      const source = categoryInfo ? 'keywords' : 'openai';
-
-      if (!categoryInfo) {
-        categoryInfo = {
-          main_category: item.category || item.Category || 'other',
-          sub_category: item.sub_category || item.SubCategory || 'miscellaneous'
-        };
-      }
-
-      const categoryIconKey = aiCategoryIconKey || normalizeCategoryIconKey(categoryInfo.main_category);
-      const subcategoryIconKey = aiSubcategoryIconKey || inferSubcategoryIconKey(categoryInfo.sub_category);
-      const canonicalName = rawItemName; // Use the first seen name as canonical
-      const normalized_name = await getNormalizedItemName(rawItemName, userId);
-
-      const categoryItem = {
-        item: rawItemName,
-        Item_Name: canonicalName,
-        main_category: categoryInfo.main_category,
-        sub_category: categoryInfo.sub_category,
-        category_icon_key: categoryIconKey || null,
-        subcategory_icon_key: subcategoryIconKey || null,
-        price: parseFloat(item.price || item.Price) || 0,
-        quantity: parseInt(item.quantity || item.Quantity, 10) || 1,
-        normalized_name: normalized_name,
-      };
-
-      // Add the new item to the master list
+    } else {
+      // If it's a new item (neither explicitly overridden nor in master list), 
+      // we save it to the master list using the derive name/categories
       await saveMasterItem(
-        canonicalName,
+        normalized_name || rawItemName,
         categoryInfo.main_category,
         categoryInfo.sub_category
       );
-
-      console.log(`✨ Added "${canonicalName}" to master list from ${source}.`);
-
-      return categoryItem;
+      console.log(`✨ Added "${normalized_name || rawItemName}" to master list.`);
     }
+
+    return categoryItem;
   });
 
   const results = await Promise.all(itemPromises);
@@ -3622,17 +3600,41 @@ app.get('/api/category-options', authenticateRequest, async (req, res) => {
       .from('master_items')
       .select('main_category, sub_category');
 
-    const [{ data: userData, error: userError }, { data: masterData, error: masterError }] = await Promise.all([
+    const globalNormalizedPromise = supabase
+      .from('Item_Table')
+      .select('normalized_name');
+
+    const userNormalizedPromise = supabase
+      .from('Item_Table_User_Override')
+      .select('normalized_name')
+      .eq('user_id', userId);
+
+    const [
+      { data: userData, error: userError },
+      { data: masterData, error: masterError },
+      { data: globalNormData },
+      { data: userNormData }
+    ] = await Promise.all([
       userPromise,
       masterPromise,
+      globalNormalizedPromise,
+      userNormalizedPromise
     ]);
 
     if (userError) throw userError;
     if (masterError) throw masterError;
 
+    // Combine and unique-ify normalized names
+    const allNormalized = [
+      ...(globalNormData || []),
+      ...(userNormData || [])
+    ].map(n => n.normalized_name);
+    const uniqueNormalized = Array.from(new Set(allNormalized)).filter(Boolean).sort();
+
     res.json({
       userCategories: Array.isArray(userData) ? userData : [],
       masterCategories: Array.isArray(masterData) ? masterData : [],
+      normalizedNames: uniqueNormalized
     });
   } catch (error) {
     return handleApiError(res, error, 'Failed to load category options');
