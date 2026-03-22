@@ -2300,24 +2300,24 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
 });
 
 // --- Voice to Text (Whisper) ---
-const fs = require('fs');
+const fsSync = require('fs');
 app.post('/api/voice-transcribe', authenticateRequest, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No audio provided' });
     
     // Write buffer securely to temp file (OpenAI needs a file stream with valid extension)
     const tempPath = require('path').join(require('os').tmpdir(), `voice_${Date.now()}.m4a`);
-    fs.writeFileSync(tempPath, req.file.buffer);
+    fsSync.writeFileSync(tempPath, req.file.buffer);
 
     console.log('🎙️ Transcribing audio via whisper-1...');
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(tempPath),
+      file: fsSync.createReadStream(tempPath),
       model: "whisper-1",
       language: "en" 
     });
 
     // Cleanup precisely
-    fs.unlinkSync(tempPath);
+    fsSync.unlinkSync(tempPath);
     console.log('✅ Transcription complete: ', transcription.text);
 
     return res.json({ text: transcription.text });
