@@ -1286,7 +1286,7 @@ async function getNormalizedItemName(itemName, userId = null) {
     // 1. Check User-Specific Override
     if (userId) {
       const { data: userOverride, error: userError } = await supabase
-        .from('Item_Table_User_Override')
+        .from('item_table_user_override')
         .select('normalized_name')
         .eq('user_id', userId)
         .ilike('item_name', itemName)
@@ -1350,53 +1350,64 @@ async function syncItemNormalization(lineItems, userId) {
     return;
   }
 
-  console.log(`🔄 Syncing Normalization for ${lineItems.length} items (User: ${userId})`);
+  console.log(`🔄 [SYNC] Starting Normalization Sync for ${lineItems.length} items (User: ${userId})`);
 
   for (const item of lineItems) {
-    const itemName = item.item || item.item_name || item.Name || '';
+    // Advanced Property Mapping
+    const itemName = item.item || item.item_name || item.Item_Name || item.Name || '';
     const normalizedName = item.normalized_name || item.normalizedName || '';
-    const isEdited = item.is_edited === true || item.isEdited === true;
 
-    console.log(`DEBUG: Processing item "${itemName}" | Normalized: "${normalizedName}" | isEdited: ${isEdited}`);
+    // Resilient Boolean Check (handles true, "true", "TRUE")
+    const rawIsEdited = item.is_edited ?? item.isEdited;
+    const isEdited = rawIsEdited === true ||
+      (typeof rawIsEdited === 'string' && rawIsEdited.toLowerCase() === 'true');
 
-    if (!itemName || !normalizedName) {
-      console.log(`⏩ Skipping item "${itemName}" due to missing name/normalized name`);
+    console.log(`🔍 [SYNC] Item: "${itemName}" | Normalized: "${normalizedName}" | isEdited: ${isEdited} | Raw Object:`, JSON.stringify(item));
+
+    if (!itemName) {
+      console.log('⏩ [SYNC] Skipping item: missing itemName');
+      continue;
+    }
+
+    // Capture normalized name even if not explicitly edited, to learn from it
+    if (!normalizedName) {
+      console.log(`⏩ [SYNC] Skipping item "${itemName}": missing normalizedName`);
       continue;
     }
 
     try {
       if (isEdited) {
-        console.log(`Attempting USER OVERRIDE upsert for "${itemName}" -> "${normalizedName}"`);
+        console.log(`👤 [SYNC] Attempting USER OVERRIDE for "${itemName}" -> "${normalizedName}"`);
         const { error: upsertError } = await supabase
-          .from('Item_Table_User_Override')
+          .from('item_table_user_override')
           .upsert({
-            user_id: userId,
-            item_name: itemName,
-            normalized_name: normalizedName
+            user_id: String(userId),
+            item_name: String(itemName).trim(),
+            normalized_name: String(normalizedName).trim()
           }, { onConflict: 'user_id,item_name' });
 
         if (upsertError) {
-          console.error(`❌ USER OVERRIDE Sync failed for ${itemName}:`, upsertError.message);
+          console.error(`❌ [SYNC] USER OVERRIDE failed for "${itemName}":`, upsertError.message);
         } else {
-          console.log(`👤 USER OVERRIDE SAVED: "${itemName}" -> "${normalizedName}"`);
+          console.log(`✅ [SYNC] USER OVERRIDE SUCCESS: "${itemName}" -> "${normalizedName}"`);
         }
       } else {
-        console.log(`Attempting GLOBAL LEARNED upsert for "${itemName}" -> "${normalizedName}"`);
+        console.log(`🌍 [SYNC] Attempting GLOBAL LEARN for "${itemName}" -> "${normalizedName}"`);
         const { error: upsertError } = await supabase
           .from('Item_Table')
           .upsert({
-            item_name: itemName,
-            normalized_name: normalizedName
+            item_name: String(itemName).trim(),
+            normalized_name: String(normalizedName).trim()
           }, { onConflict: 'item_name' });
 
         if (upsertError) {
-          console.error(`❌ GLOBAL LEARNED Sync failed for ${itemName}:`, upsertError.message);
+          console.error(`❌ [SYNC] GLOBAL LEARN failed for "${itemName}":`, upsertError.message);
         } else {
-          console.log(`🌍 GLOBAL LEARNED SAVED: "${itemName}" -> "${normalizedName}"`);
+          console.log(`✅ [SYNC] GLOBAL LEARN SUCCESS: "${itemName}" -> "${normalizedName}"`);
         }
       }
     } catch (err) {
-      console.error(`❌ Sync Item Normalization hard failure for ${itemName}:`, err.message);
+      console.error(`❌ [SYNC] Hard failure for "${itemName}":`, err.message);
     }
   }
 }
@@ -3573,7 +3584,7 @@ app.post('/api/user-item-name-preference', authenticateRequest, async (req, res)
     const normalizedKey = item_name.trim().toLowerCase();
 
     const { error } = await supabase
-      .from('user_item_renames')
+      .from('item_table_user_override')
       .upsert(
         { user_id: req.user.id, item_name: normalizedKey, normalized_name: normalized_name },
         { onConflict: 'user_id,item_name' }
@@ -3626,7 +3637,7 @@ app.get('/api/category-options', authenticateRequest, async (req, res) => {
       .select('normalized_name');
 
     const userNormalizedPromise = supabase
-      .from('Item_Table_User_Override')
+      .from('item_table_user_override')
       .select('normalized_name')
       .eq('user_id', userId);
 
