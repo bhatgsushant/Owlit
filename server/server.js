@@ -2300,11 +2300,22 @@ app.post('/api/scan-multi', optionalAuthenticate, upload.array('files', 10), asy
 });
 
 // --- Voice to Text (Whisper) ---
-const fsSync = require('fs');
-app.post('/api/voice-transcribe', authenticateRequest, upload.single('audio'), async (req, res) => {
+const audioUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25MB max (Whisper limit)
+  fileFilter: (req, file, cb) => {
+    const audioTypes = ['audio/m4a', 'audio/mp4', 'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/aac', 'audio/mp4a-latm'];
+    if (audioTypes.includes(file.mimetype.toLowerCase())) {
+      return cb(null, true);
+    }
+    cb(new Error('Unsupported audio type: ' + file.mimetype));
+  },
+});
+app.post('/api/voice-transcribe', authenticateRequest, audioUpload.single('audio'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No audio provided' });
     
+    const fsSync = require('fs');
     // Write buffer securely to temp file (OpenAI needs a file stream with valid extension)
     const tempPath = require('path').join(require('os').tmpdir(), `voice_${Date.now()}.m4a`);
     fsSync.writeFileSync(tempPath, req.file.buffer);
@@ -2322,8 +2333,8 @@ app.post('/api/voice-transcribe', authenticateRequest, upload.single('audio'), a
 
     return res.json({ text: transcription.text });
   } catch (err) {
-    console.error('❌ Voice transcription failed:', err);
-    return res.status(500).json({ error: 'Failed to transcribe voice note' });
+    console.error('❌ Voice transcription failed:', err.message, err);
+    return res.status(500).json({ error: 'Whisper error: ' + (err.message || 'Unknown error') });
   }
 });
 
