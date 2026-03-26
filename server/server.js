@@ -27,6 +27,7 @@ console.log('🔌 Database Config:', maskUrl(process.env.DATABASE_URL));
 pool.on('error', (err) => console.error('❌ DB Pool Error:', err));
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
+const appleSignin = require('apple-signin-auth');
 const ITEM_SYNONYMS = {
   coffee: ["coffee", "latte", "flat white", "espresso", "americano", "mocha", "cappuccino", "macchiato"],
   tea: ["tea", "chai", "green tea", "matcha"],
@@ -2630,6 +2631,78 @@ app.get('/auth/google/callback',
   }
 );
 
+app.post('/api/auth/apple', express.json(), async (req, res) => {
+  try {
+    const { identityToken, firstName, lastName, email } = req.body;
+    if (!identityToken) {
+      return res.status(400).json({ error: 'Missing identityToken' });
+    }
+
+    // Verify the Apple identity token
+    const appleIdTokenClaims = await appleSignin.verifyIdToken(identityToken, {
+      audience: 'r.owlitiOS',
+      ignoreExpiration: false,
+    });
+
+    const appleUserId = appleIdTokenClaims.sub;
+    const finalEmail = email || appleIdTokenClaims.email;
+    const displayName = [firstName, lastName].filter(Boolean).join(' ') || 'User';
+
+    // Upsert into Supabase profiles
+    const { data: user, error } = await supabase
+      .from('profiles')
+      .upsert({
+        id: appleUserId,
+        email: finalEmail,
+        display_name: displayName,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Failed to upsert Apple user', error);
+      return res.status(500).json({ error: 'Database error' });
+    }
+
+    // Generate Owlit JWT
+    const owlitToken = jwt.sign(
+      { id: user.id, email: user.email, name: user.display_name },
+      process.env.JWT_SECRET || 'secret',
+      { expiresIn: '7d' }
+    );
+
+    res.json({ token: owlitToken });
+  } catch (error) {
+    console.error('Apple Sign-In Error:', error);
+    res.status(401).json({ error: 'Invalid Apple Token' });
+  }
+});
+
+app.delete('/api/user', authenticateRequest, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    if (!userId) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+    
+    // Delete from profiles
+    const { error } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', userId);
+
+    if (error) {
+      console.error('Failed to delete user profile', error);
+      return res.status(500).json({ error: 'Failed to delete user' });
+    }
+
+    res.json({ success: true, message: 'User deleted successfully' });
+  } catch (err) {
+    console.error('User Deletion Error:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
 
 app.get('/api/user', authenticateRequest, async (req, res) => {
   try {
